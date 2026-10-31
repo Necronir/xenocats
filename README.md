@@ -118,24 +118,24 @@ res://
 
 ## 🛠️ CI/CD & GitHub Releases
 
-Проект оснащен настроенным пайплайном GitHub Actions:
+The project includes an automated GitHub Actions CI/CD pipeline:
 
-### 1. Непрерывная интеграция (CI) — `.github/workflows/ci.yml`
-* Автоматически срабатывает на `push` и `pull_request` в ветку `main`.
-* Кэширует бинарник Godot 4.7.2 Headless.
-* Прогоняет полный набор системных тестов (`res://tools/verify_scene.tscn`).
+### 1. Continuous Integration (CI) — `.github/workflows/ci.yml`
+* Triggered automatically on every `push` and `pull_request` targeting `main`.
+* Caches the headless Godot 4.7.2 binary for fast execution.
+* Imports assets and runs the automated test verification suite (`res://tools/verify_scene.tscn`).
 
-### 2. Сборка и публикация релиза (Release) — `.github/workflows/release.yml`
-* **Автоматический релиз по тегу:**
+### 2. Multi-Platform Build & Release — `.github/workflows/release.yml`
+* **Automated Release via Git Tag:**
   ```bash
   git tag v0.1.0
   git push origin v0.1.0
   ```
-* **Ручной запуск через GitHub Actions UI (`workflow_dispatch`):**
-  Позволяет собрать релиз в один клик с указанием тега, флага draft или pre-release.
-* **Целевые платформы экспорта:**
-  * **Windows Desktop (`x86_64`):** `Xenocats-Windows-x86_64.zip` (автономный `.exe` со встроенным `.pck`)
-  * **Linux (`x86_64`):** `Xenocats-Linux-x86_64.zip` (бинарник с правами на исполнение)
-  * **Web (`HTML5/Wasm`):** `Xenocats-Web.zip` + автоматический деплой на **GitHub Pages**
-* **Автоматические Release Notes:** GitHub генерирует changelog по коммитам и pull request'ам.
+* **Manual Trigger via GitHub Actions UI (`workflow_dispatch`):**
+  Enables one-click release builds directly from the GitHub Actions tab with customizable tag name, draft, or pre-release flags.
+* **Target Export Platforms:**
+  * **Windows Desktop (`x86_64`):** `Xenocats-Windows-x86_64.zip` (standalone executable with embedded `.pck`)
+  * **Linux (`x86_64`):** `Xenocats-Linux-x86_64.zip` (standalone executable with execute permissions)
+  * **Web (`HTML5/Wasm`):** `Xenocats-Web.zip` + automatic deployment to **GitHub Pages**
+* **Automated Release Notes:** GitHub automatically generates release changelogs from commits and pull requests.
 
