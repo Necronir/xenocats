@@ -16,6 +16,8 @@ var _inventory_box: VBoxContainer = null
 var _preview_body: Sprite2D = null
 var _preview_arms: Sprite2D = null
 var _preview_legs: Sprite2D = null
+var _preview_arms_joint: Marker2D = null
+var _preview_legs_joint: Marker2D = null
 
 func setup_garage(payload: Dictionary) -> void:
 	_payload = payload
@@ -141,17 +143,29 @@ func _build_ui() -> void:
 	rig_root.scale = Vector2(1.8, 1.8)
 	preview_ctrl.add_child(rig_root)
 
-	_preview_legs = Sprite2D.new()
-	_preview_legs.position = Vector2(0, 12)
-	rig_root.add_child(_preview_legs)
-
 	_preview_body = Sprite2D.new()
+	_preview_body.name = "BodySprite"
 	_preview_body.position = Vector2(0, -4)
 	rig_root.add_child(_preview_body)
 
+	_preview_legs_joint = Marker2D.new()
+	_preview_legs_joint.name = "LegsJoint"
+	_preview_legs_joint.position = Vector2(0, 16)
+	_preview_body.add_child(_preview_legs_joint)
+
+	_preview_legs = Sprite2D.new()
+	_preview_legs.name = "LegsSprite"
+	_preview_legs.show_behind_parent = true
+	_preview_legs_joint.add_child(_preview_legs)
+
+	_preview_arms_joint = Marker2D.new()
+	_preview_arms_joint.name = "ArmsJoint"
+	_preview_arms_joint.position = Vector2(2, 2)
+	_preview_body.add_child(_preview_arms_joint)
+
 	_preview_arms = Sprite2D.new()
-	_preview_arms.position = Vector2(2, -2)
-	rig_root.add_child(_preview_arms)
+	_preview_arms.name = "ArmsSprite"
+	_preview_arms_joint.add_child(_preview_arms)
 
 	_cat_details_box = VBoxContainer.new()
 	_cat_details_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -216,9 +230,14 @@ func _refresh_view() -> void:
 				else:
 					tab_btn.remove_theme_color_override("font_color")
 
-	# Обновляем превью спрайтов
-	if cat.body_part != null and cat.body_part.data != null and ResourceLoader.exists(cat.body_part.data.texture_path):
-		_preview_body.texture = load(cat.body_part.data.texture_path) as Texture2D
+	# Обновляем превью спрайтов и позиции сочленений Marker2D (Issue #11)
+	if cat.body_part != null and cat.body_part.data != null:
+		if _preview_arms_joint != null:
+			_preview_arms_joint.position = cat.body_part.data.arms_joint_offset
+		if _preview_legs_joint != null:
+			_preview_legs_joint.position = cat.body_part.data.legs_joint_offset
+		if ResourceLoader.exists(cat.body_part.data.texture_path):
+			_preview_body.texture = load(cat.body_part.data.texture_path) as Texture2D
 	if cat.arms_part != null and cat.arms_part.data != null and ResourceLoader.exists(cat.arms_part.data.texture_path):
 		_preview_arms.texture = load(cat.arms_part.data.texture_path) as Texture2D
 	if cat.legs_part != null and cat.legs_part.data != null and ResourceLoader.exists(cat.legs_part.data.texture_path):

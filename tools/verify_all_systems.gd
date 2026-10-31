@@ -71,6 +71,41 @@ func _ready() -> void:
 		await get_tree().process_frame
 		if spath == "res://src/combat/combat_arena.tscn":
 			var arena: CombatArena = node as CombatArena
+
+			# Verify Marker2D joints and CPUParticles2D hierarchy on cat rigs (Issue #11)
+			assert(arena._cat_rigs.size() > 0, "Cat rigs must be spawned")
+			for crig: Dictionary in arena._cat_rigs:
+				var body_s: Sprite2D = crig["body_spr"] as Sprite2D
+				assert(body_s != null and body_s.has_node("ArmsJoint") and body_s.has_node("LegsJoint"), "Body sprite must have ArmsJoint and LegsJoint Marker2D nodes")
+				var arms_j: Marker2D = body_s.get_node("ArmsJoint") as Marker2D
+				var legs_j: Marker2D = body_s.get_node("LegsJoint") as Marker2D
+				assert(arms_j != null and legs_j != null, "Joints must be Marker2D")
+				assert(crig["arms_spr"].get_parent() == arms_j, "ArmsSprite must be child of ArmsJoint")
+				assert(crig["legs_spr"].get_parent() == legs_j, "LegsSprite must be child of LegsJoint")
+				assert(crig["body_smoke"] is CPUParticles2D and crig["body_sparks"] is CPUParticles2D, "Body must have smoke/sparks CPUParticles2D")
+				assert(crig["arms_smoke"] is CPUParticles2D and crig["arms_sparks"] is CPUParticles2D, "Arms must have smoke/sparks CPUParticles2D")
+				assert(crig["legs_smoke"] is CPUParticles2D and crig["legs_sparks"] is CPUParticles2D, "Legs must have smoke/sparks CPUParticles2D")
+
+			# Verify damage number floating label
+			var dmg_lbl: Label = arena.spawn_damage_number(Vector2(200, 150), "-25", Color.RED)
+			assert(dmg_lbl != null and dmg_lbl.is_inside_tree(), "Damage number label must be spawned in tree")
+
+			# Verify screen shake and recoil triggers without exceptions
+			arena._trigger_screenshake(4.0, 0.05)
+			arena._play_cat_attack_recoil(0)
+			arena._play_enemy_attack_recoil(0)
+			arena._play_rig_hurt(arena._cat_rigs[0], 3.0)
+
+			# Verify CPUParticles2D activation when part HP drops below 25% or breaks
+			var test_cat: CatMechInstance = arena._party[0]
+			test_cat.body_part.current_hp = int(float(test_cat.body_part.get_max_hp()) * 0.2)
+			arena._refresh_hud()
+			assert((arena._cat_rigs[0]["body_smoke"] as CPUParticles2D).emitting, "Smoke must emit when HP <= 25%")
+			assert((arena._cat_rigs[0]["body_sparks"] as CPUParticles2D).emitting, "Sparks must emit when HP <= 25%")
+			test_cat.body_part.repair_full()
+			arena._refresh_hud()
+			assert(not (arena._cat_rigs[0]["body_smoke"] as CPUParticles2D).emitting, "Smoke must stop when HP > 25%")
+
 			arena._begin_enemy_turn(0)
 			await get_tree().create_timer(0.6).timeout
 			# Test real bullet hit & freed Area2D inside _bullets array across frames
@@ -99,6 +134,10 @@ func _ready() -> void:
 			var garage: GarageScene = node as GarageScene
 			assert(garage._exit_btn != null and garage._exit_btn.is_inside_tree(), "Garage must have active exit button in scene tree")
 			assert(garage._repair_all_btn != null and garage._repair_all_btn.is_inside_tree(), "Garage must have repair_all button")
+			# Verify Marker2D joints on garage preview (Issue #11)
+			assert(garage._preview_body != null and garage._preview_body.has_node("ArmsJoint") and garage._preview_body.has_node("LegsJoint"), "Garage preview body must have ArmsJoint and LegsJoint Marker2D nodes")
+			assert(garage._preview_arms.get_parent() == garage._preview_body.get_node("ArmsJoint"), "Preview arms must be child of ArmsJoint")
+			assert(garage._preview_legs.get_parent() == garage._preview_body.get_node("LegsJoint"), "Preview legs must be child of LegsJoint")
 		node.queue_free()
 		await get_tree().process_frame
 		await get_tree().process_frame
