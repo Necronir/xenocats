@@ -1,0 +1,167 @@
+name: Release - Build & Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag or Version (e.g. v0.1.0)'
+        required: false
+        default: ''
+      draft:
+        description: 'Draft release'
+        type: boolean
+        default: false
+      prerelease:
+        description: 'Pre-release'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+env:
+  GODOT_VERSION: "4.7.2"
+
+jobs:
+  test:
+    name: Run Pre-Release Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Cache Godot Binary
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/godot
+          key: godot-bin-${{ env.GODOT_VERSION }}
+
+      - name: Install Godot Headless
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          wget -q https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64.zip
+          unzip -q Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64.zip
+          sudo mv Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64 /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+          rm -f Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64.zip
+
+      - name: Initial Import
+        run: |
+          godot --headless --import
+
+      - name: Run Test Verification Suite
+        run: |
+          godot --headless res://tools/verify_scene.tscn
+
+  build-and-release:
+    name: Build Multi-Platform & Release
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Cache Godot Binary & Templates
+        id: cache-godot-all
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/bin/godot
+            ~/.local/share/godot/export_templates
+          key: godot-all-${{ env.GODOT_VERSION }}
+
+      - name: Download & Install Godot and Export Templates
+        if: steps.cache-godot-all.outputs.cache-hit != 'true'
+        run: |
+          # 1. Godot Linux Headless Binary
+          wget -q https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64.zip
+          unzip -q Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64.zip
+          sudo mv Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64 /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+          rm -f Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64.zip
+
+          # 2. Export Templates
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable"
+          mkdir -p "$TEMPLATE_DIR"
+          wget -q https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_export_templates.tpz
+          unzip -q Godot_v${{ env.GODOT_VERSION }}-stable_export_templates.tpz
+          mv templates/* "$TEMPLATE_DIR/"
+          rm -rf Godot_v${{ env.GODOT_VERSION }}-stable_export_templates.tpz templates
+
+      - name: Initial Import & Asset Compilation
+        run: |
+          godot --headless --import
+
+      - name: Determine Release Tag
+        run: |
+          if [ -n "${{ inputs.tag_name }}" ]; then
+            TAG="${{ inputs.tag_name }}"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="v0.1.0-${GITHUB_SHA::7}"
+          fi
+          echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
+          echo "Building release for tag: $TAG"
+
+      - name: Export Windows Desktop
+        run: |
+          mkdir -p build/windows
+          godot --headless --export-release "Windows Desktop" build/windows/xenocats.exe
+          cd build/windows
+          zip -r ../../Xenocats-Windows-x86_64.zip .
+          cd ../..
+
+      - name: Export Linux (X11)
+        run: |
+          mkdir -p build/linux
+          godot --headless --export-release "Linux" build/linux/xenocats.x86_64
+          chmod +x build/linux/xenocats.x86_64
+          cd build/linux
+          zip -r ../../Xenocats-Linux-x86_64.zip .
+          cd ../..
+
+      - name: Export Web (HTML5 / WebAssembly)
+        run: |
+          mkdir -p build/web
+          godot --headless --export-release "Web" build/web/index.html
+          cd build/web
+          zip -r ../../Xenocats-Web.zip .
+          cd ../..
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: "Xenocats: Bremen-4 ${{ env.RELEASE_TAG }}"
+          draft: ${{ inputs.draft || false }}
+          prerelease: ${{ inputs.prerelease || false }}
+          generate_release_notes: true
+          files: |
+            Xenocats-Windows-x86_64.zip
+            Xenocats-Linux-x86_64.zip
+            Xenocats-Web.zip
+
+      - name: Upload GitHub Pages Artifact (Web Build)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy-pages:
+    name: Deploy Web Build to GitHub Pages
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

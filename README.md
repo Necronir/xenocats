@@ -113,3 +113,29 @@ res://
 ```powershell
 & "E:\godot\Godot_v4.7.2-stable_win64_console.exe" --headless --path "E:\xenocats\xenocats" "res://tools/verify_scene.tscn"
 ```
+
+---
+
+## 🛠️ CI/CD & GitHub Releases
+
+Проект оснащен настроенным пайплайном GitHub Actions:
+
+### 1. Непрерывная интеграция (CI) — `.github/workflows/ci.yml`
+* Автоматически срабатывает на `push` и `pull_request` в ветку `main`.
+* Кэширует бинарник Godot 4.7.2 Headless.
+* Прогоняет полный набор системных тестов (`res://tools/verify_scene.tscn`).
+
+### 2. Сборка и публикация релиза (Release) — `.github/workflows/release.yml`
+* **Автоматический релиз по тегу:**
+  ```bash
+  git tag v0.1.0
+  git push origin v0.1.0
+  ```
+* **Ручной запуск через GitHub Actions UI (`workflow_dispatch`):**
+  Позволяет собрать релиз в один клик с указанием тега, флага draft или pre-release.
+* **Целевые платформы экспорта:**
+  * **Windows Desktop (`x86_64`):** `Xenocats-Windows-x86_64.zip` (автономный `.exe` со встроенным `.pck`)
+  * **Linux (`x86_64`):** `Xenocats-Linux-x86_64.zip` (бинарник с правами на исполнение)
+  * **Web (`HTML5/Wasm`):** `Xenocats-Web.zip` + автоматический деплой на **GitHub Pages**
+* **Автоматические Release Notes:** GitHub генерирует changelog по коммитам и pull request'ам.
+

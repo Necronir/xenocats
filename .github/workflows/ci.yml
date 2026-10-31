@@ -1,0 +1,47 @@
+name: CI - Tests & Verification
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: "4.7.2"
+
+jobs:
+  test:
+    name: Run Automated System Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Cache Godot Binary
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/godot
+          key: godot-bin-${{ env.GODOT_VERSION }}
+
+      - name: Install Godot Headless
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          wget -q https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64.zip
+          unzip -q Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64.zip
+          sudo mv Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64 /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+          rm -f Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64.zip
+
+      - name: Verify Godot Installation
+        run: |
+          godot --version
+
+      - name: Initial Import & Asset Compilation
+        run: |
+          godot --headless --import
+
+      - name: Run Bremen-4 System Verification Suite
+        run: |
+          godot --headless res://tools/verify_scene.tscn
