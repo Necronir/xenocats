@@ -1,10 +1,14 @@
 # Godot 4+ specific ignores
 .godot/
 
+# Build outputs
+build/
+builds/
+export/
+
 # Godot-specific ignores
 *.translation
 
 # OS-specific ignores
 .DS_Store
 Thumbs.db
-
