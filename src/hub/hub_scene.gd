@@ -3,6 +3,7 @@ extends Control
 
 ## HubScene: «Лагерь Бродяг» — Мета-прогрессия на месте крушения шаттла Bremen-04 (ADR-001 Section 2.3 & 2.8)
 
+var _dev_menu_bar: DevMenuBar = null
 var _res_label: Label = null
 var _shuttle_box: VBoxContainer = null
 var _perks_box: VBoxContainer = null
@@ -74,10 +75,14 @@ func _build_ui() -> void:
 	st.set_corner_radius_all(3)
 	st.set_content_margin_all(5)
 
+	# Верхнее меню разработчика (Fast Track к боссу уровня, Issue #16)
+	_dev_menu_bar = DevMenuBar.new()
+	add_child(_dev_menu_bar)
+
 	# Верхняя панель
 	var top_panel: PanelContainer = PanelContainer.new()
-	top_panel.position = Vector2(8, 6)
-	top_panel.size = Vector2(624, 38)
+	top_panel.position = Vector2(8, 30)
+	top_panel.size = Vector2(624, 30)
 	top_panel.add_theme_stylebox_override("panel", st)
 	add_child(top_panel)
 
@@ -99,8 +104,8 @@ func _build_ui() -> void:
 
 	# Три колонки мета-прогрессии
 	var cols: HBoxContainer = HBoxContainer.new()
-	cols.position = Vector2(8, 48)
-	cols.size = Vector2(624, 250)
+	cols.position = Vector2(8, 63)
+	cols.size = Vector2(624, 237)
 	cols.add_theme_constant_override("separation", 6)
 	add_child(cols)
 

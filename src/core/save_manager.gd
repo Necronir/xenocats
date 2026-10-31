@@ -151,6 +151,81 @@ func advance_to_next_sector() -> void:
 				part.repair(int(float(part.get_max_hp()) * 0.3))
 	save_run()
 
+func jump_to_boss_battle(target_sector: int = -1) -> Dictionary:
+	DataCatalog.ensure_loaded()
+	if not has_active_run or party.is_empty():
+		start_new_run()
+
+	var previous_sector: int = current_sector
+	var sec: int = clampi(target_sector if target_sector > 0 else current_sector, 1, 3)
+	current_sector = sec
+
+	# Обеспечиваем канонический состав отряда для выбранного сектора (Сектор 1: 2, Сектор 2: 3, Сектор 3: 4)
+	if target_sector == 1 and party.size() > 2:
+		party = DataCatalog.create_starting_party()
+		_apply_meta_and_tape_bonuses_to_party()
+	elif target_sector == 2 and has_party_member("COCK"):
+		var filtered: Array[CatMechInstance] = []
+		for c: CatMechInstance in party:
+			if String(c.cat_id) != "COCK":
+				filtered.append(c)
+		party = filtered
+
+	if current_sector >= 2:
+		recruit_cat("MULE")
+	if current_sector >= 3:
+		recruit_cat("COCK")
+
+	# Полный ремонт деталей и сброс боевых статусов перед быстрым переходом к боссу
+	for cat: CatMechInstance in party:
+		cat.reset_combat_statuses()
+		for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
+			var part: PartInstance = cat.get_part(slot)
+			if part != null:
+				part.repair_full()
+
+	if map_graph.is_empty() or previous_sector != current_sector or target_sector > 0:
+		completed_node_ids.clear()
+		map_graph = MapGenerator.generate_sector_dag(run_seed, current_sector)
+
+	var boss_node_id: int = 0
+	var boss_floor: int = MapGenerator.TOTAL_FLOORS
+	for node_dict: Dictionary in map_graph:
+		if String(node_dict.get("type", "")) == "BOSS":
+			boss_node_id = int(node_dict["id"])
+			boss_floor = int(node_dict.get("floor", MapGenerator.TOTAL_FLOORS))
+			break
+
+	current_floor = boss_floor
+	current_node_id = boss_node_id
+	if not completed_node_ids.has(boss_node_id):
+		completed_node_ids.append(boss_node_id)
+
+	has_active_run = true
+	save_run()
+
+	var prelude_path: String = "res://data/dialogues/boss_prelude_sector" + str(current_sector) + ".dtl"
+	var boss_titles: Dictionary = {
+		1: "МЕЛЬНИЦА СВАЛКИ // ХОЗЯИН ОСЛА (ТРЁХГОЛОВЫЙ ПРЕСС)",
+		2: "ПРИТОН РАЗБОЙНИКОВ // ПЕТУХ И СУП АТАМАНШИ",
+		3: "ИЗБА НА ВЕРШИНЕ // ПИРАМИДА БРЕМЕНА В ОКНЕ"
+	}
+	var boss_btns: Dictionary = {
+		1: "В БОЙ ЗА СПАСЕНИЕ ОСЛА ->",
+		2: "В БОЙ ЗА СПАСЕНИЕ ПЕТУХА ->",
+		3: "ВЛОМИТЬСЯ В ОКНО (ФИНАЛЬНЫЙ БОЙ) ->"
+	}
+	var payload: Dictionary = {
+		"timeline": prelude_path,
+		"next_scene": &"BATTLE",
+		"next_payload": {"node_id": boss_node_id, "node_type": "BOSS"},
+		"title": String(boss_titles.get(current_sector, "БОЕВАЯ ТРЕВОГА")),
+		"continue_text": String(boss_btns.get(current_sector, "В БОЙ ->"))
+	}
+	EventBus.node_selected.emit(boss_node_id, &"BOSS")
+	EventBus.request_scene_change.emit(&"EVENT", payload)
+	return payload
+
 func _apply_meta_and_tape_bonuses_to_party() -> void:
 	for cat: CatMechInstance in party:
 		_apply_meta_and_tape_bonuses_to_cat(cat)

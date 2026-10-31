@@ -255,6 +255,48 @@ func _ready() -> void:
 	await get_tree().process_frame
 	print("[8] Sector 3 Boss Victory screen, SOS Bremen-4 broadcast, run stats & meta-save verified OK")
 
+	# 9. Verify Developer Fast-Track Menu (DevMenuBar & jump_to_boss_battle) (Issue #16)
+	SaveManager.start_new_run(999111)
+	var map_packed: PackedScene = load("res://src/map/map_scene.tscn") as PackedScene
+	var map_inst: MapScene = map_packed.instantiate() as MapScene
+	add_child(map_inst)
+	await get_tree().process_frame
+	assert(map_inst._dev_menu_bar != null and map_inst._dev_menu_bar.is_inside_tree(), "MapScene must have DevMenuBar at the top")
+	assert(map_inst._fast_boss_btn != null and map_inst._fast_boss_btn.is_inside_tree(), "MapScene top bar must have fast boss button")
+	assert(map_inst._dev_menu_bar._current_boss_btn != null, "DevMenuBar must have current level boss button")
+	assert(map_inst._dev_menu_bar._boss1_btn != null and map_inst._dev_menu_bar._boss2_btn != null and map_inst._dev_menu_bar._boss3_btn != null, "DevMenuBar must have Boss 1/2/3 buttons")
+	map_inst.queue_free()
+	await get_tree().process_frame
+
+	var captured_scene: Array[String] = [""]
+	var captured_payload: Array[Dictionary] = [{}]
+	var scene_cb: Callable = func(sc_name: StringName, pl: Dictionary) -> void:
+		captured_scene[0] = String(sc_name)
+		captured_payload[0] = pl
+	EventBus.request_scene_change.connect(scene_cb)
+
+	# Jump to current sector (Sector 1) boss prelude dialogue
+	var p1: Dictionary = SaveManager.jump_to_boss_battle(-1)
+	assert(captured_scene[0] == "EVENT" and String(p1.get("timeline", "")) == "res://data/dialogues/boss_prelude_sector1.dtl", "jump_to_boss_battle(-1) must request EVENT with boss_prelude_sector1.dtl")
+	assert(String(p1.get("next_scene", "")) == "BATTLE" and String((p1.get("next_payload", {}) as Dictionary).get("node_type", "")) == "BOSS", "Prelude event must lead to BOSS BATTLE")
+	assert(SaveManager.current_sector == 1 and SaveManager.current_floor == 15, "Sector 1 boss jump must set floor to 15")
+	assert(SaveManager.party.size() == 2, "Sector 1 boss jump must have 2 cats")
+
+	# Jump directly to Sector 2 boss prelude dialogue
+	var p2: Dictionary = SaveManager.jump_to_boss_battle(2)
+	assert(captured_scene[0] == "EVENT" and String(p2.get("timeline", "")) == "res://data/dialogues/boss_prelude_sector2.dtl", "jump_to_boss_battle(2) must request EVENT with boss_prelude_sector2.dtl")
+	assert(SaveManager.current_sector == 2 and SaveManager.current_floor == 15, "Sector 2 boss jump must set sector=2, floor=15")
+	assert(SaveManager.party.size() == 3 and SaveManager.has_party_member("MULE"), "Sector 2 boss jump must include MULE")
+
+	# Jump directly to Sector 3 boss prelude dialogue
+	var p3: Dictionary = SaveManager.jump_to_boss_battle(3)
+	assert(captured_scene[0] == "EVENT" and String(p3.get("timeline", "")) == "res://data/dialogues/boss_prelude_sector3.dtl", "jump_to_boss_battle(3) must request EVENT with boss_prelude_sector3.dtl")
+	assert(SaveManager.current_sector == 3 and SaveManager.current_floor == 15, "Sector 3 boss jump must set sector=3, floor=15")
+	assert(SaveManager.party.size() == 4 and SaveManager.has_party_member("COCK"), "Sector 3 boss jump must include full quartet")
+
+	EventBus.request_scene_change.disconnect(scene_cb)
+	print("[9] Developer Fast-Track Menu (DevMenuBar & jump_to_boss_battle) verified OK")
+
 	AudioManager.stop_music()
 	await get_tree().process_frame
 	SaveManager.delete_run_save()

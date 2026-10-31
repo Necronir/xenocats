@@ -7,6 +7,7 @@ extends Control
 var _payload: Dictionary = {}
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
+var _dev_menu_bar: DevMenuBar = null
 var _illustration_panel: PanelContainer = null
 var _illustration_rect: TextureRect = null
 var _portrait_rect: TextureRect = null
@@ -69,6 +70,10 @@ func _build_ui() -> void:
 		bg.texture = load(bg_path) as Texture2D
 	add_child(bg)
 
+	# Верхнее меню разработчика (Fast Track к боссу уровня, Issue #16)
+	_dev_menu_bar = DevMenuBar.new()
+	add_child(_dev_menu_bar)
+
 	var st: StyleBoxFlat = StyleBoxFlat.new()
 	st.bg_color = Color(0.06, 0.08, 0.14, 0.95)
 	st.border_color = Color(0.55, 0.35, 0.9, 1.0)
@@ -77,13 +82,13 @@ func _build_ui() -> void:
 	st.set_content_margin_all(6)
 
 	var main_panel: PanelContainer = PanelContainer.new()
-	main_panel.position = Vector2(20, 10)
-	main_panel.size = Vector2(600, 340)
+	main_panel.position = Vector2(20, 30)
+	main_panel.size = Vector2(600, 324)
 	main_panel.add_theme_stylebox_override("panel", st)
 	add_child(main_panel)
 
 	var root_vbox: VBoxContainer = VBoxContainer.new()
-	root_vbox.add_theme_constant_override("separation", 5)
+	root_vbox.add_theme_constant_override("separation", 4)
 	main_panel.add_child(root_vbox)
 
 	var top_title: Label = Label.new()
@@ -104,7 +109,7 @@ func _build_ui() -> void:
 	root_vbox.add_child(_illustration_panel)
 
 	_illustration_rect = TextureRect.new()
-	_illustration_rect.custom_minimum_size = Vector2(312, 104)
+	_illustration_rect.custom_minimum_size = Vector2(312, 92)
 	_illustration_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_illustration_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_illustration_panel.add_child(_illustration_rect)
@@ -130,7 +135,7 @@ func _build_ui() -> void:
 	text_vbox.add_child(_speaker_label)
 
 	_dialogue_text = RichTextLabel.new()
-	_dialogue_text.custom_minimum_size = Vector2(480, 60)
+	_dialogue_text.custom_minimum_size = Vector2(480, 54)
 	_dialogue_text.bbcode_enabled = true
 	_dialogue_text.add_theme_font_size_override("normal_font_size", 9)
 	text_vbox.add_child(_dialogue_text)
@@ -344,4 +349,3 @@ func _on_eventbus_dialogic_reward(event_code: String, _amount: int) -> void:
 	_outcome_label.visible = true
 	_continue_btn.text = String(_payload.get("continue_text", "ВЕРНУТЬСЯ НА КАРТУ ->"))
 	_continue_btn.visible = true
-

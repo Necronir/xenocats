@@ -44,6 +44,8 @@ var _shake_tween: Tween = null
 # UI узлы
 var _top_bar_label: Label = null
 var _sync_bar: ProgressBar = null
+var _dev_boss_btn: Button = null
+var _dev_win_btn: Button = null
 var _log_label: Label = null
 var _party_status_box: HBoxContainer = null
 var _action_box: VBoxContainer = null
@@ -92,31 +94,60 @@ func _build_visual_hierarchy() -> void:
 	_enemies_stage = Node2D.new()
 	add_child(_enemies_stage)
 
-	# 3. Верхняя информационная панель (Очередь ходов + Шкала Гармонии)
+	# 3. Верхняя информационная панель (Очередь ходов + Шкала Гармонии + Меню разработчика)
 	var top_panel: PanelContainer = _make_styled_panel(Rect2(6, 4, 628, 28))
+	top_panel.clip_contents = true
 	add_child(top_panel)
 	var top_hbox: HBoxContainer = HBoxContainer.new()
-	top_hbox.add_theme_constant_override("separation", 10)
+	top_hbox.add_theme_constant_override("separation", 6)
 	top_panel.add_child(top_hbox)
 
 	_top_bar_label = Label.new()
 	_top_bar_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_top_bar_label.clip_text = true
+	_top_bar_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_top_bar_label.add_theme_font_size_override("font_size", 10)
 	_top_bar_label.text = "РАУНД 1 | Инициализация боя..."
 	top_hbox.add_child(_top_bar_label)
 
 	var sync_lbl: Label = Label.new()
-	sync_lbl.text = "ГАРМОНИЯ (ПИРАМИДА):"
+	sync_lbl.text = "ГАРМОНИЯ:"
 	sync_lbl.add_theme_font_size_override("font_size", 9)
 	sync_lbl.add_theme_color_override("font_color", Color(0.4, 0.95, 1.0))
 	top_hbox.add_child(sync_lbl)
 
 	_sync_bar = ProgressBar.new()
-	_sync_bar.custom_minimum_size = Vector2(110, 16)
+	_sync_bar.custom_minimum_size = Vector2(80, 14)
 	_sync_bar.max_value = 100
 	_sync_bar.value = SaveManager.sync_gauge
 	_sync_bar.show_percentage = true
 	top_hbox.add_child(_sync_bar)
+
+	_dev_boss_btn = Button.new()
+	_dev_boss_btn.text = "DEV: К БОССУ"
+	_dev_boss_btn.add_theme_font_size_override("font_size", 8)
+	_dev_boss_btn.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	_dev_boss_btn.pressed.connect(func() -> void:
+		AudioManager.play_sfx("ui_click")
+		SaveManager.jump_to_boss_battle(-1)
+	)
+	top_hbox.add_child(_dev_boss_btn)
+
+	_dev_win_btn = Button.new()
+	_dev_win_btn.text = "DEV: ПОБЕДА"
+	_dev_win_btn.add_theme_font_size_override("font_size", 8)
+	_dev_win_btn.add_theme_color_override("font_color", Color(0.45, 1.0, 0.6))
+	_dev_win_btn.pressed.connect(func() -> void:
+		AudioManager.play_sfx("ui_click")
+		for en: EnemyInstance in _enemies:
+			if en.is_modular():
+				en.body_part.current_hp = 0
+			else:
+				en.current_hp = 0
+		_refresh_hud()
+		_handle_victory()
+	)
+	top_hbox.add_child(_dev_win_btn)
 
 	# 4. Лог боевых сообщений
 	var log_panel: PanelContainer = _make_styled_panel(Rect2(6, 34, 628, 22))
@@ -883,6 +914,8 @@ func _advance_turn() -> void:
 				_log_label.text = cat.display_name + " перегружен (Оглушение) и пропускает ход!"
 				_refresh_hud()
 				await get_tree().create_timer(0.6).timeout
+				if not is_inside_tree():
+					return
 				continue
 			_begin_player_turn(idx)
 			return
@@ -908,6 +941,8 @@ func _advance_turn() -> void:
 				_log_label.text = en.data.enemy_name + " оглушён звуковой волной и пропускает ход!"
 				_refresh_hud()
 				await get_tree().create_timer(0.6).timeout
+				if not is_inside_tree():
+					return
 				continue
 			_begin_enemy_turn(idx)
 			return
@@ -1188,6 +1223,8 @@ func _on_qte_completed(multiplier: float, rating_label: String, bonus_sync: int)
 	_log_label.text = " | ".join(log_parts)
 	_refresh_hud()
 	await get_tree().create_timer(0.65).timeout
+	if not is_inside_tree():
+		return
 	_advance_turn()
 
 func _apply_skill_status_to_enemy(en: EnemyInstance, sk: SkillData, mult: float) -> void:
@@ -1226,6 +1263,8 @@ func _begin_enemy_turn(enemy_index: int) -> void:
 	_refresh_hud()
 
 	await get_tree().create_timer(0.55).timeout
+	if not is_inside_tree():
+		return
 	_fsm.transition_to(CombatFSM.State.SPAWN_DODGE_BOX)
 	_fsm.transition_to(CombatFSM.State.DODGE_REALTIME_MINIGAME)
 
@@ -1299,6 +1338,8 @@ func _on_dodge_finished(total_hits: int) -> void:
 		_log_label.text = "ИДЕАЛЬНОЕ УКЛОНЕНИЕ! Ни один снаряд не задел кота (+10 Гармонии)!"
 	_refresh_hud()
 	await get_tree().create_timer(0.45).timeout
+	if not is_inside_tree():
+		return
 	_advance_turn()
 
 # --- Проверка окончания боя ---
