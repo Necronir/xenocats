@@ -174,6 +174,7 @@ func _refresh_hub() -> void:
 	_res_label.text = (
 		"Титановый сплав: " + str(SaveManager.titanium_scrap)
 		+ " | Ядра ИИ (Cores): " + str(SaveManager.ai_cores)
+		+ " | Эвакуаций: " + str(SaveManager.successful_evacuations)
 	)
 
 	# 1. Модули шаттла
@@ -275,4 +276,3 @@ func _refresh_hub() -> void:
 		)
 	else:
 		_continue_run_btn.visible = false
-
