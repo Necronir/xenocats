@@ -3,6 +3,8 @@ extends Control
 
 ## MapScene: Отображение и навигация по 15-этажному DAG-графу забега (ADR-001 Section 2.6)
 
+var _dev_menu_bar: DevMenuBar = null
+var _fast_boss_btn: Button = null
 var _graph_canvas: Control = null
 var _scroll: ScrollContainer = null
 var _header_label: Label = null
@@ -11,8 +13,8 @@ var _node_positions: Dictionary = {}
 
 const FLOOR_SPACING_X: float = 92.0
 const MAP_LEFT_PAD: float = 48.0
-const MAP_TOP_PAD: float = 42.0
-const MAP_HEIGHT_SPAN: float = 165.0
+const MAP_TOP_PAD: float = 34.0
+const MAP_HEIGHT_SPAN: float = 152.0
 
 const SECTOR_NAMES: Dictionary = {
 	1: "СЕКТОР 1: Тракт у Старой Мельницы (Отряд: Кот и Пёс)",
@@ -41,21 +43,25 @@ func _build_ui() -> void:
 		bg.texture = load(bg_path) as Texture2D
 	add_child(bg)
 
-	# Верхняя шапка
+	# Верхнее меню разработчика (Fast Track к боссу уровня, Issue #16)
+	_dev_menu_bar = DevMenuBar.new()
+	add_child(_dev_menu_bar)
+
+	# Верхняя шапка уровня
 	var top_bar: PanelContainer = PanelContainer.new()
-	top_bar.position = Vector2(8, 6)
-	top_bar.size = Vector2(624, 32)
+	top_bar.position = Vector2(8, 30)
+	top_bar.size = Vector2(624, 28)
 	top_bar.clip_contents = true
 	var st: StyleBoxFlat = StyleBoxFlat.new()
 	st.bg_color = Color(0.06, 0.08, 0.13, 0.94)
 	st.border_color = Color(0.3, 0.7, 0.95, 1.0)
 	st.set_border_width_all(1)
-	st.set_content_margin_all(4)
+	st.set_content_margin_all(3)
 	top_bar.add_theme_stylebox_override("panel", st)
 	add_child(top_bar)
 
 	var top_hbox: HBoxContainer = HBoxContainer.new()
-	top_hbox.add_theme_constant_override("separation", 10)
+	top_hbox.add_theme_constant_override("separation", 6)
 	top_bar.add_child(top_hbox)
 
 	_header_label = Label.new()
@@ -73,6 +79,16 @@ func _build_ui() -> void:
 	_status_label.text = "Лом: " + str(SaveManager.run_scrap) + " | Гармония: " + str(SaveManager.sync_gauge) + "%"
 	_status_label.add_theme_color_override("font_color", Color(0.95, 0.85, 0.35))
 	top_hbox.add_child(_status_label)
+
+	_fast_boss_btn = Button.new()
+	_fast_boss_btn.text = "⚔ К БОССУ"
+	_fast_boss_btn.add_theme_font_size_override("font_size", 9)
+	_fast_boss_btn.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	_fast_boss_btn.pressed.connect(func() -> void:
+		AudioManager.play_sfx("ui_click")
+		SaveManager.jump_to_boss_battle(-1)
+	)
+	top_hbox.add_child(_fast_boss_btn)
 
 	var garage_btn: Button = Button.new()
 	garage_btn.text = "ГАРАЖ / ОТРЯД"
@@ -95,8 +111,8 @@ func _build_ui() -> void:
 
 	# Горизонтальный скролл графа на 15 этажей
 	var map_panel: PanelContainer = PanelContainer.new()
-	map_panel.position = Vector2(8, 42)
-	map_panel.size = Vector2(624, 268)
+	map_panel.position = Vector2(8, 60)
+	map_panel.size = Vector2(624, 250)
 	map_panel.add_theme_stylebox_override("panel", st)
 	add_child(map_panel)
 
@@ -105,7 +121,7 @@ func _build_ui() -> void:
 	map_panel.add_child(_scroll)
 
 	_graph_canvas = Control.new()
-	_graph_canvas.custom_minimum_size = Vector2(MAP_LEFT_PAD * 2.0 + FLOOR_SPACING_X * 15.0, 245.0)
+	_graph_canvas.custom_minimum_size = Vector2(MAP_LEFT_PAD * 2.0 + FLOOR_SPACING_X * 15.0, 224.0)
 	_graph_canvas.draw.connect(_on_graph_draw)
 	_scroll.add_child(_graph_canvas)
 
@@ -181,6 +197,8 @@ func _populate_map_nodes() -> void:
 
 	# Автопрокрутка к текущему этажу
 	await get_tree().process_frame
+	if not is_inside_tree():
+		return
 	var target_floor: int = maxi(1, SaveManager.current_floor)
 	_scroll.scroll_horizontal = maxi(0, int((target_floor - 2) * FLOOR_SPACING_X))
 
@@ -290,4 +308,3 @@ func _type_color(ntype: String) -> Color:
 		"BOSS":
 			return Color(0.75, 0.1, 0.28, 0.98)
 	return Color(0.2, 0.25, 0.35, 0.9)
-
