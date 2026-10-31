@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://src/models/enemy_data.gd" id="1_xvp5c"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_3ef7h"]
+
+[sub_resource type="Resource" id="Resource_gtp8e"]
+script = ExtResource("2_3ef7h")
+skill_id = &"enemy_saw_slash"
+skill_name = "Циркулярный рез"
+description = "Враг запускает дисковые пилы по арене."
+target_type = 0
+base_damage = 14
+qte_profile = 3
+
+[resource]
+script = ExtResource("1_xvp5c")
+enemy_id = &"scrap_drone"
+enemy_name = "Дрон-уборщик"
+max_hp = 52
+speed = 11
+skills = Array[ExtResource("2_3ef7h")]([SubResource("Resource_gtp8e")])
+scrap_reward = 22

@@ -1,0 +1,75 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_f73y8"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_sslul"]
+[ext_resource type="Script" path="res://src/models/enemy_data.gd" id="3_7scxh"]
+
+[sub_resource type="Resource" id="Resource_gtp8e"]
+script = ExtResource("2_sslul")
+skill_id = &"enemy_saw_slash"
+skill_name = "Циркулярный рез"
+description = "Враг запускает дисковые пилы по арене."
+target_type = 0
+base_damage = 14
+qte_profile = 3
+
+[sub_resource type="Resource" id="Resource_oii2e"]
+script = ExtResource("1_f73y8")
+part_id = &"elite_driller_arms"
+part_name = "Орудия (ЭЛИТА: Штурмовой Бурильщик)"
+description = "Боевой блок вооружения (отстрелите, чтобы ослабить атаки!)."
+slot = 1
+max_hp = 85
+armor = 3
+base_speed = 13
+skills = Array[ExtResource("2_sslul")]([SubResource("Resource_gtp8e")])
+texture_path = "res://assets/sprites/enemies/elite_driller_arms.png"
+
+[sub_resource type="Resource" id="Resource_qpbeq"]
+script = ExtResource("2_sslul")
+skill_id = &"enemy_laser_barrage"
+skill_name = "Лазерная засечка"
+description = "Прицельный обстрел высокоточными лучами."
+target_type = 0
+base_damage = 20
+qte_profile = 3
+
+[sub_resource type="Resource" id="Resource_f56vv"]
+script = ExtResource("1_f73y8")
+part_id = &"elite_driller_body"
+part_name = "Ядро (ЭЛИТА: Штурмовой Бурильщик)"
+description = "Центральный процессор и реактор."
+max_hp = 135
+armor = 4
+base_speed = 13
+skills = Array[ExtResource("2_sslul")]([SubResource("Resource_qpbeq")])
+texture_path = "res://assets/sprites/enemies/elite_driller_body.png"
+
+[sub_resource type="Resource" id="Resource_7tpiu"]
+script = ExtResource("1_f73y8")
+part_id = &"elite_driller_legs"
+part_name = "Шасси (ЭЛИТА: Штурмовой Бурильщик)"
+description = "Ходовая часть (отстрелите, чтобы обрушить инициативу врага!)."
+slot = 2
+max_hp = 80
+armor = 3
+base_speed = 13
+texture_path = "res://assets/sprites/enemies/elite_driller_legs.png"
+
+[resource]
+script = ExtResource("3_7scxh")
+enemy_id = &"elite_driller"
+enemy_name = "ЭЛИТА: Штурмовой Бурильщик"
+is_modular = true
+is_elite = true
+sector_level = 2
+max_hp = 135
+armor = 4
+speed = 13
+body_part = SubResource("Resource_f56vv")
+arms_part = SubResource("Resource_oii2e")
+legs_part = SubResource("Resource_7tpiu")
+skills = Array[ExtResource("2_sslul")]([SubResource("Resource_qpbeq")])
+sprite_prefix = "elite_driller"
+scrap_reward = 70
+core_reward = 1

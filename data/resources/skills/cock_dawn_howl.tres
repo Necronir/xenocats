@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="1_0uwlj"]
+
+[resource]
+script = ExtResource("1_0uwlj")
+skill_id = &"cock_dawn_howl"
+skill_name = "Рассветный вой"
+description = "Снимает все дебаффы с отряда и чинит корпуса (+12 HP)."
+target_type = 5
+base_damage = 0
+heal_amount = 12
+status_effect = 6
+status_stacks = 1
+sync_gain = 20

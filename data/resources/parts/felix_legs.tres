@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_lk3jl"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_pfank"]
+
+[sub_resource type="Resource" id="Resource_04sj1"]
+script = ExtResource("2_pfank")
+skill_id = &"felix_overdrive"
+skill_name = "Форсаж сервоприводов"
+description = "Ускоряет всю партию (+Скорость на 2 хода)."
+target_type = 5
+base_damage = 0
+status_effect = 7
+status_stacks = 2
+qte_profile = 3
+
+[resource]
+script = ExtResource("1_lk3jl")
+part_id = &"felix_legs"
+part_name = "Пружинные лапы Рысь"
+description = "Максимальная инициатива и скорость в боксе уворота."
+slot = 2
+max_hp = 50
+armor = 1
+base_speed = 18
+skills = Array[ExtResource("2_pfank")]([SubResource("Resource_04sj1")])
+texture_path = "res://assets/sprites/cats/felix_legs.png"

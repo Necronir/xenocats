@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="1_yl6ap"]
+
+[resource]
+script = ExtResource("1_yl6ap")
+skill_id = &"enemy_acid_spray"
+skill_name = "Кислотный душ"
+description = "Дождь едких капель сверху по манипуляторам."
+target_type = 0
+base_damage = 15
+status_effect = 2
+status_stacks = 2
+qte_profile = 3

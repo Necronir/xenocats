@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_ucem4"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_oyx2s"]
+
+[resource]
+script = ExtResource("1_ucem4")
+part_id = &"boss_press_legs"
+part_name = "Шасси (БОСС: Трёхголовый Пресс)"
+description = "Ходовая часть (отстрелите, чтобы обрушить инициативу врага!)."
+slot = 2
+max_hp = 95
+texture_path = "res://assets/sprites/enemies/boss_press_legs.png"

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="1_khpg7"]
+
+[resource]
+script = ExtResource("1_khpg7")
+skill_id = &"mule_bucket_bash"
+skill_name = "Удар ковшом"
+description = "Тяжелый удар щитом-отвалом и Провокация (Taunt) на 2 хода."
+base_damage = 15
+shield_amount = 10
+status_effect = 3
+status_stacks = 2
+sync_gain = 20

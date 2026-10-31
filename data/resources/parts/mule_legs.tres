@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_nfkhd"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_scspl"]
+
+[resource]
+script = ExtResource("1_nfkhd")
+part_id = &"mule_legs"
+part_name = "Гусеничное шасси"
+description = "Медленные, но почти неуязвимые гусеницы."
+slot = 2
+max_hp = 80
+armor = 4
+base_speed = 9
+texture_path = "res://assets/sprites/cats/mule_legs.png"

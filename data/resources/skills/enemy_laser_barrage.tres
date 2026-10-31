@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="1_pjm31"]
+
+[resource]
+script = ExtResource("1_pjm31")
+skill_id = &"enemy_laser_barrage"
+skill_name = "Лазерная засечка"
+description = "Прицельный обстрел высокоточными лучами."
+target_type = 0
+base_damage = 20
+qte_profile = 3

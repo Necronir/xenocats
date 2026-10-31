@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_b2shl"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_y3bco"]
+
+[sub_resource type="Resource" id="Resource_ge5w3"]
+script = ExtResource("2_y3bco")
+skill_id = &"felix_laser_claws"
+skill_name = "Лазерные когти"
+description = "Быстрый порез по детали врага. Вешает Метку (Mark) для комбо."
+base_damage = 18
+status_effect = 1
+status_stacks = 1
+sync_gain = 20
+
+[resource]
+script = ExtResource("1_b2shl")
+part_id = &"felix_arms"
+part_name = "Лазерные когти Мк-1"
+description = "Высокочастотные резаки с целеуказателем."
+slot = 1
+max_hp = 50
+armor = 1
+base_speed = 16
+skills = Array[ExtResource("2_y3bco")]([SubResource("Resource_ge5w3")])
+texture_path = "res://assets/sprites/cats/felix_arms.png"

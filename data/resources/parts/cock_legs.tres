@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_ofkem"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_m8mmi"]
+
+[resource]
+script = ExtResource("1_ofkem")
+part_id = &"cock_legs"
+part_name = "Магнитные катушки"
+description = "Левитирующее шасси высокой манёвренности."
+slot = 2
+max_hp = 50
+base_speed = 15
+texture_path = "res://assets/sprites/cats/cock_legs.png"

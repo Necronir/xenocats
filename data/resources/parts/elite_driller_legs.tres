@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_5gbdb"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_h42tb"]
+
+[resource]
+script = ExtResource("1_5gbdb")
+part_id = &"elite_driller_legs"
+part_name = "Шасси (ЭЛИТА: Штурмовой Бурильщик)"
+description = "Ходовая часть (отстрелите, чтобы обрушить инициативу врага!)."
+slot = 2
+max_hp = 80
+armor = 3
+base_speed = 13
+texture_path = "res://assets/sprites/enemies/elite_driller_legs.png"

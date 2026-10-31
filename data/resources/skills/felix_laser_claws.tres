@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="1_t3oud"]
+
+[resource]
+script = ExtResource("1_t3oud")
+skill_id = &"felix_laser_claws"
+skill_name = "Лазерные когти"
+description = "Быстрый порез по детали врага. Вешает Метку (Mark) для комбо."
+base_damage = 18
+status_effect = 1
+status_stacks = 1
+sync_gain = 20

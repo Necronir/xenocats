@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_o1uvm"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_qcyv2"]
+
+[sub_resource type="Resource" id="Resource_qpbeq"]
+script = ExtResource("2_qcyv2")
+skill_id = &"enemy_laser_barrage"
+skill_name = "Лазерная засечка"
+description = "Прицельный обстрел высокоточными лучами."
+target_type = 0
+base_damage = 20
+qte_profile = 3
+
+[resource]
+script = ExtResource("1_o1uvm")
+part_id = &"elite_aegis_arms"
+part_name = "Орудия (ЭЛИТА: Эгида-Дроид)"
+description = "Боевой блок вооружения (отстрелите, чтобы ослабить атаки!)."
+slot = 1
+max_hp = 95
+armor = 4
+base_speed = 14
+skills = Array[ExtResource("2_qcyv2")]([SubResource("Resource_qpbeq")])
+texture_path = "res://assets/sprites/enemies/elite_aegis_arms.png"

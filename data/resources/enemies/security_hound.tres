@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://src/models/enemy_data.gd" id="1_7osgo"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_tac48"]
+
+[sub_resource type="Resource" id="Resource_gtp8e"]
+script = ExtResource("2_tac48")
+skill_id = &"enemy_saw_slash"
+skill_name = "Циркулярный рез"
+description = "Враг запускает дисковые пилы по арене."
+target_type = 0
+base_damage = 14
+qte_profile = 3
+
+[resource]
+script = ExtResource("1_7osgo")
+enemy_id = &"security_hound"
+enemy_name = "Охранная гончая"
+sector_level = 2
+max_hp = 78
+armor = 2
+speed = 15
+skills = Array[ExtResource("2_tac48")]([SubResource("Resource_gtp8e")])
+sprite_prefix = "security_hound"
+scrap_reward = 35

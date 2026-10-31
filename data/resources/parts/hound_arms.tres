@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_4wylv"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_a6ft2"]
+
+[sub_resource type="Resource" id="Resource_0bnxm"]
+script = ExtResource("2_a6ft2")
+skill_id = &"hound_saw_bite"
+skill_name = "Пилообразный укус"
+description = "Разрывает обшивку детали, вызывая Утечку масла (Bleed)."
+base_damage = 22
+status_effect = 2
+status_stacks = 3
+sync_gain = 20
+
+[resource]
+script = ExtResource("1_4wylv")
+part_id = &"hound_arms"
+part_name = "Пилообразные челюсти"
+description = "Цепные пилы, оставляющие глубокие пробоины."
+slot = 1
+max_hp = 65
+base_speed = 13
+skills = Array[ExtResource("2_a6ft2")]([SubResource("Resource_0bnxm")])
+texture_path = "res://assets/sprites/cats/hound_arms.png"

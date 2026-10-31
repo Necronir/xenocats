@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_jdv4p"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_kla7j"]
+
+[resource]
+script = ExtResource("1_jdv4p")
+part_id = &"hound_legs"
+part_name = "Лапы Перехватчика"
+description = "Сбалансированное шасси патрульного дроида."
+slot = 2
+base_speed = 13
+texture_path = "res://assets/sprites/cats/hound_legs.png"

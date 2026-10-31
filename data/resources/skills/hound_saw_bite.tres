@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="1_oaw7s"]
+
+[resource]
+script = ExtResource("1_oaw7s")
+skill_id = &"hound_saw_bite"
+skill_name = "Пилообразный укус"
+description = "Разрывает обшивку детали, вызывая Утечку масла (Bleed)."
+base_damage = 22
+status_effect = 2
+status_stacks = 3
+sync_gain = 20

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="1_yynr6"]
+
+[resource]
+script = ExtResource("1_yynr6")
+skill_id = &"enemy_heavy_press"
+skill_name = "Гидравлический пресс"
+description = "Огромные прессы обрушиваются сверху и сбоку!"
+target_type = 2
+base_damage = 18
+qte_profile = 3

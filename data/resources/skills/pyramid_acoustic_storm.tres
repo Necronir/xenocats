@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="1_4744j"]
+
+[resource]
+script = ExtResource("1_4744j")
+skill_id = &"pyramid_acoustic_storm"
+skill_name = "УЛЬТА: Акустический шторм"
+description = "AoE-контузия всех врагов сигналом тревоги максимальной громкости + Оглушение!"
+target_type = 2
+base_damage = 48
+status_effect = 5
+status_stacks = 1
+sync_gain = 0
+ignore_armor = true

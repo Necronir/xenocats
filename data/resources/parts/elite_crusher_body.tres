@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_44lfv"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_2s206"]
+
+[sub_resource type="Resource" id="Resource_gtp8e"]
+script = ExtResource("2_2s206")
+skill_id = &"enemy_saw_slash"
+skill_name = "Циркулярный рез"
+description = "Враг запускает дисковые пилы по арене."
+target_type = 0
+base_damage = 14
+qte_profile = 3
+
+[resource]
+script = ExtResource("1_44lfv")
+part_id = &"elite_crusher_body"
+part_name = "Ядро (ЭЛИТА: Погрузчик-Крушитель)"
+description = "Центральный процессор и реактор."
+max_hp = 110
+armor = 3
+base_speed = 11
+skills = Array[ExtResource("2_2s206")]([SubResource("Resource_gtp8e")])
+texture_path = "res://assets/sprites/enemies/elite_crusher_body.png"

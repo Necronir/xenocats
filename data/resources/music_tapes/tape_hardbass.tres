@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="MusicTapeData" format=3]
+
+[ext_resource type="Script" path="res://src/models/music_tape_data.gd" id="1_5l26s"]
+
+[resource]
+script = ExtResource("1_5l26s")
+tape_id = &"tape_hardbass"
+tape_name = "Кассета: Bremen Hardbass FM"
+description = "Боевой ритм свалки: +20% к скорости набора шкалы Гармонии (Пирамиды)."
+track_path = "res://assets/audio/tapes/tape_hardbass.wav"
+passive_aura_value = 20

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="1_1dewo"]
+
+[resource]
+script = ExtResource("1_1dewo")
+skill_id = &"hound_vengeance"
+skill_name = "Ярость стаи"
+description = "Сокрушительный удар, пробивающий броню цели."
+base_damage = 26
+sync_gain = 25
+ignore_armor = true

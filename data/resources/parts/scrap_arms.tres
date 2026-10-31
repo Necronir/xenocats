@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_f2oxm"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_raqv5"]
+
+[sub_resource type="Resource" id="Resource_jdl8f"]
+script = ExtResource("2_raqv5")
+skill_id = &"scrap_flamer"
+skill_name = "Шлаковый огнемёт"
+description = "Обжигает всех врагов раскалённым шлаком и вызывает утечку."
+target_type = 2
+base_damage = 16
+status_effect = 2
+status_stacks = 2
+sync_gain = 20
+
+[resource]
+script = ExtResource("1_f2oxm")
+part_id = &"scrap_arms"
+part_name = "Шлаковый Огнемёт"
+description = "Кустарный распылитель перегретого металла."
+slot = 1
+max_hp = 65
+skills = Array[ExtResource("2_raqv5")]([SubResource("Resource_jdl8f")])
+texture_path = "res://assets/sprites/cats/scrap_arms.png"

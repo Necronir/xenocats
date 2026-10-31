@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_gijdb"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_okoal"]
+
+[sub_resource type="Resource" id="Resource_eks6l"]
+script = ExtResource("2_okoal")
+skill_id = &"titan_rail_shot"
+skill_name = "Рельсотронный прострел"
+description = "Сверхмощный выстрел сквозь броню."
+base_damage = 30
+sync_gain = 25
+ignore_armor = true
+
+[resource]
+script = ExtResource("1_gijdb")
+part_id = &"titan_arms"
+part_name = "Рельсотрон «Авангард»"
+description = "Экспериментальное орудие дальней пробивной стрельбы."
+slot = 1
+max_hp = 70
+armor = 3
+skills = Array[ExtResource("2_okoal")]([SubResource("Resource_eks6l")])
+texture_path = "res://assets/sprites/cats/titan_arms.png"

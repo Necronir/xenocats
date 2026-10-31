@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_alf6h"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_jsums"]
+
+[sub_resource type="Resource" id="Resource_gtp8e"]
+script = ExtResource("2_jsums")
+skill_id = &"enemy_saw_slash"
+skill_name = "Циркулярный рез"
+description = "Враг запускает дисковые пилы по арене."
+target_type = 0
+base_damage = 14
+qte_profile = 3
+
+[sub_resource type="Resource" id="Resource_vbxit"]
+script = ExtResource("2_jsums")
+skill_id = &"enemy_acid_spray"
+skill_name = "Кислотный душ"
+description = "Дождь едких капель сверху по манипуляторам."
+target_type = 0
+base_damage = 15
+status_effect = 2
+status_stacks = 2
+qte_profile = 3
+
+[resource]
+script = ExtResource("1_alf6h")
+part_id = &"boss_press_body"
+part_name = "Ядро (БОСС: Трёхголовый Пресс)"
+description = "Центральный процессор и реактор."
+max_hp = 180
+armor = 3
+skills = Array[ExtResource("2_jsums")]([SubResource("Resource_gtp8e"), SubResource("Resource_vbxit")])
+texture_path = "res://assets/sprites/enemies/boss_press_body.png"

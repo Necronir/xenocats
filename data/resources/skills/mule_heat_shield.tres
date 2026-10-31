@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="1_tom8x"]
+
+[resource]
+script = ExtResource("1_tom8x")
+skill_id = &"mule_heat_shield"
+skill_name = "Экран перегрева"
+description = "Раздаёт всей группе силовые щиты (+14 Щит)."
+target_type = 5
+base_damage = 0
+shield_amount = 14
+status_effect = 4
+status_stacks = 1
+sync_gain = 20

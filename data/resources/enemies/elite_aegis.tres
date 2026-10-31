@@ -1,0 +1,76 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_4y330"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_5hsv0"]
+[ext_resource type="Script" path="res://src/models/enemy_data.gd" id="3_v00d1"]
+
+[sub_resource type="Resource" id="Resource_qpbeq"]
+script = ExtResource("2_5hsv0")
+skill_id = &"enemy_laser_barrage"
+skill_name = "Лазерная засечка"
+description = "Прицельный обстрел высокоточными лучами."
+target_type = 0
+base_damage = 20
+qte_profile = 3
+
+[sub_resource type="Resource" id="Resource_hic7o"]
+script = ExtResource("1_4y330")
+part_id = &"elite_aegis_arms"
+part_name = "Орудия (ЭЛИТА: Эгида-Дроид)"
+description = "Боевой блок вооружения (отстрелите, чтобы ослабить атаки!)."
+slot = 1
+max_hp = 95
+armor = 4
+base_speed = 14
+skills = Array[ExtResource("2_5hsv0")]([SubResource("Resource_qpbeq")])
+texture_path = "res://assets/sprites/enemies/elite_aegis_arms.png"
+
+[sub_resource type="Resource" id="Resource_ghj83"]
+script = ExtResource("2_5hsv0")
+skill_id = &"enemy_heavy_press"
+skill_name = "Гидравлический пресс"
+description = "Огромные прессы обрушиваются сверху и сбоку!"
+target_type = 2
+base_damage = 18
+qte_profile = 3
+
+[sub_resource type="Resource" id="Resource_b3ika"]
+script = ExtResource("1_4y330")
+part_id = &"elite_aegis_body"
+part_name = "Ядро (ЭЛИТА: Эгида-Дроид)"
+description = "Центральный процессор и реактор."
+max_hp = 160
+armor = 5
+base_speed = 14
+skills = Array[ExtResource("2_5hsv0")]([SubResource("Resource_ghj83")])
+texture_path = "res://assets/sprites/enemies/elite_aegis_body.png"
+
+[sub_resource type="Resource" id="Resource_rxnxs"]
+script = ExtResource("1_4y330")
+part_id = &"elite_aegis_legs"
+part_name = "Шасси (ЭЛИТА: Эгида-Дроид)"
+description = "Ходовая часть (отстрелите, чтобы обрушить инициативу врага!)."
+slot = 2
+max_hp = 90
+armor = 4
+base_speed = 14
+texture_path = "res://assets/sprites/enemies/elite_aegis_legs.png"
+
+[resource]
+script = ExtResource("3_v00d1")
+enemy_id = &"elite_aegis"
+enemy_name = "ЭЛИТА: Эгида-Дроид"
+is_modular = true
+is_elite = true
+sector_level = 3
+max_hp = 160
+armor = 5
+speed = 14
+body_part = SubResource("Resource_b3ika")
+arms_part = SubResource("Resource_hic7o")
+legs_part = SubResource("Resource_rxnxs")
+skills = Array[ExtResource("2_5hsv0")]([SubResource("Resource_ghj83")])
+dodge_pattern_id = &"laser_grid"
+sprite_prefix = "elite_aegis"
+scrap_reward = 90
+core_reward = 2

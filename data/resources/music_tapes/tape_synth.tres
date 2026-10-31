@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="MusicTapeData" format=3]
+
+[ext_resource type="Script" path="res://src/models/music_tape_data.gd" id="1_3vnwj"]
+
+[resource]
+script = ExtResource("1_3vnwj")
+tape_id = &"tape_synth"
+tape_name = "Кассета: Overclock Synth 2084"
+description = "Синтвейв перегрузки: +4 к базовой скорости ног и инициативе."
+track_path = "res://assets/audio/tapes/tape_synth.wav"
+passive_aura_type = &"SPEED_AURA"
+passive_aura_value = 4

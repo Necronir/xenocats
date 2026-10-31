@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_12yjp"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_n4ld0"]
+
+[sub_resource type="Resource" id="Resource_60frm"]
+script = ExtResource("2_n4ld0")
+skill_id = &"cock_sonic_wave"
+skill_name = "Акустический залп"
+description = "Удар звуковой волной, шанс оглушить врага (Stun)."
+base_damage = 16
+status_effect = 5
+status_stacks = 1
+sync_gain = 22
+
+[resource]
+script = ExtResource("1_12yjp")
+part_id = &"cock_arms"
+part_name = "Акустический мегафон"
+description = "Генератор направленных звуковых ударных волн."
+slot = 1
+max_hp = 50
+armor = 1
+base_speed = 15
+skills = Array[ExtResource("2_n4ld0")]([SubResource("Resource_60frm")])
+texture_path = "res://assets/sprites/cats/cock_arms.png"

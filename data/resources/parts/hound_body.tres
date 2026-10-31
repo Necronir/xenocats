@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_chcrw"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_nwmfg"]
+
+[sub_resource type="Resource" id="Resource_xrwsb"]
+script = ExtResource("2_nwmfg")
+skill_id = &"hound_vengeance"
+skill_name = "Ярость стаи"
+description = "Сокрушительный удар, пробивающий броню цели."
+base_damage = 26
+sync_gain = 25
+ignore_armor = true
+
+[resource]
+script = ExtResource("1_chcrw")
+part_id = &"hound_body"
+part_name = "Патрульный блок H.O.U.N.D."
+description = "Охранный корпус с форсированным гидравлическим приводом."
+max_hp = 80
+armor = 3
+base_speed = 13
+skills = Array[ExtResource("2_nwmfg")]([SubResource("Resource_xrwsb")])
+texture_path = "res://assets/sprites/cats/hound_body.png"

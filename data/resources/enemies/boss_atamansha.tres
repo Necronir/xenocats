@@ -1,0 +1,85 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_6dukr"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_quyd6"]
+[ext_resource type="Script" path="res://src/models/enemy_data.gd" id="3_7hthm"]
+
+[sub_resource type="Resource" id="Resource_qpbeq"]
+script = ExtResource("2_quyd6")
+skill_id = &"enemy_laser_barrage"
+skill_name = "Лазерная засечка"
+description = "Прицельный обстрел высокоточными лучами."
+target_type = 0
+base_damage = 20
+qte_profile = 3
+
+[sub_resource type="Resource" id="Resource_ghj83"]
+script = ExtResource("2_quyd6")
+skill_id = &"enemy_heavy_press"
+skill_name = "Гидравлический пресс"
+description = "Огромные прессы обрушиваются сверху и сбоку!"
+target_type = 2
+base_damage = 18
+qte_profile = 3
+
+[sub_resource type="Resource" id="Resource_jhfxd"]
+script = ExtResource("1_6dukr")
+part_id = &"boss_atamansha_arms"
+part_name = "Орудия (БОСС: Атаманша (Кран-Шагатель))"
+description = "Боевой блок вооружения (отстрелите, чтобы ослабить атаки!)."
+slot = 1
+max_hp = 130
+armor = 3
+base_speed = 14
+skills = Array[ExtResource("2_quyd6")]([SubResource("Resource_qpbeq"), SubResource("Resource_ghj83")])
+texture_path = "res://assets/sprites/enemies/boss_atamansha_arms.png"
+
+[sub_resource type="Resource" id="Resource_gtp8e"]
+script = ExtResource("2_quyd6")
+skill_id = &"enemy_saw_slash"
+skill_name = "Циркулярный рез"
+description = "Враг запускает дисковые пилы по арене."
+target_type = 0
+base_damage = 14
+qte_profile = 3
+
+[sub_resource type="Resource" id="Resource_7mqef"]
+script = ExtResource("1_6dukr")
+part_id = &"boss_atamansha_body"
+part_name = "Ядро (БОСС: Атаманша (Кран-Шагатель))"
+description = "Центральный процессор и реактор."
+max_hp = 230
+armor = 4
+base_speed = 14
+skills = Array[ExtResource("2_quyd6")]([SubResource("Resource_gtp8e")])
+texture_path = "res://assets/sprites/enemies/boss_atamansha_body.png"
+
+[sub_resource type="Resource" id="Resource_2j3md"]
+script = ExtResource("1_6dukr")
+part_id = &"boss_atamansha_legs"
+part_name = "Шасси (БОСС: Атаманша (Кран-Шагатель))"
+description = "Ходовая часть (отстрелите, чтобы обрушить инициативу врага!)."
+slot = 2
+max_hp = 115
+armor = 3
+base_speed = 14
+texture_path = "res://assets/sprites/enemies/boss_atamansha_legs.png"
+
+[resource]
+script = ExtResource("3_7hthm")
+enemy_id = &"boss_atamansha"
+enemy_name = "БОСС: Атаманша (Кран-Шагатель)"
+is_modular = true
+is_boss = true
+sector_level = 2
+max_hp = 230
+armor = 4
+speed = 14
+body_part = SubResource("Resource_7mqef")
+arms_part = SubResource("Resource_jhfxd")
+legs_part = SubResource("Resource_2j3md")
+skills = Array[ExtResource("2_quyd6")]([SubResource("Resource_gtp8e")])
+dodge_pattern_id = &"laser_grid"
+sprite_prefix = "boss_atamansha"
+scrap_reward = 140
+core_reward = 3

@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_gwhp4"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_g61l5"]
+
+[sub_resource type="Resource" id="Resource_u4ffv"]
+script = ExtResource("2_g61l5")
+skill_id = &"mule_heat_shield"
+skill_name = "Экран перегрева"
+description = "Раздаёт всей группе силовые щиты (+14 Щит)."
+target_type = 5
+base_damage = 0
+shield_amount = 14
+status_effect = 4
+status_stacks = 1
+sync_gain = 20
+
+[resource]
+script = ExtResource("1_gwhp4")
+part_id = &"mule_body"
+part_name = "Каркас Погрузчика M.U.L.E."
+description = "Тяжёлый бронированный корпус с генератором щитов."
+max_hp = 95
+armor = 4
+base_speed = 9
+skills = Array[ExtResource("2_g61l5")]([SubResource("Resource_u4ffv")])
+texture_path = "res://assets/sprites/cats/mule_body.png"

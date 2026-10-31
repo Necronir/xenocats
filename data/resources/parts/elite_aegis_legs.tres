@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_b8sxm"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_xcbke"]
+
+[resource]
+script = ExtResource("1_b8sxm")
+part_id = &"elite_aegis_legs"
+part_name = "Шасси (ЭЛИТА: Эгида-Дроид)"
+description = "Ходовая часть (отстрелите, чтобы обрушить инициативу врага!)."
+slot = 2
+max_hp = 90
+armor = 4
+base_speed = 14
+texture_path = "res://assets/sprites/enemies/elite_aegis_legs.png"

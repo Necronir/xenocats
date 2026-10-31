@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_n3et3"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_djjbm"]
+
+[sub_resource type="Resource" id="Resource_ghj83"]
+script = ExtResource("2_djjbm")
+skill_id = &"enemy_heavy_press"
+skill_name = "Гидравлический пресс"
+description = "Огромные прессы обрушиваются сверху и сбоку!"
+target_type = 2
+base_damage = 18
+qte_profile = 3
+
+[resource]
+script = ExtResource("1_n3et3")
+part_id = &"boss_press_arms"
+part_name = "Орудия (БОСС: Трёхголовый Пресс)"
+description = "Боевой блок вооружения (отстрелите, чтобы ослабить атаки!)."
+slot = 1
+max_hp = 110
+skills = Array[ExtResource("2_djjbm")]([SubResource("Resource_ghj83")])
+texture_path = "res://assets/sprites/enemies/boss_press_arms.png"

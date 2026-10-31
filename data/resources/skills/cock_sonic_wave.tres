@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="1_uiuj7"]
+
+[resource]
+script = ExtResource("1_uiuj7")
+skill_id = &"cock_sonic_wave"
+skill_name = "Акустический залп"
+description = "Удар звуковой волной, шанс оглушить врага (Stun)."
+base_damage = 16
+status_effect = 5
+status_stacks = 1
+sync_gain = 22

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="1_axgml"]
+
+[resource]
+script = ExtResource("1_axgml")
+skill_id = &"felix_overdrive"
+skill_name = "Форсаж сервоприводов"
+description = "Ускоряет всю партию (+Скорость на 2 хода)."
+target_type = 5
+base_damage = 0
+status_effect = 7
+status_stacks = 2
+qte_profile = 3

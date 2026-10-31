@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="1_ilh53"]
+
+[resource]
+script = ExtResource("1_ilh53")
+skill_id = &"titan_rail_shot"
+skill_name = "Рельсотронный прострел"
+description = "Сверхмощный выстрел сквозь броню."
+base_damage = 30
+sync_gain = 25
+ignore_armor = true
