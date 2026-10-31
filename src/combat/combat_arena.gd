@@ -174,11 +174,15 @@ func _build_visual_hierarchy() -> void:
 
 	_party_status_box = HBoxContainer.new()
 	_party_status_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_party_status_box.custom_minimum_size = Vector2(0, 0)
+	_party_status_box.clip_contents = true
 	_party_status_box.add_theme_constant_override("separation", 4)
 	bottom_hbox.add_child(_party_status_box)
 
 	var right_scroll: ScrollContainer = ScrollContainer.new()
 	right_scroll.custom_minimum_size = Vector2(265, 114)
+	right_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	right_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	bottom_hbox.add_child(right_scroll)
 
 	var menu_holder: VBoxContainer = VBoxContainer.new()
@@ -813,6 +817,7 @@ func _refresh_hud() -> void:
 		var pyr_card: PanelContainer = PanelContainer.new()
 		pyr_card.name = "PyramidTotemCard"
 		pyr_card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		pyr_card.clip_contents = true
 		var pst: StyleBoxFlat = StyleBoxFlat.new()
 		pst.bg_color = Color(0.14, 0.12, 0.22, 0.96)
 		pst.border_color = Color(1.0, 0.86, 0.28, 1.0)
@@ -835,11 +840,15 @@ func _refresh_hud() -> void:
 		p_title.text = "★ " + get_pyramid_title(_pyramid_tier) + " | ♫ " + band_str
 		p_title.add_theme_font_size_override("font_size", 9)
 		p_title.add_theme_color_override("font_color", Color(1.0, 0.9, 0.35))
+		p_title.clip_text = true
+		p_title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		p_title.tooltip_text = p_title.text
+		p_title.mouse_filter = Control.MOUSE_FILTER_PASS
 		pv.add_child(p_title)
 
 		_pyramid_hp_bar = ProgressBar.new()
 		_pyramid_hp_bar.name = "PyramidHPBar"
-		_pyramid_hp_bar.custom_minimum_size = Vector2(320, 18)
+		_pyramid_hp_bar.custom_minimum_size = Vector2(0, 18)
 		_pyramid_hp_bar.max_value = maxi(1, _pyramid_max_hp)
 		_pyramid_hp_bar.value = clampi(_pyramid_current_hp, 0, _pyramid_max_hp)
 		_pyramid_hp_bar.show_percentage = true
@@ -867,6 +876,8 @@ func _refresh_hud() -> void:
 		)
 		_pyramid_hp_label.add_theme_font_size_override("font_size", 9)
 		_pyramid_hp_label.add_theme_color_override("font_color", Color(0.4, 0.95, 1.0))
+		_pyramid_hp_label.clip_text = true
+		_pyramid_hp_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		pv.add_child(_pyramid_hp_label)
 
 		var cat_names: PackedStringArray = PackedStringArray()
@@ -882,12 +893,16 @@ func _refresh_hud() -> void:
 		p_sub.text = "В стыковке (" + str(intact_parts) + " дет.): " + ", ".join(cat_names)
 		p_sub.add_theme_font_size_override("font_size", 8)
 		p_sub.add_theme_color_override("font_color", Color(0.85, 0.88, 0.95))
+		p_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		p_sub.custom_minimum_size = Vector2(0, 0)
+		p_sub.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		pv.add_child(p_sub)
 	else:
 		for idx: int in range(_party.size()):
 			var c: CatMechInstance = _party[idx]
 			var card: PanelContainer = PanelContainer.new()
 			card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			card.clip_contents = true
 			var cst: StyleBoxFlat = StyleBoxFlat.new()
 			var is_active_turn: bool = (
 				_fsm.current_state == CombatFSM.State.PLAYER_SELECT_ACTION
@@ -913,6 +928,10 @@ func _refresh_hud() -> void:
 			if c.bleed_stacks > 0:
 				st_str += " [МАСЛО]"
 			title_l.text = c.display_name + " ♪" + c.instrument_name + st_str
+			title_l.clip_text = true
+			title_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			title_l.tooltip_text = title_l.text
+			title_l.mouse_filter = Control.MOUSE_FILTER_PASS
 			title_l.add_theme_font_size_override("font_size", 9)
 			title_l.add_theme_color_override("font_color", Color(0.4, 0.95, 1.0) if c.is_alive() else Color(0.6, 0.3, 0.3))
 			cv.add_child(title_l)
@@ -1092,6 +1111,9 @@ func _begin_player_turn(cat_index: int) -> void:
 	)
 	header.add_theme_font_size_override("font_size", 10)
 	header.add_theme_color_override("font_color", Color(0.95, 0.88, 0.35))
+	header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	header.custom_minimum_size = Vector2(240, 0)
+	header.tooltip_text = header.text
 	_action_box.add_child(header)
 
 	# Кнопка активации Башни / Пирамиды Бремена при 100% Синхронизации (2, 3 или 4 яруса по числу живых участников)
@@ -1100,6 +1122,8 @@ func _begin_player_turn(cat_index: int) -> void:
 		var pyr_btn: Button = Button.new()
 		pyr_btn.text = "★ СТЫКОВКА: " + get_pyramid_title(avail_tier) + "! ★"
 		pyr_btn.add_theme_font_size_override("font_size", 10)
+		pyr_btn.clip_text = true
+		pyr_btn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		pyr_btn.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
 		pyr_btn.pressed.connect(_activate_bremen_pyramid)
 		_action_box.add_child(pyr_btn)
@@ -1128,7 +1152,9 @@ func _begin_player_turn(cat_index: int) -> void:
 		btn.text = sk.skill_name + " (" + (
 			"Урон:" + str(sk.base_damage) if sk.base_damage > 0 else "Саппорт"
 		) + ")"
-		btn.tooltip_text = sk.description
+		btn.tooltip_text = btn.text + "\n" + sk.description
+		btn.clip_text = true
+		btn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		btn.add_theme_font_size_override("font_size", 9)
 		btn.pressed.connect(func() -> void:
 			AudioManager.play_sfx("ui_click")
