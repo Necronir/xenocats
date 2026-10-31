@@ -28,9 +28,16 @@ var _active_enemy_index: int = 0
 var _enemy_skill: SkillData = null
 var _defending_cat_index: int = 0
 
-# Состояние режима «Пирамида Бремена»
+# Состояние режима «Пирамида Бремена» (Issue #9)
 var _pyramid_active: bool = false
+var _pyramid_tier: int = 4
 var _pyramid_turns_left: int = 0
+var _pyramid_current_hp: int = 0
+var _pyramid_max_hp: int = 0
+var _pyramid_initial_hp: int = 0
+var _pyramid_damage_taken: int = 0
+var _pyramid_hp_bar: ProgressBar = null
+var _pyramid_hp_label: Label = null
 
 # Узлы сцены
 var _bg_rect: TextureRect = null
@@ -279,7 +286,39 @@ func _init_combat_entities() -> void:
 
 	_spawn_cat_rigs()
 	_spawn_enemy_rigs()
+	_sync_arena_music()
 	_refresh_hud()
+
+func _is_boss_battle() -> bool:
+	if String(_battle_payload.get("node_type", "")) == "BOSS":
+		return true
+	for en: EnemyInstance in _enemies:
+		if en != null and en.data != null and en.data.is_boss:
+			return true
+	return false
+
+func _sync_arena_music() -> void:
+	if _pyramid_active:
+		AudioManager.play_pyramid_theme(_pyramid_tier)
+	elif _is_boss_battle():
+		AudioManager.play_boss_theme(clampi(SaveManager.current_sector, 1, 3))
+	else:
+		AudioManager.sync_music_to_party(_party)
+
+func get_available_pyramid_tier() -> int:
+	var alive_count: int = 0
+	for cat: CatMechInstance in _party:
+		if cat.is_alive():
+			alive_count += 1
+	return clampi(alive_count, 2, 4)
+
+func get_pyramid_title(tier: int = -1) -> String:
+	var t: int = _pyramid_tier if tier < 0 else clampi(tier, 2, 4)
+	if t <= 2:
+		return "МАЛАЯ БАШНЯ «ДУЭТ» (2 ЯРУСА)"
+	if t == 3:
+		return "СРЕДНЯЯ БАШНЯ «ТРИО» (3 ЯРУСА)"
+	return "ТОТЕМ «ПИРАМИДА БРЕМЕНА» (4 ЯРУСА)"
 
 # --- VFX, партиклы, микро-анимации и шейк экрана (ADR-001 Section 4, Issue #11) ---
 
@@ -764,51 +803,128 @@ func _refresh_hud() -> void:
 		else:
 			elbl.text = en.data.enemy_name + status_tags + "\nHP: " + str(en.current_hp) + "/" + str(en.data.max_hp)
 
-	# Перестраиваем карточки статуса 4 котов внизу
+	# Перестраиваем карточки статуса 4 котов внизу (или сводный HP-бар тотема «Пирамида Бремена», Issue #9)
 	for child: Node in _party_status_box.get_children():
 		child.queue_free()
+	_pyramid_hp_bar = null
+	_pyramid_hp_label = null
 
-	for idx: int in range(_party.size()):
-		var c: CatMechInstance = _party[idx]
-		var card: PanelContainer = PanelContainer.new()
-		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		var cst: StyleBoxFlat = StyleBoxFlat.new()
-		var is_active_turn: bool = (
-			_fsm.current_state == CombatFSM.State.PLAYER_SELECT_ACTION
-			or _fsm.current_state == CombatFSM.State.PLAYER_SELECT_TARGET
-		) and (_active_cat_index == idx)
-		cst.bg_color = Color(0.11, 0.16, 0.24, 0.95) if is_active_turn else Color(0.07, 0.09, 0.14, 0.9)
-		cst.border_color = Color(0.95, 0.85, 0.3, 1.0) if is_active_turn else Color(0.25, 0.35, 0.45, 0.8)
-		cst.set_border_width_all(1)
-		cst.set_content_margin_all(3)
-		card.add_theme_stylebox_override("panel", cst)
-		_party_status_box.add_child(card)
+	if _pyramid_active:
+		var pyr_card: PanelContainer = PanelContainer.new()
+		pyr_card.name = "PyramidTotemCard"
+		pyr_card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var pst: StyleBoxFlat = StyleBoxFlat.new()
+		pst.bg_color = Color(0.14, 0.12, 0.22, 0.96)
+		pst.border_color = Color(1.0, 0.86, 0.28, 1.0)
+		pst.set_border_width_all(2)
+		pst.set_corner_radius_all(4)
+		pst.set_content_margin_all(5)
+		pyr_card.add_theme_stylebox_override("panel", pst)
+		_party_status_box.add_child(pyr_card)
 
-		var cv: VBoxContainer = VBoxContainer.new()
-		cv.add_theme_constant_override("separation", 1)
-		card.add_child(cv)
+		var pv: VBoxContainer = VBoxContainer.new()
+		pv.add_theme_constant_override("separation", 3)
+		pyr_card.add_child(pv)
 
-		var title_l: Label = Label.new()
-		var st_str: String = ""
-		if c.shield > 0:
-			st_str += " [Щ:" + str(c.shield) + "]"
-		if c.taunt_turns > 0:
-			st_str += " [ТАНК]"
-		if c.bleed_stacks > 0:
-			st_str += " [МАСЛО]"
-		title_l.text = c.display_name + st_str
-		title_l.add_theme_font_size_override("font_size", 9)
-		title_l.add_theme_color_override("font_color", Color(0.4, 0.95, 1.0) if c.is_alive() else Color(0.6, 0.3, 0.3))
-		cv.add_child(title_l)
+		var p_title: Label = Label.new()
+		var band_str: String = (
+			" + ".join(AudioManager.active_instruments)
+			if not AudioManager.active_instruments.is_empty()
+			else "Гитара + Бас + Барабан + Синтезатор + Резонатор «Бремен»"
+		)
+		p_title.text = "★ " + get_pyramid_title(_pyramid_tier) + " | ♫ " + band_str
+		p_title.add_theme_font_size_override("font_size", 9)
+		p_title.add_theme_color_override("font_color", Color(1.0, 0.9, 0.35))
+		pv.add_child(p_title)
 
-		cv.add_child(_make_part_hp_row("Корп:", c.body_part, Color(0.3, 0.85, 0.95)))
-		cv.add_child(_make_part_hp_row("Руки:", c.arms_part, Color(0.95, 0.65, 0.25)))
-		cv.add_child(_make_part_hp_row("Ноги:", c.legs_part, Color(0.45, 0.9, 0.45)))
+		_pyramid_hp_bar = ProgressBar.new()
+		_pyramid_hp_bar.name = "PyramidHPBar"
+		_pyramid_hp_bar.custom_minimum_size = Vector2(320, 18)
+		_pyramid_hp_bar.max_value = maxi(1, _pyramid_max_hp)
+		_pyramid_hp_bar.value = clampi(_pyramid_current_hp, 0, _pyramid_max_hp)
+		_pyramid_hp_bar.show_percentage = true
+		var bar_bg: StyleBoxFlat = StyleBoxFlat.new()
+		bar_bg.bg_color = Color(0.08, 0.06, 0.12, 0.95)
+		bar_bg.border_color = Color(0.4, 0.85, 1.0, 0.9)
+		bar_bg.set_border_width_all(1)
+		bar_bg.set_corner_radius_all(3)
+		var bar_fill: StyleBoxFlat = StyleBoxFlat.new()
+		bar_fill.bg_color = (
+			Color(0.25, 0.88, 0.55, 0.95)
+			if float(_pyramid_current_hp) > float(_pyramid_max_hp) * 0.35
+			else Color(0.95, 0.35, 0.35, 0.95)
+		)
+		bar_fill.set_corner_radius_all(3)
+		_pyramid_hp_bar.add_theme_stylebox_override("background", bar_bg)
+		_pyramid_hp_bar.add_theme_stylebox_override("fill", bar_fill)
+		pv.add_child(_pyramid_hp_bar)
 
-		var spd_l: Label = Label.new()
-		spd_l.text = "Иниц: " + str(c.get_initiative_score()) + (" (НОГИ СЛОМ!)" if c.legs_part.is_broken() else "")
-		spd_l.add_theme_font_size_override("font_size", 8)
-		cv.add_child(spd_l)
+		_pyramid_hp_label = Label.new()
+		_pyramid_hp_label.name = "PyramidHPLabel"
+		_pyramid_hp_label.text = (
+			"СВОДНЫЙ ПУЛ HP ТОТЕМА: " + str(_pyramid_current_hp) + "/" + str(_pyramid_max_hp)
+			+ " HP (Урон по пулу: -" + str(_pyramid_damage_taken) + " HP)"
+		)
+		_pyramid_hp_label.add_theme_font_size_override("font_size", 9)
+		_pyramid_hp_label.add_theme_color_override("font_color", Color(0.4, 0.95, 1.0))
+		pv.add_child(_pyramid_hp_label)
+
+		var cat_names: PackedStringArray = PackedStringArray()
+		var intact_parts: int = 0
+		for c: CatMechInstance in _party:
+			if c.is_alive():
+				cat_names.append(c.display_name + " [" + c.instrument_name + "]")
+				for sl: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
+					var pt: PartInstance = c.get_part(sl)
+					if pt != null and not pt.is_broken():
+						intact_parts += 1
+		var p_sub: Label = Label.new()
+		p_sub.text = "В стыковке (" + str(intact_parts) + " дет.): " + ", ".join(cat_names)
+		p_sub.add_theme_font_size_override("font_size", 8)
+		p_sub.add_theme_color_override("font_color", Color(0.85, 0.88, 0.95))
+		pv.add_child(p_sub)
+	else:
+		for idx: int in range(_party.size()):
+			var c: CatMechInstance = _party[idx]
+			var card: PanelContainer = PanelContainer.new()
+			card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			var cst: StyleBoxFlat = StyleBoxFlat.new()
+			var is_active_turn: bool = (
+				_fsm.current_state == CombatFSM.State.PLAYER_SELECT_ACTION
+				or _fsm.current_state == CombatFSM.State.PLAYER_SELECT_TARGET
+			) and (_active_cat_index == idx)
+			cst.bg_color = Color(0.11, 0.16, 0.24, 0.95) if is_active_turn else Color(0.07, 0.09, 0.14, 0.9)
+			cst.border_color = Color(0.95, 0.85, 0.3, 1.0) if is_active_turn else Color(0.25, 0.35, 0.45, 0.8)
+			cst.set_border_width_all(1)
+			cst.set_content_margin_all(3)
+			card.add_theme_stylebox_override("panel", cst)
+			_party_status_box.add_child(card)
+
+			var cv: VBoxContainer = VBoxContainer.new()
+			cv.add_theme_constant_override("separation", 1)
+			card.add_child(cv)
+
+			var title_l: Label = Label.new()
+			var st_str: String = ""
+			if c.shield > 0:
+				st_str += " [Щ:" + str(c.shield) + "]"
+			if c.taunt_turns > 0:
+				st_str += " [ТАНК]"
+			if c.bleed_stacks > 0:
+				st_str += " [МАСЛО]"
+			title_l.text = c.display_name + " ♪" + c.instrument_name + st_str
+			title_l.add_theme_font_size_override("font_size", 9)
+			title_l.add_theme_color_override("font_color", Color(0.4, 0.95, 1.0) if c.is_alive() else Color(0.6, 0.3, 0.3))
+			cv.add_child(title_l)
+
+			cv.add_child(_make_part_hp_row("Корп:", c.body_part, Color(0.3, 0.85, 0.95)))
+			cv.add_child(_make_part_hp_row("Руки:", c.arms_part, Color(0.95, 0.65, 0.25)))
+			cv.add_child(_make_part_hp_row("Ноги:", c.legs_part, Color(0.45, 0.9, 0.45)))
+
+			var spd_l: Label = Label.new()
+			spd_l.text = "Иниц: " + str(c.get_initiative_score()) + (" (НОГИ СЛОМ!)" if c.legs_part.is_broken() else "")
+			spd_l.add_theme_font_size_override("font_size", 8)
+			cv.add_child(spd_l)
 
 func _make_part_hp_row(prefix: String, part: PartInstance, col: Color) -> Label:
 	var l: Label = Label.new()
@@ -834,9 +950,7 @@ func _start_new_round() -> void:
 	if _pyramid_active:
 		_pyramid_turns_left -= 1
 		if _pyramid_turns_left <= 0:
-			_pyramid_active = false
-			EventBus.pyramid_deactivated.emit()
-			_log_label.text = "Режим «Пирамида Бремена» завершён — коты расстыковались!"
+			_deactivate_bremen_pyramid()
 
 	for i: int in range(_party.size()):
 		var cat: CatMechInstance = _party[i]
@@ -898,17 +1012,22 @@ func _advance_turn() -> void:
 				continue
 			if cat.bleed_stacks > 0:
 				var bleed_dmg: int = cat.bleed_stacks * 2
-				cat.apply_part_damage(PartData.PartSlot.BODY, bleed_dmg, true)
 				cat.bleed_stacks = maxi(0, cat.bleed_stacks - 1)
-				if idx < _cat_rigs.size():
-					var crig: Dictionary = _cat_rigs[idx]
-					_play_rig_hurt(crig, 4.0, PartData.PartSlot.BODY)
-					spawn_damage_number((crig["root"] as Node2D).position, "МАСЛО -" + str(bleed_dmg), Color(0.85, 0.45, 1.0))
-				if not cat.is_alive():
-					_refresh_hud()
+				if _pyramid_active:
+					apply_pyramid_damage(bleed_dmg, true)
 					if _check_battle_end():
 						return
-					continue
+				else:
+					cat.apply_part_damage(PartData.PartSlot.BODY, bleed_dmg, true)
+					if idx < _cat_rigs.size():
+						var crig: Dictionary = _cat_rigs[idx]
+						_play_rig_hurt(crig, 4.0, PartData.PartSlot.BODY)
+						spawn_damage_number((crig["root"] as Node2D).position, "МАСЛО -" + str(bleed_dmg), Color(0.85, 0.45, 1.0))
+					if not cat.is_alive():
+						_refresh_hud()
+						if _check_battle_end():
+							return
+						continue
 			if cat.stunned:
 				cat.stunned = false
 				_log_label.text = cat.display_name + " перегружен (Оглушение) и пропускает ход!"
@@ -956,6 +1075,8 @@ func _begin_player_turn(cat_index: int) -> void:
 	_active_cat_index = cat_index
 	_fsm.transition_to(CombatFSM.State.PLAYER_SELECT_ACTION)
 	_update_turn_order_header()
+
+	var cat: CatMechInstance = _party[_active_cat_index]
 	_refresh_hud()
 
 	_action_box.visible = true
@@ -963,21 +1084,21 @@ func _begin_player_turn(cat_index: int) -> void:
 	for child: Node in _action_box.get_children():
 		child.queue_free()
 
-	var cat: CatMechInstance = _party[_active_cat_index]
 	var header: Label = Label.new()
 	header.text = (
-		"ХОД ТОТЕМА «ПИРАМИДА БРЕМЕНА»:"
+		("ХОД: " + get_pyramid_title(_pyramid_tier) + " [♫ +Резонатор «Бремен»]:")
 		if _pyramid_active
-		else ("ХОД: " + cat.display_name + " (" + cat.role_title + ")")
+		else ("ХОД: " + cat.display_name + " (" + cat.role_title + " | ♪ " + cat.instrument_name + ")")
 	)
 	header.add_theme_font_size_override("font_size", 10)
 	header.add_theme_color_override("font_color", Color(0.95, 0.88, 0.35))
 	_action_box.add_child(header)
 
-	# Кнопка активации Пирамиды Бремена при 100% Синхронизации
+	# Кнопка активации Башни / Пирамиды Бремена при 100% Синхронизации (2, 3 или 4 яруса по числу живых участников)
 	if SaveManager.sync_gauge >= 100 and not _pyramid_active:
+		var avail_tier: int = get_available_pyramid_tier()
 		var pyr_btn: Button = Button.new()
-		pyr_btn.text = "★ СТЫКОВКА: ПИРАМИДА БРЕМЕНА! ★"
+		pyr_btn.text = "★ СТЫКОВКА: " + get_pyramid_title(avail_tier) + "! ★"
 		pyr_btn.add_theme_font_size_override("font_size", 10)
 		pyr_btn.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
 		pyr_btn.pressed.connect(_activate_bremen_pyramid)
@@ -985,8 +1106,16 @@ func _begin_player_turn(cat_index: int) -> void:
 
 	var skills: Array[SkillData] = []
 	if _pyramid_active:
-		var u1: SkillData = DataCatalog.get_skill("pyramid_acoustic_storm")
-		var u2: SkillData = DataCatalog.get_skill("pyramid_cascade_overload")
+		var storm_id: String = "pyramid_acoustic_storm"
+		var cascade_id: String = "pyramid_cascade_overload"
+		if _pyramid_tier <= 2:
+			storm_id = "pyramid_2_acoustic_storm"
+			cascade_id = "pyramid_2_cascade_overload"
+		elif _pyramid_tier == 3:
+			storm_id = "pyramid_3_acoustic_storm"
+			cascade_id = "pyramid_3_cascade_overload"
+		var u1: SkillData = DataCatalog.get_skill(storm_id)
+		var u2: SkillData = DataCatalog.get_skill(cascade_id)
 		if u1 != null:
 			skills.append(u1)
 		if u2 != null:
@@ -1007,21 +1136,247 @@ func _begin_player_turn(cat_index: int) -> void:
 		)
 		_action_box.add_child(btn)
 
+func get_pyramid_current_hp() -> int:
+	if _pyramid_active:
+		return _pyramid_current_hp
+	var total: int = 0
+	for cat: CatMechInstance in _party:
+		if cat.is_alive():
+			total += cat.get_total_current_hp()
+	return total
+
+func get_pyramid_max_hp() -> int:
+	if _pyramid_active:
+		return _pyramid_max_hp
+	var total: int = 0
+	for cat: CatMechInstance in _party:
+		if cat.is_alive():
+			total += cat.get_total_max_hp()
+	return total
+
 func _activate_bremen_pyramid() -> void:
 	SaveManager.sync_gauge = 0
 	_pyramid_active = true
+	_pyramid_tier = get_available_pyramid_tier()
 	_pyramid_turns_left = 1
-	AudioManager.play_sfx("pyramid_siren")
-	EventBus.pyramid_activated.emit()
+	_pyramid_initial_hp = 0
+	_pyramid_max_hp = 0
+	_pyramid_damage_taken = 0
 
-	# Все 4 кота стыкуются: снимаются негативные статусы, выдается общий энергетический щит
+	# Все уцелевшие детали живых котов складывают суммарный пул HP (ADR-001 Section 2.4, Issue #9)
 	for cat: CatMechInstance in _party:
 		if cat.is_alive():
 			cat.clear_debuffs()
-			cat.shield += 18
+			_pyramid_initial_hp += cat.get_total_current_hp()
+			_pyramid_max_hp += cat.get_total_max_hp()
 
-	_log_label.text = "СТЫКОВКА! Коты объединились в «Пирамиду Бремена»! Негативные статусы сняты!"
+	_pyramid_current_hp = _pyramid_initial_hp
+
+	AudioManager.play_sfx("pyramid_siren")
+	AudioManager.play_pyramid_theme(_pyramid_tier)
+	EventBus.pyramid_activated.emit()
+
+	if _pyramid_sprite != null:
+		var spr_path: String = "res://assets/sprites/cats/bremen_pyramid.png"
+		if _pyramid_tier <= 2 and ResourceLoader.exists("res://assets/sprites/cats/bremen_pyramid_2.png"):
+			spr_path = "res://assets/sprites/cats/bremen_pyramid_2.png"
+		elif _pyramid_tier == 3 and ResourceLoader.exists("res://assets/sprites/cats/bremen_pyramid_3.png"):
+			spr_path = "res://assets/sprites/cats/bremen_pyramid_3.png"
+		if ResourceLoader.exists(spr_path):
+			_pyramid_sprite.texture = load(spr_path) as Texture2D
+
+		_pyramid_sprite.scale = Vector2(0.75, 1.25)
+		_pyramid_sprite.modulate = Color(1.6, 1.5, 0.7, 1.0)
+		var dock_tw: Tween = create_tween()
+		dock_tw.set_parallel(true)
+		dock_tw.tween_property(_pyramid_sprite, "scale", Vector2(1.0, 1.0), 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		dock_tw.tween_property(_pyramid_sprite, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.2)
+		_emit_spark_burst(_pyramid_sprite.position, 22)
+		spawn_damage_number(
+			_pyramid_sprite.position,
+			"СТЫКОВКА (" + str(_pyramid_tier) + "/4)! " + str(_pyramid_current_hp) + "/" + str(_pyramid_max_hp) + " HP",
+			Color(1.0, 0.9, 0.3),
+			true
+		)
+
+	_log_label.text = (
+		"СТЫКОВКА! " + get_pyramid_title(_pyramid_tier) + " (" + str(_pyramid_current_hp) + "/"
+		+ str(_pyramid_max_hp) + " HP)! Вступает Резонатор «Бремен»!"
+	)
 	_begin_player_turn(_active_cat_index)
+
+func apply_pyramid_damage(raw_damage: int, _ignore_armor: bool = false) -> Dictionary:
+	if _pyramid_current_hp <= 0:
+		return {
+			"damage": 0,
+			"current_hp": 0,
+			"max_hp": _pyramid_max_hp,
+			"totem_destroyed": true
+		}
+
+	var dealt: int = clampi(maxi(1, raw_damage), 0, _pyramid_current_hp)
+	_pyramid_current_hp = maxi(0, _pyramid_current_hp - dealt)
+	_pyramid_damage_taken += dealt
+	EventBus.pyramid_damaged.emit(dealt, _pyramid_current_hp, _pyramid_max_hp)
+
+	if _pyramid_sprite != null:
+		var orig_pos: Vector2 = Vector2(112, 148)
+		var p_tw: Tween = create_tween()
+		p_tw.tween_property(_pyramid_sprite, "position", orig_pos + Vector2(-6, 0), 0.03)
+		p_tw.tween_property(_pyramid_sprite, "position", orig_pos + Vector2(5, -1), 0.03)
+		p_tw.tween_property(_pyramid_sprite, "position", orig_pos, 0.04)
+
+		var fl_tw: Tween = create_tween()
+		fl_tw.tween_property(_pyramid_sprite, "modulate", Color(1.9, 0.4, 0.4, 1.0), 0.04)
+		fl_tw.tween_property(_pyramid_sprite, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.14)
+
+		spawn_damage_number(_pyramid_sprite.position, "-" + str(dealt) + " HP", Color(1.0, 0.4, 0.35), false)
+		_emit_spark_burst(_pyramid_sprite.position, 14)
+
+	if _pyramid_current_hp <= 0:
+		for cat: CatMechInstance in _party:
+			for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
+				var pt: PartInstance = cat.get_part(slot)
+				if pt != null:
+					pt.current_hp = 0
+
+	_refresh_hud()
+	return {
+		"damage": dealt,
+		"current_hp": _pyramid_current_hp,
+		"max_hp": _pyramid_max_hp,
+		"totem_destroyed": _pyramid_current_hp <= 0
+	}
+
+func _distribute_pyramid_damage_on_undock() -> Dictionary:
+	var surviving_entries: Array[Dictionary] = []
+	var pool_hp: int = 0
+	for cat_idx: int in range(_party.size()):
+		var cat: CatMechInstance = _party[cat_idx]
+		if not cat.is_alive():
+			continue
+		for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
+			var part: PartInstance = cat.get_part(slot)
+			if part != null and part.current_hp > 0:
+				var hp_val: int = part.current_hp
+				pool_hp += hp_val
+				surviving_entries.append({
+					"cat_idx": cat_idx,
+					"cat": cat,
+					"slot": slot,
+					"part": part,
+					"hp": hp_val,
+					"share": 0,
+					"rem": 0.0
+				})
+
+	var total_to_distribute: int = clampi(_pyramid_damage_taken, 0, pool_hp)
+	var per_cat_damage: Dictionary = {}
+	if total_to_distribute <= 0 or pool_hp <= 0 or surviving_entries.is_empty():
+		return {"total_distributed": 0, "per_cat_damage": per_cat_damage}
+
+	# Пропорциональное распределение урона по методу наибольшего остатка (Largest Remainder / Hamilton)
+	var assigned_sum: int = 0
+	for entry: Dictionary in surviving_entries:
+		var hp_val: int = int(entry["hp"])
+		var exact: float = float(total_to_distribute) * float(hp_val) / float(pool_hp)
+		var fl_share: int = mini(hp_val, int(floor(exact)))
+		entry["share"] = fl_share
+		entry["rem"] = exact - float(fl_share)
+		assigned_sum += fl_share
+
+	var leftover: int = total_to_distribute - assigned_sum
+	if leftover > 0:
+		var order: Array[int] = []
+		for idx_e: int in range(surviving_entries.size()):
+			order.append(idx_e)
+		order.sort_custom(func(a: int, b: int) -> bool:
+			var ra: float = float(surviving_entries[a]["rem"])
+			var rb: float = float(surviving_entries[b]["rem"])
+			if not is_equal_approx(ra, rb):
+				return ra > rb
+			return int(surviving_entries[a]["hp"]) > int(surviving_entries[b]["hp"])
+		)
+		for ord_idx: int in order:
+			if leftover <= 0:
+				break
+			var item: Dictionary = surviving_entries[ord_idx]
+			if int(item["share"]) < int(item["hp"]):
+				item["share"] = int(item["share"]) + 1
+				leftover -= 1
+
+	var actual_distributed: int = 0
+	for entry2: Dictionary in surviving_entries:
+		var dmg: int = int(entry2["share"])
+		if dmg <= 0:
+			continue
+		var c_inst: CatMechInstance = entry2["cat"] as CatMechInstance
+		var sl: PartData.PartSlot = int(entry2["slot"]) as PartData.PartSlot
+		var p_inst: PartInstance = entry2["part"] as PartInstance
+		var c_idx: int = int(entry2["cat_idx"])
+
+		var was_broken: bool = p_inst.is_broken()
+		p_inst.current_hp = maxi(0, p_inst.current_hp - dmg)
+		actual_distributed += dmg
+		per_cat_damage[c_idx] = int(per_cat_damage.get(c_idx, 0)) + dmg
+
+		EventBus.cat_part_damaged.emit(c_inst.cat_id, int(sl), dmg, p_inst.current_hp)
+		if (not was_broken) and p_inst.is_broken():
+			EventBus.cat_part_destroyed.emit(c_inst.cat_id, int(sl))
+
+	_pyramid_damage_taken = 0
+	return {"total_distributed": actual_distributed, "per_cat_damage": per_cat_damage}
+
+func _play_pyramid_undock_vfx(dist_res: Dictionary) -> void:
+	var pyr_pos: Vector2 = _pyramid_sprite.position if _pyramid_sprite != null else Vector2(112, 148)
+	_trigger_screenshake(6.5, 0.22)
+	_emit_spark_burst(pyr_pos, 24)
+	spawn_damage_number(pyr_pos, "РАССТЫКОВКА!", Color(0.4, 0.95, 1.0), true)
+
+	var per_cat: Dictionary = dist_res.get("per_cat_damage", {}) as Dictionary
+	for i: int in range(_cat_rigs.size()):
+		if i >= _party.size() or not _party[i].is_alive():
+			continue
+		var rig: Dictionary = _cat_rigs[i]
+		var root: Node2D = rig["root"] as Node2D
+		var base_pos: Vector2 = rig["base_pos"] as Vector2
+		var body_spr: Sprite2D = rig["body_spr"] as Sprite2D
+		if root != null:
+			root.visible = true
+			root.position = base_pos.lerp(pyr_pos, 0.35)
+			var tw: Tween = create_tween()
+			tw.tween_property(root, "position", base_pos, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		if body_spr != null:
+			var fl_tw: Tween = create_tween()
+			fl_tw.tween_property(body_spr, "modulate", Color(1.4, 1.8, 2.0, 1.0), 0.06)
+			fl_tw.tween_property(body_spr, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.16)
+		var cat_dmg: int = int(per_cat.get(i, 0))
+		if cat_dmg > 0:
+			spawn_damage_number(base_pos + Vector2(0, -10), "-" + str(cat_dmg) + " HP", Color(1.0, 0.55, 0.35), false)
+
+func _deactivate_bremen_pyramid() -> Dictionary:
+	if not _pyramid_active:
+		return {"total_distributed": 0, "per_cat_damage": {}}
+
+	var dist_res: Dictionary = _distribute_pyramid_damage_on_undock()
+	_pyramid_active = false
+	_pyramid_turns_left = 0
+	AudioManager.play_sfx("pyramid_undock")
+	_sync_arena_music()
+	EventBus.pyramid_deactivated.emit()
+	_play_pyramid_undock_vfx(dist_res)
+
+	var total_dist: int = int(dist_res.get("total_distributed", 0))
+	if total_dist > 0:
+		_log_label.text = (
+			"Режим «Пирамида Бремена» завершён — коты расстыковались! Урон тотема (-"
+			+ str(total_dist) + " HP) пропорционально распределён по деталям!"
+		)
+	else:
+		_log_label.text = "Режим «Пирамида Бремена» завершён — коты расстыковались!"
+
+	_refresh_hud()
+	return dist_res
 
 func _on_skill_chosen(sk: SkillData) -> void:
 	_selected_skill = sk
@@ -1256,9 +1611,10 @@ func _begin_enemy_turn(enemy_index: int) -> void:
 	# Отдача назад врага при атаке (Issue #11)
 	_play_enemy_attack_recoil(enemy_index)
 
+	var target_title: String = "ПИРАМИДА БРЕМЕНА" if _pyramid_active else defender.display_name
 	_log_label.text = (
 		en.data.enemy_name + " применяет «" + _enemy_skill.skill_name
-		+ "» по " + defender.display_name + "! Уклоняйтесь в боксе!"
+		+ "» по " + target_title + "! Уклоняйтесь в боксе!"
 	)
 	_refresh_hud()
 
@@ -1269,10 +1625,10 @@ func _begin_enemy_turn(enemy_index: int) -> void:
 	_fsm.transition_to(CombatFSM.State.DODGE_REALTIME_MINIGAME)
 
 	_dodge_arena.start_dodge(
-		defender.display_name,
+		target_title,
 		en.data.dodge_pattern_id,
 		_enemy_skill.base_damage,
-		defender.get_dodge_speed_multiplier(),
+		1.0 if _pyramid_active else defender.get_dodge_speed_multiplier(),
 		3.5
 	)
 
@@ -1292,6 +1648,23 @@ func _pick_target_cat_index() -> int:
 	return 0
 
 func _on_dodge_part_hit(slot: PartData.PartSlot, raw_damage: int) -> void:
+	# Если активна Пирамида Бремена — маршрутизируем урон в общий пул тотема (Issue #9)
+	if _pyramid_active:
+		if _pyramid_current_hp <= 0:
+			_dodge_arena.call_deferred("force_finish")
+			return
+		var pyr_res: Dictionary = apply_pyramid_damage(raw_damage, false)
+		var dealt_pyr: int = int(pyr_res["damage"])
+		var s_name_pyr: String = PartData.slot_to_russian(slot)
+		_log_label.text = (
+			"ПОПАДАНИЕ по тотему «Пирамида Бремена» [" + s_name_pyr + "]: -"
+			+ str(dealt_pyr) + " HP из общего пула (" + str(_pyramid_current_hp) + "/" + str(_pyramid_max_hp) + ")!"
+		)
+		if bool(pyr_res["totem_destroyed"]):
+			_log_label.text += " ТОТЕМ РАЗРУШЕН!"
+			_dodge_arena.call_deferred("force_finish")
+		return
+
 	var defender: CatMechInstance = _party[_defending_cat_index]
 	if not defender.is_alive():
 		_dodge_arena.call_deferred("force_finish")
@@ -1354,10 +1727,13 @@ func _check_battle_end() -> bool:
 			break
 
 	var any_cat_alive: bool = false
-	for cat: CatMechInstance in _party:
-		if cat.is_alive():
-			any_cat_alive = true
-			break
+	if _pyramid_active:
+		any_cat_alive = _pyramid_current_hp > 0
+	else:
+		for cat: CatMechInstance in _party:
+			if cat.is_alive():
+				any_cat_alive = true
+				break
 
 	if not any_enemy_alive:
 		_handle_victory()
@@ -1370,6 +1746,8 @@ func _check_battle_end() -> bool:
 	return false
 
 func _handle_victory() -> void:
+	if _pyramid_active:
+		_deactivate_bremen_pyramid()
 	_fsm.transition_to(CombatFSM.State.VICTORY)
 	_action_box.visible = false
 	_target_box.visible = false

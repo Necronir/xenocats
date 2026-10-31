@@ -254,6 +254,29 @@ func _render_dialogue_state() -> void:
 		_speaker_label.text = String(SPEAKER_NAMES.get(cid, cid.to_upper())) + " [" + mood.to_upper() + "]"
 		_dialogue_text.text = String(item["text"])
 
+		# Прогрессивная сюжетная мелодия, темы боссов и финальный концерт с Резонатором (Issue #9)
+		if (
+			img_path.ends_with("story_cat_exile.png")
+			or img_path.ends_with("story_cat_alone_road.png")
+		):
+			AudioManager.play_story_stage(1)
+		elif img_path.ends_with("story_meet_hound.png"):
+			AudioManager.play_story_stage(2)
+		elif img_path.ends_with("story_mill_mule_captive.png"):
+			AudioManager.play_boss_theme(1)
+		elif img_path.ends_with("story_mule_joins.png"):
+			AudioManager.play_story_stage(3)
+		elif img_path.ends_with("story_tavern_cock_soup.png"):
+			AudioManager.play_boss_theme(2)
+		elif img_path.ends_with("story_cock_joins_quartet.png"):
+			AudioManager.play_story_stage(4)
+		elif img_path.ends_with("story_bremen_window_pyramid.png"):
+			AudioManager.play_boss_theme(3)
+		elif img_path.ends_with("story_bremen_victory_concert.png"):
+			AudioManager.play_pyramid_theme(4)
+		else:
+			AudioManager.sync_music_to_party(SaveManager.party)
+
 		if _line_cursor < _lines.size() - 1:
 			var next_btn: Button = Button.new()
 			next_btn.text = "Далее (" + str(_line_cursor + 1) + "/" + str(_lines.size()) + ") ->"

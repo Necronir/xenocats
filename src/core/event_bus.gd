@@ -9,6 +9,7 @@ signal enemy_part_destroyed(enemy_index: int, part_slot: int)
 signal sync_gauge_changed(current_value: int, max_value: int)
 signal sync_gauge_filled()
 signal pyramid_activated()
+signal pyramid_damaged(damage: int, current_hp: int, max_hp: int)
 signal pyramid_deactivated()
 signal battle_finished(victory: bool, scrap_earned: int, cores_earned: int, dropped_part_id: String)
 
@@ -22,4 +23,5 @@ signal run_resources_changed(scrap: int, sync_gauge: int)
 signal meta_resources_changed(titanium_scrap: int, ai_cores: int)
 signal dialogic_event_triggered(event_code: String, amount: int)
 signal music_tape_changed(tape_id: StringName)
+signal character_theme_changed(theme_id: StringName, instruments: Array[String])
 

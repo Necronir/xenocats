@@ -129,7 +129,33 @@ def generate_cats() -> None:
         a.save(os.path.join(out_dir, f"{cid}_arms.png"))
         l.save(os.path.join(out_dir, f"{cid}_legs.png"))
 
-    # Bremen Pyramid Totem sprite (64x96)
+    # 2-Tier Small Tower sprite: bremen_pyramid_2.png (HOUND + FELIX)
+    pyr2 = Image.new("RGBA", (64, 96), (0, 0, 0, 0))
+    d2 = ImageDraw.Draw(pyr2)
+    # Base (HOUND)
+    d2.rectangle([14, 66, 50, 94], fill=(175, 45, 55, 255), outline=(20, 22, 28, 255))
+    # Top (FELIX)
+    d2.rectangle([18, 40, 46, 66], fill=(55, 145, 220, 255), outline=(20, 22, 28, 255))
+    # Small Resonator Antenna on top of FELIX
+    d2.polygon([(24, 40), (32, 30), (40, 40)], fill=(80, 255, 220, 255))
+    d2.rectangle([30, 44, 34, 90], fill=(120, 255, 255, 255))
+    pyr2.save(os.path.join(out_dir, "bremen_pyramid_2.png"))
+
+    # 3-Tier Medium Tower sprite: bremen_pyramid_3.png (MULE + HOUND + FELIX)
+    pyr3 = Image.new("RGBA", (64, 96), (0, 0, 0, 0))
+    d3 = ImageDraw.Draw(pyr3)
+    # Base (MULE)
+    d3.rectangle([10, 70, 54, 94], fill=(215, 165, 40, 255), outline=(20, 22, 28, 255))
+    # Mid (HOUND)
+    d3.rectangle([14, 46, 50, 70], fill=(175, 45, 55, 255), outline=(20, 22, 28, 255))
+    # Top (FELIX)
+    d3.rectangle([18, 22, 46, 46], fill=(55, 145, 220, 255), outline=(20, 22, 28, 255))
+    # Medium Resonator Dish
+    d3.polygon([(22, 22), (32, 12), (42, 22)], fill=(80, 255, 220, 255))
+    d3.rectangle([29, 26, 35, 89], fill=(120, 255, 255, 255))
+    pyr3.save(os.path.join(out_dir, "bremen_pyramid_3.png"))
+
+    # 4-Tier Full Bremen Pyramid Totem sprite: bremen_pyramid.png (MULE + HOUND + FELIX + COCK)
     pyr = Image.new("RGBA", (64, 96), (0, 0, 0, 0))
     d = ImageDraw.Draw(pyr)
     # Base (MULE)
@@ -665,6 +691,24 @@ def generate_audio() -> None:
         ],
         sr,
     )
+    # pyramid_undock.wav (pneumatic hiss + descending 4-note chord release on undock)
+    random.seed(99)
+    undock_notes = [1046.50, 783.99, 659.25, 523.25]
+    undock_samples: list[float] = []
+    undock_len = int(sr * 0.48)
+    for i in range(undock_len):
+        t = i / sr
+        progress = i / undock_len
+        note_idx = min(3, int(progress * 4))
+        freq = undock_notes[note_idx]
+        env = (1.0 - progress) * 0.75
+        hiss = random.uniform(-0.35, 0.35) * max(0.0, 1.0 - progress * 2.2)
+        tone = (
+            math.sin(2 * math.pi * freq * t) * 0.45
+            + math.sin(2 * math.pi * (freq * 0.5) * t) * 0.25
+        )
+        undock_samples.append((tone + hiss) * env)
+    write_wav(os.path.join(sfx_dir, "pyramid_undock.wav"), undock_samples, sr)
     # ui_click.wav
     write_wav(
         os.path.join(sfx_dir, "ui_click.wav"),
@@ -699,6 +743,221 @@ def generate_audio() -> None:
                 ) * env
                 samples.append(val)
         write_wav(os.path.join(tape_dir, fname), samples, sr)
+
+    # 3. Character Instrument Themes & Full Ensemble (Issue #9)
+    # 16 steps * 0.20s = 3.20s loop in D minor (FELIX=Guitar, MULE=Bass, HOUND=Drums, COCK=Synth)
+    theme_dir = os.path.join(ROOT, "audio", "themes")
+    ensure_dir(theme_dir)
+    step_s = int(sr * 0.20)
+    total_steps = 16
+
+    # FELIX: Solo Guitar (plucked riff with sparse pauses — feels lonely without the rest of the band)
+    guitar_notes = [
+        293.66, 0.0, 349.23, 440.00, 0.0, 0.0, 392.00, 0.0,
+        349.23, 0.0, 329.63, 293.66, 0.0, 0.0, 440.00, 0.0,
+    ]
+    # MULE: Solo Bass (deep low-end foundation filling the harmonic gaps)
+    bass_notes = [
+        73.42, 73.42, 0.0, 0.0, 87.31, 87.31, 0.0, 98.00,
+        110.00, 110.00, 0.0, 0.0, 87.31, 82.41, 73.42, 110.00,
+    ]
+    # COCK: Solo Synthesizer (soaring high counter-melody lead)
+    synth_notes = [
+        587.33, 0.0, 698.46, 0.0, 880.00, 783.99, 698.46, 659.25,
+        587.33, 659.25, 698.46, 880.00, 1046.50, 880.00, 783.99, 587.33,
+    ]
+    # TOWER RESONATOR ("Резонатор-Сирена Бремен"): High-energy harmonic power-chord + siren lead
+    resonator_notes = [
+        587.33, 587.33, 698.46, 880.00, 1046.50, 880.00, 783.99, 880.00,
+        1174.66, 1046.50, 880.00, 783.99, 880.00, 1046.50, 1174.66, 1318.51,
+    ]
+
+    guitar_track: list[float] = []
+    bass_track: list[float] = []
+    drums_track: list[float] = []
+    synth_track: list[float] = []
+    duo_track: list[float] = []
+    trio_track: list[float] = []
+    ensemble_track: list[float] = []
+    pyramid_2_track: list[float] = []
+    pyramid_3_track: list[float] = []
+    pyramid_4_track: list[float] = []
+
+    random.seed(404)
+    for step_idx in range(total_steps):
+        g_freq = guitar_notes[step_idx]
+        b_freq = bass_notes[step_idx]
+        s_freq = synth_notes[step_idx]
+        r_freq = resonator_notes[step_idx]
+        is_kick = step_idx in (0, 4, 8, 11, 12)
+        is_snare = step_idx in (2, 6, 10, 14, 15)
+        is_hat = (step_idx % 2 == 1)
+
+        for i in range(step_s):
+            t = i / sr
+            local_p = i / step_s
+
+            # Guitar sample (plucked harmonics)
+            g_val = 0.0
+            if g_freq > 0.0:
+                g_env = math.exp(-3.8 * local_p)
+                g_val = (
+                    math.sin(2 * math.pi * g_freq * t) * 0.30
+                    + math.sin(2 * math.pi * (g_freq * 2.0) * t) * 0.16
+                    + math.sin(2 * math.pi * (g_freq * 3.0) * t) * 0.08
+                ) * g_env
+
+            # Bass sample (warm sub + punchy 2nd harmonic)
+            b_val = 0.0
+            if b_freq > 0.0:
+                b_env = max(0.15, 1.0 - local_p * 0.7)
+                b_val = (
+                    math.sin(2 * math.pi * b_freq * t) * 0.36
+                    + math.sin(2 * math.pi * (b_freq * 2.0) * t) * 0.18
+                ) * b_env
+
+            # Drums sample (kick + snare + hi-hat)
+            d_val = 0.0
+            if is_kick and local_p < 0.65:
+                k_freq = 145.0 - 95.0 * (local_p / 0.65)
+                k_env = 1.0 - (local_p / 0.65)
+                d_val += math.sin(2 * math.pi * k_freq * t) * k_env * 0.48
+            if is_snare and local_p < 0.55:
+                sn_env = 1.0 - (local_p / 0.55)
+                d_val += (random.uniform(-0.6, 0.6) + math.sin(2 * math.pi * 190.0 * t) * 0.3) * sn_env * 0.38
+            if is_hat and local_p < 0.25:
+                h_env = 1.0 - (local_p / 0.25)
+                d_val += random.uniform(-0.45, 0.45) * h_env * 0.22
+
+            # Synth sample (lead with vibrato & octave shimmer)
+            s_val = 0.0
+            if s_freq > 0.0:
+                s_env = max(0.25, 1.0 - local_p * 0.5)
+                vib = 1.0 + 0.006 * math.sin(2 * math.pi * 6.0 * t)
+                s_val = (
+                    math.sin(2 * math.pi * (s_freq * vib) * t) * 0.24
+                    + math.sin(2 * math.pi * (s_freq * 0.5 * vib) * t) * 0.12
+                ) * s_env
+
+            # Tower Resonator-Siren sample (overdrive fifth chord + siren shimmer)
+            r_env = max(0.35, 1.0 - local_p * 0.35)
+            siren_mod = 1.0 + 0.014 * math.sin(2 * math.pi * 8.5 * t)
+            r_val = (
+                math.sin(2 * math.pi * (r_freq * siren_mod) * t) * 0.26
+                + math.sin(2 * math.pi * (r_freq * 0.75 * siren_mod) * t) * 0.18
+                + math.sin(2 * math.pi * (r_freq * 0.5) * t) * 0.16
+            ) * r_env
+
+            guitar_track.append(g_val)
+            bass_track.append(b_val)
+            drums_track.append(d_val)
+            synth_track.append(s_val)
+            duo_track.append((g_val + d_val) * 0.78)
+            trio_track.append((g_val + d_val + b_val) * 0.68)
+            ensemble_track.append((g_val + b_val + d_val + s_val) * 0.62)
+            pyramid_2_track.append((g_val + d_val + r_val) * 0.64)
+            pyramid_3_track.append((g_val + d_val + b_val + r_val) * 0.58)
+            pyramid_4_track.append((g_val + b_val + d_val + s_val + r_val * 1.15) * 0.54)
+
+    write_wav(os.path.join(theme_dir, "theme_felix_guitar.wav"), guitar_track, sr)
+    write_wav(os.path.join(theme_dir, "theme_mule_bass.wav"), bass_track, sr)
+    write_wav(os.path.join(theme_dir, "theme_hound_drums.wav"), drums_track, sr)
+    write_wav(os.path.join(theme_dir, "theme_cock_synth.wav"), synth_track, sr)
+    write_wav(os.path.join(theme_dir, "theme_duo_cat_hound.wav"), duo_track, sr)
+    write_wav(os.path.join(theme_dir, "theme_trio_cat_hound_mule.wav"), trio_track, sr)
+    write_wav(os.path.join(theme_dir, "theme_bremen_ensemble.wav"), ensemble_track, sr)
+    write_wav(os.path.join(theme_dir, "theme_pyramid_2.wav"), pyramid_2_track, sr)
+    write_wav(os.path.join(theme_dir, "theme_pyramid_3.wav"), pyramid_3_track, sr)
+    write_wav(os.path.join(theme_dir, "theme_pyramid_4.wav"), pyramid_4_track, sr)
+
+    # 4. Boss Battle Themes on the Party's Existing Instruments (Phrygian / Minor Overdrive, 3.20s loop)
+    # Boss 1 (Mill Press, Sector 1): Guitar + Drums
+    boss1_guitar = [
+        146.83, 155.56, 146.83, 174.61, 146.83, 155.56, 207.65, 196.00,
+        146.83, 155.56, 146.83, 220.00, 207.65, 196.00, 174.61, 155.56,
+    ]
+    # Boss 2 (Atamansha, Sector 2): Guitar + Drums + Bass
+    boss2_guitar = [
+        220.00, 261.63, 246.94, 220.00, 329.63, 293.66, 261.63, 246.94,
+        220.00, 261.63, 293.66, 329.63, 349.23, 329.63, 293.66, 246.94,
+    ]
+    boss2_bass = [
+        110.00, 110.00, 123.47, 110.00, 87.31, 87.31, 98.00, 123.47,
+        110.00, 110.00, 146.83, 130.81, 87.31, 98.00, 82.41, 110.00,
+    ]
+    # Boss 3 (Silence Conductor Satellite, Sector 3): Guitar + Drums + Bass + Synth (D harmonic minor)
+    boss3_guitar = [
+        293.66, 349.23, 415.30, 440.00, 466.16, 440.00, 415.30, 349.23,
+        293.66, 440.00, 466.16, 554.37, 587.33, 554.37, 466.16, 440.00,
+    ]
+    boss3_bass = [
+        73.42, 146.83, 73.42, 146.83, 87.31, 174.61, 82.41, 164.81,
+        73.42, 146.83, 110.00, 98.00, 87.31, 82.41, 73.42, 110.00,
+    ]
+    boss3_synth = [
+        587.33, 698.46, 830.61, 880.00, 932.33, 880.00, 830.61, 698.46,
+        1174.66, 1108.73, 932.33, 880.00, 830.61, 698.46, 830.61, 1174.66,
+    ]
+
+    boss1_track: list[float] = []
+    boss2_track: list[float] = []
+    boss3_track: list[float] = []
+
+    random.seed(707)
+    for step_idx in range(total_steps):
+        b1_g = boss1_guitar[step_idx]
+        b2_g = boss2_guitar[step_idx]
+        b2_b = boss2_bass[step_idx]
+        b3_g = boss3_guitar[step_idx]
+        b3_b = boss3_bass[step_idx]
+        b3_s = boss3_synth[step_idx]
+
+        for i in range(step_s):
+            t = i / sr
+            local_p = i / step_s
+            # Double-time aggressive boss drum pattern (sub-step inside 0.20s step)
+            sub_p = (local_p * 2.0) % 1.0
+            is_sub_second = local_p >= 0.5
+
+            # Aggressive drums (double-kick + sharp snare)
+            bd_val = 0.0
+            if sub_p < 0.55:
+                kf = 160.0 - 110.0 * (sub_p / 0.55)
+                bd_val += math.sin(2 * math.pi * kf * t) * (1.0 - sub_p / 0.55) * 0.46
+            if (step_idx % 2 == 1 or is_sub_second) and sub_p < 0.45:
+                bd_val += (random.uniform(-0.65, 0.65) + math.sin(2 * math.pi * 210.0 * t) * 0.35) * (1.0 - sub_p / 0.45) * 0.34
+
+            # Overdriven guitar helper
+            g_env = math.exp(-3.2 * local_p)
+            g1_raw = math.sin(2 * math.pi * b1_g * t) * 0.38 + math.sin(2 * math.pi * (b1_g * 2.0) * t) * 0.24
+            g1_val = math.tanh(g1_raw * 2.2) * 0.42 * g_env
+
+            g2_raw = math.sin(2 * math.pi * b2_g * t) * 0.36 + math.sin(2 * math.pi * (b2_g * 2.0) * t) * 0.22
+            g2_val = math.tanh(g2_raw * 2.0) * 0.38 * g_env
+
+            g3_raw = math.sin(2 * math.pi * b3_g * t) * 0.34 + math.sin(2 * math.pi * (b3_g * 2.0) * t) * 0.20
+            g3_val = math.tanh(g3_raw * 2.0) * 0.35 * g_env
+
+            # Boss bass
+            b_env = max(0.2, 1.0 - local_p * 0.65)
+            b2_val = (math.sin(2 * math.pi * b2_b * t) * 0.38 + math.sin(2 * math.pi * (b2_b * 2.0) * t) * 0.22) * b_env
+            b3_val = (math.sin(2 * math.pi * b3_b * t) * 0.38 + math.sin(2 * math.pi * (b3_b * 2.0) * t) * 0.22) * b_env
+
+            # Boss 3 synth arpeggio
+            s3_env = max(0.25, 1.0 - sub_p * 0.55)
+            s3_freq = b3_s if not is_sub_second else (b3_s * 1.5)
+            s3_val = (
+                math.sin(2 * math.pi * s3_freq * t) * 0.24
+                + math.sin(2 * math.pi * (s3_freq * 0.5) * t) * 0.14
+            ) * s3_env
+
+            boss1_track.append((g1_val + bd_val) * 0.76)
+            boss2_track.append((g2_val + b2_val + bd_val) * 0.66)
+            boss3_track.append((g3_val + b3_val + bd_val + s3_val) * 0.58)
+
+    write_wav(os.path.join(theme_dir, "theme_boss_sector1.wav"), boss1_track, sr)
+    write_wav(os.path.join(theme_dir, "theme_boss_sector2.wav"), boss2_track, sr)
+    write_wav(os.path.join(theme_dir, "theme_boss_sector3.wav"), boss3_track, sr)
 
 
 if __name__ == "__main__":

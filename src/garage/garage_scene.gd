@@ -37,6 +37,7 @@ func _ready() -> void:
 		SaveManager.save_run()
 
 	_build_ui()
+	AudioManager.sync_music_to_party(SaveManager.party)
 	_refresh_view()
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -247,7 +248,7 @@ func _refresh_view() -> void:
 		child.queue_free()
 
 	var title: Label = Label.new()
-	title.text = cat.display_name + " | Инициатива: " + str(cat.get_initiative_score())
+	title.text = cat.display_name + " [♪ " + cat.instrument_name + "] | Инициатива: " + str(cat.get_initiative_score())
 	title.add_theme_font_size_override("font_size", 11)
 	title.add_theme_color_override("font_color", Color(0.95, 0.88, 0.35))
 	_cat_details_box.add_child(title)

@@ -297,6 +297,152 @@ func _ready() -> void:
 	EventBus.request_scene_change.disconnect(scene_cb)
 	print("[9] Developer Fast-Track Menu (DevMenuBar & jump_to_boss_battle) verified OK")
 
+	# 10. Verify Bremen Pyramid Unified HP Pool, Proportional Damage Routing, Undock VFX/SFX & Progressive Story Melodies (Issue #9)
+	var required_themes: Dictionary = {
+		"FELIX": ["res://assets/audio/themes/theme_felix_guitar.wav", "Гитара"],
+		"MULE": ["res://assets/audio/themes/theme_mule_bass.wav", "Бас"],
+		"HOUND": ["res://assets/audio/themes/theme_hound_drums.wav", "Барабан"],
+		"COCK": ["res://assets/audio/themes/theme_cock_synth.wav", "Синтезатор"]
+	}
+	for c_key: String in required_themes.keys():
+		var t_info: Array = required_themes[c_key] as Array
+		var t_path: String = String(t_info[0])
+		assert(ResourceLoader.exists(t_path), "Character theme WAV missing: " + t_path)
+
+	assert(ResourceLoader.exists("res://assets/audio/themes/theme_duo_cat_hound.wav"), "Duo theme WAV missing")
+	assert(ResourceLoader.exists("res://assets/audio/themes/theme_trio_cat_hound_mule.wav"), "Trio theme WAV missing")
+	assert(ResourceLoader.exists("res://assets/audio/themes/theme_bremen_ensemble.wav"), "Ensemble theme WAV missing")
+	assert(ResourceLoader.exists("res://assets/audio/themes/theme_pyramid_2.wav"), "Pyramid 2 theme WAV missing")
+	assert(ResourceLoader.exists("res://assets/audio/themes/theme_pyramid_3.wav"), "Pyramid 3 theme WAV missing")
+	assert(ResourceLoader.exists("res://assets/audio/themes/theme_pyramid_4.wav"), "Pyramid 4 theme WAV missing")
+	assert(ResourceLoader.exists("res://assets/audio/themes/theme_boss_sector1.wav"), "Boss 1 theme WAV missing")
+	assert(ResourceLoader.exists("res://assets/audio/themes/theme_boss_sector2.wav"), "Boss 2 theme WAV missing")
+	assert(ResourceLoader.exists("res://assets/audio/themes/theme_boss_sector3.wav"), "Boss 3 theme WAV missing")
+	assert(ResourceLoader.exists("res://assets/sprites/cats/bremen_pyramid_2.png"), "2-tier tower sprite missing")
+	assert(ResourceLoader.exists("res://assets/sprites/cats/bremen_pyramid_3.png"), "3-tier tower sprite missing")
+	assert(ResourceLoader.exists("res://assets/sprites/cats/bremen_pyramid.png"), "4-tier tower sprite missing")
+	assert(ResourceLoader.exists("res://assets/audio/sfx/pyramid_undock.wav"), "Pyramid undock SFX WAV missing")
+
+	# Verify Boss themes use only the party's current instruments for that sector (no foreign instruments)
+	AudioManager.play_boss_theme(1)
+	assert(AudioManager.current_theme_id == &"BOSS_1" and AudioManager.active_instruments == ["Гитара", "Барабан"], "Boss 1 theme must use Sector 1 instruments (Guitar + Drums)")
+	AudioManager.play_boss_theme(2)
+	assert(AudioManager.current_theme_id == &"BOSS_2" and AudioManager.active_instruments == ["Гитара", "Барабан", "Бас"], "Boss 2 theme must use Sector 2 instruments (Guitar + Drums + Bass)")
+	AudioManager.play_boss_theme(3)
+	assert(AudioManager.current_theme_id == &"BOSS_3" and AudioManager.active_instruments == ["Гитара", "Барабан", "Бас", "Синтезатор"], "Boss 3 theme must use Sector 3 instruments (all 4)")
+
+	# Verify progressive story music stages: 1 (Cat) -> 2 (Cat+Dog) -> 3 (Cat+Dog+Donkey) -> 4 (Full Quartet)
+	AudioManager.play_story_stage(1)
+	assert(AudioManager.current_story_stage == 1 and AudioManager.active_instruments == ["Гитара"], "Stage 1 must play only Cat's Guitar")
+
+	# Verify Prologue cutscene progression: starts with Stage 1 (Cat alone), switches to Stage 2 when meeting Hound
+	SaveManager.start_new_run(444555)
+	var intro_ev: EventScene = ev_scene_packed.instantiate() as EventScene
+	intro_ev.setup_event({"timeline": "res://data/dialogues/story_intro_crash.dtl"})
+	add_child(intro_ev)
+	await get_tree().process_frame
+	assert(AudioManager.current_story_stage == 1 and AudioManager.active_instruments.size() == 1, "Prologue slide 1 (story_cat_exile.png) must play Stage 1 (only Cat)")
+	intro_ev._line_cursor = 5
+	intro_ev._render_dialogue_state()
+	assert(AudioManager.current_story_stage == 2 and AudioManager.active_instruments == ["Гитара", "Барабан"], "Prologue slide 3 (story_meet_hound.png) must play Stage 2 (Cat + Dog)")
+	intro_ev.queue_free()
+	await get_tree().process_frame
+
+	# Sector 1 (2 cats) -> Stage 2; Sector 2 (3 cats) -> Stage 3; Sector 3 (4 cats) -> Stage 4
+	var pyr_arena_packed: PackedScene = load("res://src/combat/combat_arena.tscn") as PackedScene
+	AudioManager.sync_music_to_party(SaveManager.party)
+	assert(AudioManager.current_story_stage == 2 and AudioManager.active_instruments.size() == 2, "2-cat party must play Stage 2 (Guitar + Drums)")
+
+	# Verify Tier 2 Small Tower ("Дуэт") in Sector 1 (2 cats)
+	var pyr_arena_t2: CombatArena = pyr_arena_packed.instantiate() as CombatArena
+	pyr_arena_t2.setup_battle({"node_id": 10, "node_type": "COMBAT"})
+	add_child(pyr_arena_t2)
+	await get_tree().process_frame
+	SaveManager.sync_gauge = 100
+	pyr_arena_t2._activate_bremen_pyramid()
+	assert(pyr_arena_t2._pyramid_tier == 2, "2-cat party must build 2-tier Small Tower")
+	assert(AudioManager.current_theme_id == &"PYRAMID_2" and AudioManager.active_instruments.has("Резонатор «Бремен»"), "Tier 2 Tower must play PYRAMID_2 with Resonator")
+	assert(DataCatalog.get_skill("pyramid_2_acoustic_storm").base_damage == 26 and DataCatalog.get_skill("pyramid_2_cascade_overload").base_damage == 46, "Tier 2 Tower skills must be ~55% power")
+	pyr_arena_t2.queue_free()
+	await get_tree().process_frame
+
+	SaveManager.advance_to_next_sector()
+	AudioManager.sync_music_to_party(SaveManager.party)
+	assert(AudioManager.current_story_stage == 3 and AudioManager.active_instruments == ["Гитара", "Барабан", "Бас"], "3-cat party must play Stage 3 (Guitar + Drums + Bass)")
+
+	# Verify Tier 3 Medium Tower ("Трио") in Sector 2 (3 cats)
+	var pyr_arena_t3: CombatArena = pyr_arena_packed.instantiate() as CombatArena
+	pyr_arena_t3.setup_battle({"node_id": 25, "node_type": "COMBAT"})
+	add_child(pyr_arena_t3)
+	await get_tree().process_frame
+	SaveManager.sync_gauge = 100
+	pyr_arena_t3._activate_bremen_pyramid()
+	assert(pyr_arena_t3._pyramid_tier == 3, "3-cat party must build 3-tier Medium Tower")
+	assert(AudioManager.current_theme_id == &"PYRAMID_3" and AudioManager.active_instruments.has("Резонатор «Бремен»"), "Tier 3 Tower must play PYRAMID_3 with Resonator")
+	assert(DataCatalog.get_skill("pyramid_3_acoustic_storm").base_damage == 36 and DataCatalog.get_skill("pyramid_3_cascade_overload").base_damage == 64, "Tier 3 Tower skills must be ~75% power")
+	pyr_arena_t3.queue_free()
+	await get_tree().process_frame
+
+	SaveManager.advance_to_next_sector()
+	AudioManager.sync_music_to_party(SaveManager.party)
+	assert(AudioManager.current_story_stage == 4 and AudioManager.active_instruments == ["Гитара", "Барабан", "Бас", "Синтезатор"], "4-cat party must play Stage 4 (Full Quartet)")
+
+	# Prepare full quartet (4 cats) and damage one part slightly to verify exact total_current_hp / total_max_hp
+	assert(SaveManager.party.size() == 4, "Quartet must have 4 cats")
+	SaveManager.party[0].arms_part.current_hp -= 10
+
+	var expected_curr_hp: int = 0
+	var expected_max_hp: int = 0
+	for c_inst: CatMechInstance in SaveManager.party:
+		expected_curr_hp += c_inst.get_total_current_hp()
+		expected_max_hp += c_inst.get_total_max_hp()
+
+	var pyr_arena: CombatArena = pyr_arena_packed.instantiate() as CombatArena
+	pyr_arena.setup_battle({"node_id": 50, "node_type": "ELITE"})
+	add_child(pyr_arena)
+	await get_tree().process_frame
+
+	SaveManager.sync_gauge = 100
+	pyr_arena._activate_bremen_pyramid()
+	assert(pyr_arena._pyramid_active and pyr_arena._pyramid_tier == 4, "Bremen Pyramid Tier 4 must be active")
+	assert(pyr_arena._pyramid_current_hp == expected_curr_hp, "Pyramid current HP must equal sum of all alive cats' current HP")
+	assert(pyr_arena._pyramid_max_hp == expected_max_hp, "Pyramid max HP must equal sum of all alive cats' max HP")
+	assert(pyr_arena._pyramid_hp_bar != null and pyr_arena._pyramid_hp_bar.is_inside_tree(), "HUD must display unified Pyramid HP ProgressBar")
+	assert(int(pyr_arena._pyramid_hp_bar.value) == expected_curr_hp and int(pyr_arena._pyramid_hp_bar.max_value) == expected_max_hp, "Unified HP bar values must match total_current_hp / total_max_hp")
+	assert(pyr_arena._pyramid_hp_label != null and pyr_arena._pyramid_hp_label.text.contains(str(expected_curr_hp) + "/" + str(expected_max_hp)), "Unified HP label must show total_current_hp/total_max_hp")
+	assert(AudioManager.current_theme_id == &"PYRAMID_4" and AudioManager.active_instruments.size() == 5 and AudioManager.active_instruments.has("Резонатор «Бремен»"), "Full Pyramid mode must play 4 instruments + Bremen Resonator")
+
+	# Route damage to Pyramid totem during docking round
+	pyr_arena._on_dodge_part_hit(PartData.PartSlot.BODY, 60)
+	pyr_arena._on_dodge_part_hit(PartData.PartSlot.ARMS, 40)
+	assert(pyr_arena._pyramid_current_hp == expected_curr_hp - 100, "Pyramid HP pool must deduct 100 routed damage")
+	assert(pyr_arena._pyramid_damage_taken == 100, "Pyramid must track 100 total damage taken")
+	assert(int(pyr_arena._pyramid_hp_bar.value) == expected_curr_hp - 100, "Unified HP bar must update after totem takes damage")
+
+	# Undock at end of Pyramid round and verify proportional damage distribution + undock audio/visual accent
+	var undock_emitted: Array[bool] = [false]
+	var undock_cb: Callable = func() -> void:
+		undock_emitted[0] = true
+	EventBus.pyramid_deactivated.connect(undock_cb)
+
+	var dist_info: Dictionary = pyr_arena._deactivate_bremen_pyramid()
+	EventBus.pyramid_deactivated.disconnect(undock_cb)
+
+	assert(not pyr_arena._pyramid_active, "Pyramid must be inactive after undock")
+	assert(undock_emitted[0], "pyramid_deactivated signal must be emitted on undock")
+	assert(AudioManager.last_sfx_played == "pyramid_undock", "pyramid_undock SFX must play on undock")
+	assert(int(dist_info.get("total_distributed", 0)) == 100, "All 100 damage from Pyramid pool must be distributed to cat parts")
+
+	var post_undock_hp: int = 0
+	for c_after: CatMechInstance in SaveManager.party:
+		post_undock_hp += c_after.get_total_current_hp()
+		assert(c_after.get_total_current_hp() < c_after.get_total_max_hp(), "Each alive cat must receive proportional share of totem damage")
+	assert(post_undock_hp == expected_curr_hp - 100, "Sum of party parts HP after undock must equal Pyramid remaining HP pool")
+
+	pyr_arena.queue_free()
+	await get_tree().process_frame
+	print("[10] Bremen Pyramid Unified HP Pool, proportional damage routing, undock VFX/SFX & 4 instrument themes verified OK")
+
 	AudioManager.stop_music()
 	await get_tree().process_frame
 	SaveManager.delete_run_save()

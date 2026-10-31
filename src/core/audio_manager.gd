@@ -5,7 +5,12 @@ extends Node
 var _music_player: AudioStreamPlayer = null
 var _sfx_players: Array[AudioStreamPlayer] = []
 var _sfx_cache: Dictionary = {}
+var _theme_cache: Dictionary = {}
 var current_tape_id: StringName = &""
+var current_theme_id: StringName = &""
+var current_story_stage: int = 0
+var active_instruments: Array[String] = []
+var last_sfx_played: String = ""
 var is_muted: bool = false
 
 const SFX_PATHS: Dictionary = {
@@ -16,8 +21,82 @@ const SFX_PATHS: Dictionary = {
 	"qte_good": "res://assets/audio/sfx/qte_good.wav",
 	"qte_miss": "res://assets/audio/sfx/qte_miss.wav",
 	"pyramid_siren": "res://assets/audio/sfx/pyramid_siren.wav",
+	"pyramid_undock": "res://assets/audio/sfx/pyramid_undock.wav",
 	"ui_click": "res://assets/audio/sfx/ui_click.wav",
 	"heal": "res://assets/audio/sfx/heal.wav"
+}
+
+const CHAR_THEME_PATHS: Dictionary = {
+	"FELIX": "res://assets/audio/themes/theme_felix_guitar.wav",
+	"MULE": "res://assets/audio/themes/theme_mule_bass.wav",
+	"HOUND": "res://assets/audio/themes/theme_hound_drums.wav",
+	"COCK": "res://assets/audio/themes/theme_cock_synth.wav",
+	"DUO": "res://assets/audio/themes/theme_duo_cat_hound.wav",
+	"TRIO": "res://assets/audio/themes/theme_trio_cat_hound_mule.wav",
+	"ENSEMBLE": "res://assets/audio/themes/theme_bremen_ensemble.wav",
+	"PYRAMID_2": "res://assets/audio/themes/theme_pyramid_2.wav",
+	"PYRAMID_3": "res://assets/audio/themes/theme_pyramid_3.wav",
+	"PYRAMID_4": "res://assets/audio/themes/theme_pyramid_4.wav",
+	"BOSS_1": "res://assets/audio/themes/theme_boss_sector1.wav",
+	"BOSS_2": "res://assets/audio/themes/theme_boss_sector2.wav",
+	"BOSS_3": "res://assets/audio/themes/theme_boss_sector3.wav"
+}
+
+const CHAR_INSTRUMENTS: Dictionary = {
+	"FELIX": "Гитара",
+	"MULE": "Бас",
+	"HOUND": "Барабан",
+	"COCK": "Синтезатор",
+	"PYRAMID": "Резонатор «Бремен»"
+}
+
+const STORY_STAGE_CONFIG: Dictionary = {
+	1: {
+		"key": "FELIX",
+		"instruments": ["Гитара"]
+	},
+	2: {
+		"key": "DUO",
+		"instruments": ["Гитара", "Барабан"]
+	},
+	3: {
+		"key": "TRIO",
+		"instruments": ["Гитара", "Барабан", "Бас"]
+	},
+	4: {
+		"key": "ENSEMBLE",
+		"instruments": ["Гитара", "Барабан", "Бас", "Синтезатор"]
+	}
+}
+
+const PYRAMID_STAGE_CONFIG: Dictionary = {
+	2: {
+		"key": "PYRAMID_2",
+		"instruments": ["Гитара", "Барабан", "Резонатор «Бремен»"]
+	},
+	3: {
+		"key": "PYRAMID_3",
+		"instruments": ["Гитара", "Барабан", "Бас", "Резонатор «Бремен»"]
+	},
+	4: {
+		"key": "PYRAMID_4",
+		"instruments": ["Гитара", "Барабан", "Бас", "Синтезатор", "Резонатор «Бремен»"]
+	}
+}
+
+const BOSS_STAGE_CONFIG: Dictionary = {
+	1: {
+		"key": "BOSS_1",
+		"instruments": ["Гитара", "Барабан"]
+	},
+	2: {
+		"key": "BOSS_2",
+		"instruments": ["Гитара", "Барабан", "Бас"]
+	},
+	3: {
+		"key": "BOSS_3",
+		"instruments": ["Гитара", "Барабан", "Бас", "Синтезатор"]
+	}
 }
 
 func _ready() -> void:
@@ -39,6 +118,13 @@ func _ready() -> void:
 			if stream != null:
 				_sfx_cache[String(sfx_key)] = stream
 
+	for theme_key: Variant in CHAR_THEME_PATHS.keys():
+		var t_path: String = String(CHAR_THEME_PATHS[theme_key])
+		if ResourceLoader.exists(t_path):
+			var t_stream: AudioStream = ResourceLoader.load(t_path) as AudioStream
+			if t_stream != null:
+				_theme_cache[String(theme_key)] = t_stream
+
 func _exit_tree() -> void:
 	if _music_player != null:
 		_music_player.stop()
@@ -48,6 +134,130 @@ func _exit_tree() -> void:
 			p.stop()
 			p.stream = null
 	_sfx_cache.clear()
+	_theme_cache.clear()
+
+func get_character_instrument(cat_id: StringName) -> String:
+	var key: String = String(cat_id).to_upper()
+	return String(CHAR_INSTRUMENTS.get(key, "Гитара"))
+
+func get_character_theme_path(cat_id: StringName) -> String:
+	var key: String = String(cat_id).to_upper()
+	return String(CHAR_THEME_PATHS.get(key, CHAR_THEME_PATHS["FELIX"]))
+
+func play_story_stage(stage: int) -> void:
+	var clamped_stage: int = clampi(stage, 1, 4)
+	var cfg: Dictionary = STORY_STAGE_CONFIG[clamped_stage] as Dictionary
+	var key: String = String(cfg["key"])
+	var inst_list: Array[String] = []
+	for item_str: Variant in cfg["instruments"] as Array:
+		inst_list.append(String(item_str))
+
+	var stage_changed: bool = (current_story_stage != clamped_stage) or (current_theme_id != StringName(key))
+	current_story_stage = clamped_stage
+	current_theme_id = StringName(key)
+	active_instruments = inst_list
+	if stage_changed:
+		EventBus.character_theme_changed.emit(current_theme_id, active_instruments)
+
+	if is_muted or DisplayServer.get_name() == "headless":
+		return
+	var stream: AudioStream = _theme_cache.get(key, null) as AudioStream
+	if stream == null:
+		var path: String = String(CHAR_THEME_PATHS[key])
+		if ResourceLoader.exists(path):
+			stream = ResourceLoader.load(path) as AudioStream
+	if stream != null and _music_player != null:
+		if _music_player.stream == stream and _music_player.playing:
+			return
+		var pos: float = _music_player.get_playback_position() if _music_player.playing else 0.0
+		_music_player.stream = stream
+		_music_player.play(pos)
+
+func sync_music_to_party(party_cats: Array = []) -> void:
+	var count: int = party_cats.size()
+	if count <= 0:
+		count = SaveManager.party.size()
+	play_story_stage(clampi(maxi(1, count), 1, 4))
+
+func play_pyramid_theme(tier: int = 4) -> void:
+	var clamped_tier: int = clampi(tier, 2, 4)
+	var cfg: Dictionary = PYRAMID_STAGE_CONFIG[clamped_tier] as Dictionary
+	var key: String = String(cfg["key"])
+	var inst_list: Array[String] = []
+	for item_str: Variant in cfg["instruments"] as Array:
+		inst_list.append(String(item_str))
+
+	var theme_changed: bool = (current_theme_id != StringName(key))
+	current_theme_id = StringName(key)
+	active_instruments = inst_list
+	if theme_changed:
+		EventBus.character_theme_changed.emit(current_theme_id, active_instruments)
+
+	if is_muted or DisplayServer.get_name() == "headless":
+		return
+	var stream: AudioStream = _theme_cache.get(key, null) as AudioStream
+	if stream == null:
+		var path: String = String(CHAR_THEME_PATHS[key])
+		if ResourceLoader.exists(path):
+			stream = ResourceLoader.load(path) as AudioStream
+	if stream != null and _music_player != null:
+		if _music_player.stream == stream and _music_player.playing:
+			return
+		var pos: float = _music_player.get_playback_position() if _music_player.playing else 0.0
+		_music_player.stream = stream
+		_music_player.play(pos)
+
+func play_boss_theme(sector: int = 1) -> void:
+	var clamped_sec: int = clampi(sector, 1, 3)
+	var cfg: Dictionary = BOSS_STAGE_CONFIG[clamped_sec] as Dictionary
+	var key: String = String(cfg["key"])
+	var inst_list: Array[String] = []
+	for item_str: Variant in cfg["instruments"] as Array:
+		inst_list.append(String(item_str))
+
+	var theme_changed: bool = (current_theme_id != StringName(key))
+	current_story_stage = clamped_sec + 1
+	current_theme_id = StringName(key)
+	active_instruments = inst_list
+	if theme_changed:
+		EventBus.character_theme_changed.emit(current_theme_id, active_instruments)
+
+	if is_muted or DisplayServer.get_name() == "headless":
+		return
+	var stream: AudioStream = _theme_cache.get(key, null) as AudioStream
+	if stream == null:
+		var path: String = String(CHAR_THEME_PATHS[key])
+		if ResourceLoader.exists(path):
+			stream = ResourceLoader.load(path) as AudioStream
+	if stream != null and _music_player != null:
+		if _music_player.stream == stream and _music_player.playing:
+			return
+		var pos: float = _music_player.get_playback_position() if _music_player.playing else 0.0
+		_music_player.stream = stream
+		_music_player.play(pos)
+
+func play_character_theme(cat_id: StringName) -> void:
+	var key: String = String(cat_id).to_upper()
+	if not CHAR_THEME_PATHS.has(key):
+		key = "FELIX"
+	current_story_stage = 1 if key == "FELIX" else 0
+	current_theme_id = StringName(key)
+	active_instruments = [get_character_instrument(current_theme_id)]
+	EventBus.character_theme_changed.emit(current_theme_id, active_instruments)
+	if is_muted or DisplayServer.get_name() == "headless":
+		return
+	var stream: AudioStream = _theme_cache.get(key, null) as AudioStream
+	if stream == null:
+		var path: String = String(CHAR_THEME_PATHS[key])
+		if ResourceLoader.exists(path):
+			stream = ResourceLoader.load(path) as AudioStream
+	if stream != null and _music_player != null:
+		if _music_player.stream != stream or not _music_player.playing:
+			_music_player.stream = stream
+			_music_player.play()
+
+func play_ensemble_theme(_party_cats: Array = []) -> void:
+	play_story_stage(4)
 
 func play_tape(tape_id: StringName) -> void:
 	current_tape_id = tape_id
@@ -70,6 +280,7 @@ func _on_music_finished() -> void:
 		_music_player.play()
 
 func play_sfx(sfx_name: String) -> void:
+	last_sfx_played = sfx_name
 	if is_muted or DisplayServer.get_name() == "headless":
 		return
 	var stream: AudioStream = _sfx_cache.get(sfx_name, null) as AudioStream

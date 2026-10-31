@@ -4,6 +4,8 @@ extends RefCounted
 var cat_id: StringName = &""
 var display_name: String = ""
 var role_title: String = ""
+var instrument_name: String = "Гитара"
+var theme_path: String = "res://assets/audio/themes/theme_felix_guitar.wav"
 var portrait_prefix: String = "felix"
 
 var body_part: PartInstance = null # Корпус (Core / Body)
@@ -24,6 +26,8 @@ func _init(p_data: CatMechData = null) -> void:
 		cat_id = p_data.cat_id
 		display_name = p_data.display_name
 		role_title = p_data.role_title
+		instrument_name = p_data.instrument_name
+		theme_path = p_data.theme_path
 		portrait_prefix = p_data.portrait_prefix
 		if p_data.default_body != null:
 			body_part = PartInstance.new(p_data.default_body)
@@ -172,6 +176,8 @@ func to_dict() -> Dictionary:
 		"cat_id": String(cat_id),
 		"display_name": display_name,
 		"role_title": role_title,
+		"instrument_name": instrument_name,
+		"theme_path": theme_path,
 		"portrait_prefix": portrait_prefix,
 		"body": body_part.to_dict() if body_part != null else {},
 		"arms": arms_part.to_dict() if arms_part != null else {},
@@ -183,6 +189,8 @@ static func from_dict(d: Dictionary, part_catalog: Dictionary) -> CatMechInstanc
 	inst.cat_id = StringName(String(d.get("cat_id", "FELIX")))
 	inst.display_name = String(d.get("display_name", "FELIX"))
 	inst.role_title = String(d.get("role_title", ""))
+	inst.instrument_name = String(d.get("instrument_name", AudioManager.get_character_instrument(inst.cat_id)))
+	inst.theme_path = String(d.get("theme_path", AudioManager.get_character_theme_path(inst.cat_id)))
 	inst.portrait_prefix = String(d.get("portrait_prefix", "felix"))
 	if d.has("body") and d["body"] is Dictionary:
 		inst.body_part = PartInstance.from_dict(d["body"] as Dictionary, part_catalog)
