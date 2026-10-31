@@ -45,6 +45,7 @@ func _build_ui() -> void:
 	var top_bar: PanelContainer = PanelContainer.new()
 	top_bar.position = Vector2(8, 6)
 	top_bar.size = Vector2(624, 32)
+	top_bar.clip_contents = true
 	var st: StyleBoxFlat = StyleBoxFlat.new()
 	st.bg_color = Color(0.06, 0.08, 0.13, 0.94)
 	st.border_color = Color(0.3, 0.7, 0.95, 1.0)
@@ -59,6 +60,8 @@ func _build_ui() -> void:
 
 	_header_label = Label.new()
 	_header_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_header_label.clip_text = true
+	_header_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_header_label.add_theme_font_size_override("font_size", 10)
 	var sec_title: String = String(SECTOR_NAMES.get(SaveManager.current_sector, "СЕКТОР 1"))
 	_header_label.text = sec_title + " | Сид: #" + str(SaveManager.run_seed)

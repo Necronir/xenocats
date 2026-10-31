@@ -8,6 +8,8 @@ var _selected_cat_idx: int = 0
 
 var _scrap_label: Label = null
 var _banner_label: Label = null
+var _repair_all_btn: Button = null
+var _exit_btn: Button = null
 var _cat_tabs_box: HBoxContainer = null
 var _cat_details_box: VBoxContainer = null
 var _inventory_box: VBoxContainer = null
@@ -35,6 +37,10 @@ func _ready() -> void:
 	_build_ui()
 	_refresh_view()
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		_on_exit_pressed()
+
 func _build_ui() -> void:
 	var bg: TextureRect = TextureRect.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -54,17 +60,20 @@ func _build_ui() -> void:
 	var top_panel: PanelContainer = PanelContainer.new()
 	top_panel.position = Vector2(8, 6)
 	top_panel.size = Vector2(624, 34)
+	top_panel.clip_contents = true
 	top_panel.add_theme_stylebox_override("panel", st)
 	add_child(top_panel)
 
 	var top_hbox: HBoxContainer = HBoxContainer.new()
-	top_hbox.add_theme_constant_override("separation", 10)
+	top_hbox.add_theme_constant_override("separation", 8)
 	top_panel.add_child(top_hbox)
 
 	_banner_label = Label.new()
 	_banner_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_banner_label.clip_text = true
+	_banner_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_banner_label.add_theme_font_size_override("font_size", 11)
-	_banner_label.text = "ГАРАЖ-МАСТЕРСКАЯ: Модульная сборка (Front Mission 3-Part System)"
+	_banner_label.text = "ГАРАЖ-МАСТЕРСКАЯ"
 	_banner_label.add_theme_color_override("font_color", Color(0.4, 0.95, 1.0))
 	top_hbox.add_child(_banner_label)
 
@@ -73,21 +82,19 @@ func _build_ui() -> void:
 	_scrap_label.add_theme_color_override("font_color", Color(0.95, 0.85, 0.3))
 	top_hbox.add_child(_scrap_label)
 
-	var repair_all_btn: Button = Button.new()
-	repair_all_btn.text = "Починить всех (35 Лома)"
-	repair_all_btn.add_theme_font_size_override("font_size", 9)
-	repair_all_btn.pressed.connect(_on_repair_all_pressed)
-	top_hbox.add_child(repair_all_btn)
+	_repair_all_btn = Button.new()
+	_repair_all_btn.text = "Починить всех (35 Лома)"
+	_repair_all_btn.add_theme_font_size_override("font_size", 9)
+	_repair_all_btn.pressed.connect(_on_repair_all_pressed)
+	top_hbox.add_child(_repair_all_btn)
 
-	var back_btn: Button = Button.new()
-	back_btn.text = "НА КАРТУ ->"
-	back_btn.add_theme_font_size_override("font_size", 10)
-	back_btn.pressed.connect(func() -> void:
-		AudioManager.play_sfx("ui_click")
-		SaveManager.save_run()
-		EventBus.request_scene_change.emit(&"MAP", {})
-	)
-	top_hbox.add_child(back_btn)
+	_exit_btn = Button.new()
+	_exit_btn.text = "← ВЫХОД НА КАРТУ"
+	_exit_btn.add_theme_font_size_override("font_size", 10)
+	_exit_btn.add_theme_color_override("font_color", Color(1.0, 0.9, 0.35))
+	_exit_btn.tooltip_text = "Вернуться на карту (Esc)"
+	_exit_btn.pressed.connect(_on_exit_pressed)
+	top_hbox.add_child(_exit_btn)
 
 	# Кнопки переключения между 4 котами
 	var tabs_panel: PanelContainer = PanelContainer.new()
@@ -168,8 +175,46 @@ func _build_ui() -> void:
 	right_scroll.add_child(_inventory_box)
 
 func _refresh_view() -> void:
-	_scrap_label.text = "Лом в отсеке: " + str(SaveManager.run_scrap)
+	_scrap_label.text = "Лом: " + str(SaveManager.run_scrap)
+	if SaveManager.party.is_empty():
+		return
+	_selected_cat_idx = clampi(_selected_cat_idx, 0, SaveManager.party.size() - 1)
 	var cat: CatMechInstance = SaveManager.party[_selected_cat_idx]
+
+	if _repair_all_btn != null:
+		var any_damaged: bool = false
+		for c: CatMechInstance in SaveManager.party:
+			for s: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
+				var part_inst: PartInstance = c.get_part(s)
+				if part_inst != null and part_inst.current_hp < part_inst.get_max_hp():
+					any_damaged = true
+					break
+			if any_damaged:
+				break
+		if not any_damaged:
+			_repair_all_btn.text = "Все мехи целы"
+			_repair_all_btn.disabled = true
+		else:
+			_repair_all_btn.text = "Починить всех (35 Лома)"
+			_repair_all_btn.disabled = SaveManager.run_scrap < 35
+
+	if _exit_btn != null:
+		var target: StringName = _get_exit_target_scene()
+		if target == &"MAP":
+			_exit_btn.text = "← ВЫХОД НА КАРТУ"
+		elif target == &"HUB":
+			_exit_btn.text = "← ВЫХОД В ХАБ"
+		else:
+			_exit_btn.text = "← ВЫХОД"
+
+	if _cat_tabs_box != null:
+		for i: int in range(_cat_tabs_box.get_child_count()):
+			var tab_btn: Button = _cat_tabs_box.get_child(i) as Button
+			if tab_btn != null:
+				if i == _selected_cat_idx:
+					tab_btn.add_theme_color_override("font_color", Color(0.4, 1.0, 0.6))
+				else:
+					tab_btn.remove_theme_color_override("font_color")
 
 	# Обновляем превью спрайтов
 	if cat.body_part != null and cat.body_part.data != null and ResourceLoader.exists(cat.body_part.data.texture_path):
@@ -294,13 +339,30 @@ func _equip_inventory_part(inv_index: int, new_pdata: PartData) -> void:
 func _on_repair_all_pressed() -> void:
 	if SaveManager.run_scrap < 35:
 		return
-	SaveManager.add_run_scrap(-35)
+	var any_repaired: bool = false
 	for cat: CatMechInstance in SaveManager.party:
 		for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
 			var p: PartInstance = cat.get_part(slot)
-			if p != null:
+			if p != null and p.current_hp < p.get_max_hp():
 				p.repair_full()
+				any_repaired = true
+	if not any_repaired:
+		return
+	SaveManager.add_run_scrap(-35)
 	AudioManager.play_sfx("heal")
 	SaveManager.save_run()
 	_refresh_view()
+
+func _on_exit_pressed() -> void:
+	AudioManager.play_sfx("ui_click")
+	SaveManager.save_run()
+	var target_scene: StringName = _get_exit_target_scene()
+	EventBus.request_scene_change.emit(target_scene, {})
+
+func _get_exit_target_scene() -> StringName:
+	if _payload.has("return_scene"):
+		return StringName(_payload["return_scene"])
+	if SaveManager.has_active_run:
+		return &"MAP"
+	return &"HUB"
 
