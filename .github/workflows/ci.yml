@@ -45,3 +45,4 @@ jobs:
       - name: Run Bremen-4 System Verification Suite
         run: |
           godot --headless res://tools/verify_scene.tscn
+
