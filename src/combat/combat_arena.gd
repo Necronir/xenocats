@@ -51,6 +51,7 @@ var _target_box: VBoxContainer = null
 var _end_overlay: PanelContainer = null
 var _end_title: Label = null
 var _end_desc: Label = null
+var _epilogue_btn: Button = null
 var _end_btn: Button = null
 
 var _battle_payload: Dictionary = {}
@@ -187,6 +188,12 @@ func _build_visual_hierarchy() -> void:
 	_end_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_end_desc.add_theme_font_size_override("font_size", 10)
 	end_vbox.add_child(_end_desc)
+
+	_epilogue_btn = Button.new()
+	_epilogue_btn.text = "СЮЖЕТНЫЙ ЭПИЛОГ: КОНЦЕРТ БРЕМЕНСКИХ МУЗЫКАНТОВ ->"
+	_epilogue_btn.add_theme_font_size_override("font_size", 10)
+	_epilogue_btn.visible = false
+	end_vbox.add_child(_epilogue_btn)
 
 	_end_btn = Button.new()
 	_end_btn.text = "ПРОДОЛЖИТЬ"
@@ -1340,6 +1347,7 @@ func _handle_victory() -> void:
 			if en.data.is_elite:
 				was_elite = true
 
+	SaveManager.record_enemies_defeated(_enemies.size())
 	SaveManager.add_run_scrap(total_scrap)
 	SaveManager.add_meta_rewards(total_scrap / 2, total_cores)
 
@@ -1359,18 +1367,40 @@ func _handle_victory() -> void:
 	EventBus.battle_finished.emit(true, total_scrap, total_cores, dropped_part_name)
 
 	_end_overlay.visible = true
+	_epilogue_btn.visible = false
+	for conn: Dictionary in _end_btn.pressed.get_connections():
+		_end_btn.pressed.disconnect(conn["callable"] as Callable)
+	for econn: Dictionary in _epilogue_btn.pressed.get_connections():
+		_epilogue_btn.pressed.disconnect(econn["callable"] as Callable)
+
 	if was_boss:
 		var current_sec: int = clampi(SaveManager.current_sector, 1, 3)
 		var postlude_path: String = "res://data/dialogues/boss_postlude_sector" + str(current_sec) + ".dtl"
-		if current_sec >= 3:
-			_end_title.text = "ПОБЕДА! ИЗБА НА ВЕРШИНЕ ЗАХВАЧЕНА!"
+		if SaveManager.current_sector == 3 or current_sec >= 3:
+			var victory_stats: Dictionary = SaveManager.complete_run_victory()
+			_end_overlay.position = Vector2(60, 26)
+			_end_overlay.size = Vector2(520, 298)
+			_end_title.text = "СИГНАЛ SOS БРЕМЕН-4 ПЕРЕДАН В ОТКРЫТЫЙ КОСМОС!"
+			_end_title.add_theme_font_size_override("font_size", 13)
 			_end_title.add_theme_color_override("font_color", Color(0.3, 1.0, 0.55))
+			_end_desc.add_theme_font_size_override("font_size", 9)
 			_end_desc.text = (
-				"Надзиратель Спутник повержен! Бременские музыканты заняли радиорубку «Бремен-4»!\n"
-				+ "Получено: +" + str(total_scrap) + " Титанового лома, +" + str(total_cores) + " Ядер ИИ."
+				"Надзиратель «Спящий спутник» повержен! Аварийный маяк «Бремен-4» вещает в глубокий космос!\n\n"
+				+ "=== СТАТИСТИКА ЗАБЕГА ===\n"
+				+ "• Потраченное время: " + String(victory_stats["formatted_time"]) + "\n"
+				+ "• Побеждено врагов: " + str(victory_stats["enemies_defeated"]) + "\n"
+				+ "• Спасенные детали: " + str(victory_stats["total_salvaged_parts"])
+				+ " (в строю: " + str(victory_stats["intact_party_parts"])
+				+ ", в трюме: " + str(victory_stats["spare_parts_count"]) + ")\n"
+				+ "• Заработанные ресурсы: +" + str(victory_stats["run_scrap_earned"]) + " Лома | +"
+				+ str(victory_stats["run_cores_earned"]) + " Ядер ИИ\n"
+				+ "• Мета-бонус эвакуации: +" + str(victory_stats["bonus_titanium_scrap"]) + " Титанового сплава, +"
+				+ str(victory_stats["bonus_ai_cores"]) + " Ядер ИИ\n"
+				+ "• Успешных эвакуаций: " + str(victory_stats["successful_evacuations"])
 			)
-			_end_btn.text = "СЮЖЕТ: НОЧНОЕ ИЗГНАНИЕ И КОНЦЕРТ ->"
-			_end_btn.pressed.connect(func() -> void:
+			_epilogue_btn.visible = true
+			_epilogue_btn.text = "СЮЖЕТНЫЙ ЭПИЛОГ: КОНЦЕРТ БРЕМЕНСКИХ МУЗЫКАНТОВ ->"
+			_epilogue_btn.pressed.connect(func() -> void:
 				EventBus.request_scene_change.emit(&"EVENT", {
 					"timeline": postlude_path,
 					"next_scene": &"HUB",
@@ -1379,6 +1409,10 @@ func _handle_victory() -> void:
 					"continue_text": "В ЛАГЕРЬ БРОДЯГ (ХАБ) ->",
 					"action_on_complete": "finish_run"
 				})
+			)
+			_end_btn.text = "В ЛАГЕРЬ БРОДЯГ (ХАБ)"
+			_end_btn.pressed.connect(func() -> void:
+				EventBus.request_scene_change.emit(&"HUB", {})
 			)
 		else:
 			var win_titles: Dictionary = {

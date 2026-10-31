@@ -4,10 +4,13 @@ extends Node
 
 const META_SAVE_PATH: String = "user://meta_save.json"
 const RUN_SAVE_PATH: String = "user://current_run.json"
+const VICTORY_BONUS_SCRAP: int = 250
+const VICTORY_BONUS_CORES: int = 5
 
 # --- Мета-состояние (Лагерь Бродяг / Hub) ---
 var titanium_scrap: int = 80
 var ai_cores: int = 3
+var successful_evacuations: int = 0
 var unlocked_perks: Array[String] = []
 var shuttle_upgrades: Dictionary = {
 	"hull_reinforce": 0,   # +10 к макс. HP всех корпусов за уровень
@@ -30,10 +33,20 @@ var sync_gauge: int = 0
 var party: Array[CatMechInstance] = []
 var spare_parts_inventory: Array[String] = []
 
+# --- Статистика забега (Issue #6) ---
+var run_elapsed_sec: float = 0.0
+var run_enemies_defeated: int = 0
+var run_scrap_earned: int = 0
+var run_cores_earned: int = 0
+
 func _ready() -> void:
 	DataCatalog.ensure_loaded()
 	load_meta()
 	load_run()
+
+func _process(delta: float) -> void:
+	if has_active_run:
+		run_elapsed_sec += delta
 
 func _exit_tree() -> void:
 	party.clear()
@@ -83,6 +96,11 @@ func start_new_run(custom_seed: int = -1) -> void:
 	current_node_id = -1
 	completed_node_ids.clear()
 	map_graph.clear()
+
+	run_elapsed_sec = 0.0
+	run_enemies_defeated = 0
+	run_scrap_earned = 0
+	run_cores_earned = 0
 
 	var recycler_lvl: int = int(shuttle_upgrades.get("scrap_recycler", 0))
 	var battery_lvl: int = int(shuttle_upgrades.get("harmonic_battery", 0))
@@ -179,14 +197,63 @@ func add_sync(amount: int) -> void:
 		EventBus.sync_gauge_filled.emit()
 
 func add_run_scrap(amount: int) -> void:
+	if amount > 0:
+		run_scrap_earned += amount
 	run_scrap = maxi(0, run_scrap + amount)
 	EventBus.run_resources_changed.emit(run_scrap, sync_gauge)
 
 func add_meta_rewards(scrap_delta: int, cores_delta: int) -> void:
+	if has_active_run and cores_delta > 0:
+		run_cores_earned += cores_delta
 	titanium_scrap = maxi(0, titanium_scrap + scrap_delta)
 	ai_cores = maxi(0, ai_cores + cores_delta)
 	save_meta()
 	EventBus.meta_resources_changed.emit(titanium_scrap, ai_cores)
+
+func record_enemies_defeated(count: int) -> void:
+	run_enemies_defeated += maxi(0, count)
+
+func get_intact_party_parts_count() -> int:
+	var intact: int = 0
+	for cat: CatMechInstance in party:
+		for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
+			var part: PartInstance = cat.get_part(slot)
+			if part != null and not part.is_broken():
+				intact += 1
+	return intact
+
+func get_salvaged_parts_count() -> int:
+	return get_intact_party_parts_count() + spare_parts_inventory.size()
+
+func get_formatted_run_time() -> String:
+	var total_sec: int = maxi(1, int(round(run_elapsed_sec)))
+	var mins: int = total_sec / 60
+	var secs: int = total_sec % 60
+	return "%02d:%02d" % [mins, secs]
+
+func complete_run_victory() -> Dictionary:
+	var intact_parts: int = get_intact_party_parts_count()
+	var spare_parts: int = spare_parts_inventory.size()
+	var total_parts: int = intact_parts + spare_parts
+	var formatted_time: String = get_formatted_run_time()
+
+	successful_evacuations += 1
+	add_meta_rewards(VICTORY_BONUS_SCRAP, VICTORY_BONUS_CORES)
+	delete_run_save()
+
+	return {
+		"elapsed_sec": maxi(1, int(round(run_elapsed_sec))),
+		"formatted_time": formatted_time,
+		"enemies_defeated": run_enemies_defeated,
+		"intact_party_parts": intact_parts,
+		"spare_parts_count": spare_parts,
+		"total_salvaged_parts": total_parts,
+		"run_scrap_earned": run_scrap_earned,
+		"run_cores_earned": run_cores_earned,
+		"bonus_titanium_scrap": VICTORY_BONUS_SCRAP,
+		"bonus_ai_cores": VICTORY_BONUS_CORES,
+		"successful_evacuations": successful_evacuations
+	}
 
 # --- Сериализация MetaState (user://meta_save.json) ---
 
@@ -194,6 +261,7 @@ func save_meta() -> void:
 	var data: Dictionary = {
 		"titanium_scrap": titanium_scrap,
 		"ai_cores": ai_cores,
+		"successful_evacuations": successful_evacuations,
 		"unlocked_perks": unlocked_perks,
 		"shuttle_upgrades": shuttle_upgrades,
 		"unlocked_tapes": unlocked_tapes,
@@ -217,6 +285,7 @@ func load_meta() -> void:
 		var d: Dictionary = parsed as Dictionary
 		titanium_scrap = int(d.get("titanium_scrap", 80))
 		ai_cores = int(d.get("ai_cores", 3))
+		successful_evacuations = int(d.get("successful_evacuations", 0))
 		unlocked_perks.clear()
 		if d.has("unlocked_perks") and d["unlocked_perks"] is Array:
 			for p: Variant in d["unlocked_perks"]:
@@ -245,7 +314,11 @@ func save_run() -> void:
 		"run_scrap": run_scrap,
 		"sync_gauge": sync_gauge,
 		"party": party_arr,
-		"spare_parts_inventory": spare_parts_inventory
+		"spare_parts_inventory": spare_parts_inventory,
+		"run_elapsed_sec": run_elapsed_sec,
+		"run_enemies_defeated": run_enemies_defeated,
+		"run_scrap_earned": run_scrap_earned,
+		"run_cores_earned": run_cores_earned
 	}
 	var file: FileAccess = FileAccess.open(RUN_SAVE_PATH, FileAccess.WRITE)
 	if file != null:
@@ -286,6 +359,10 @@ func load_run() -> bool:
 
 	run_scrap = int(d.get("run_scrap", 50))
 	sync_gauge = int(d.get("sync_gauge", 0))
+	run_elapsed_sec = float(d.get("run_elapsed_sec", 0.0))
+	run_enemies_defeated = int(d.get("run_enemies_defeated", 0))
+	run_scrap_earned = int(d.get("run_scrap_earned", 0))
+	run_cores_earned = int(d.get("run_cores_earned", 0))
 
 	party.clear()
 	var part_catalog: Dictionary = DataCatalog.get_all_parts()

@@ -216,6 +216,45 @@ func _ready() -> void:
 	await get_tree().process_frame
 	print("[7] Bremen Musicians story cutscenes, 9 illustrations, party recruitment (2->3->4) verified OK")
 
+	# 8. Verify Sector 3 Boss Victory Screen, Run Statistics, Meta-Rewards & Save Lifecycle (Issue #6)
+	SaveManager.start_new_run(888999)
+	SaveManager.advance_to_next_sector() # Sector 2
+	SaveManager.advance_to_next_sector() # Sector 3 (4 cats)
+	SaveManager.run_elapsed_sec = 425.0  # 07:05
+	SaveManager.record_enemies_defeated(12)
+	var pre_scrap: int = SaveManager.titanium_scrap
+	var pre_cores: int = SaveManager.ai_cores
+	var pre_evacs: int = SaveManager.successful_evacuations
+
+	var boss_arena_packed: PackedScene = load("res://src/combat/combat_arena.tscn") as PackedScene
+	var boss_arena: CombatArena = boss_arena_packed.instantiate() as CombatArena
+	boss_arena.setup_battle({"node_id": 99, "node_type": "BOSS"})
+	add_child(boss_arena)
+	await get_tree().process_frame
+	assert(boss_arena._enemies.size() == 1 and boss_arena._enemies[0].data.is_boss, "Sector 3 boss must be spawned")
+	boss_arena._enemies[0].body_part.current_hp = 0
+	boss_arena._handle_victory()
+
+	assert(boss_arena._end_overlay.visible, "Victory overlay must be visible on Sector 3 boss defeat")
+	assert(
+		boss_arena._end_title.text == "СИГНАЛ SOS БРЕМЕН-4 ПЕРЕДАН В ОТКРЫТЫЙ КОСМОС!",
+		"Victory title must match Bremen-4 SOS broadcast message"
+	)
+	assert(boss_arena._end_desc.text.contains("07:05"), "Victory screen must display formatted run time")
+	assert(boss_arena._end_desc.text.contains("Побеждено врагов: 13"), "Victory screen must display total defeated enemies")
+	assert(boss_arena._end_desc.text.contains("Спасенные детали:"), "Victory screen must display salvaged parts count")
+	assert(boss_arena._end_desc.text.contains("Заработанные ресурсы:"), "Victory screen must display earned resources")
+	assert(boss_arena._end_btn.text == "В ЛАГЕРЬ БРОДЯГ (ХАБ)", "Victory screen must have Hub return button")
+	assert(not SaveManager.has_active_run and not FileAccess.file_exists(SaveManager.RUN_SAVE_PATH), "Current run save must be deleted on victory")
+	assert(SaveManager.titanium_scrap >= pre_scrap + SaveManager.VICTORY_BONUS_SCRAP, "Meta titanium scrap bonus must be awarded")
+	assert(SaveManager.ai_cores >= pre_cores + SaveManager.VICTORY_BONUS_CORES, "Meta AI cores bonus must be awarded")
+	SaveManager.load_meta()
+	assert(SaveManager.successful_evacuations == pre_evacs + 1, "Successful evacuations counter must be persisted in meta_save.json")
+
+	boss_arena.queue_free()
+	await get_tree().process_frame
+	print("[8] Sector 3 Boss Victory screen, SOS Bremen-4 broadcast, run stats & meta-save verified OK")
+
 	AudioManager.stop_music()
 	await get_tree().process_frame
 	SaveManager.delete_run_save()
