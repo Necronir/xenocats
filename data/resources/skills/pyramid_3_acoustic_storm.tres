@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="1_obhbf"]
+
+[resource]
+script = ExtResource("1_obhbf")
+skill_id = &"pyramid_3_acoustic_storm"
+skill_name = "СРЕДНЯЯ УЛЬТА: Трио-шторм"
+description = "AoE-залп средней башни (3 яруса) по всем врагам + Оглушение (Stun)!"
+target_type = 2
+base_damage = 36
+status_effect = 5
+status_stacks = 1
+sync_gain = 0
+ignore_armor = true

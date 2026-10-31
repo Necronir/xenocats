@@ -21,7 +21,7 @@ extends Resource
 
 @export var skills: Array[SkillData] = []
 @export var dodge_pattern_id: StringName = &"saw_sweep"
+@export var dodge_patterns: Array[StringName] = []
 @export var sprite_prefix: String = "scrap_drone"
 @export var scrap_reward: int = 25
 @export var core_reward: int = 0
-

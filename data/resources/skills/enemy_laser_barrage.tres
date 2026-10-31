@@ -10,3 +10,5 @@ description = "Прицельный обстрел высокоточными л
 target_type = 0
 base_damage = 20
 qte_profile = 3
+dodge_pattern_id = &"boss_atamansha_crane"
+dodge_patterns = Array[StringName]([&"boss_atamansha_crane", &"boss_atamansha_rotating"])

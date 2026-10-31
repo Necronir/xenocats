@@ -70,6 +70,7 @@ body_part = SubResource("Resource_f56vv")
 arms_part = SubResource("Resource_oii2e")
 legs_part = SubResource("Resource_7tpiu")
 skills = Array[ExtResource("2_sslul")]([SubResource("Resource_qpbeq")])
+dodge_patterns = Array[StringName]([&"saw_sweep"])
 sprite_prefix = "elite_driller"
 scrap_reward = 70
 core_reward = 1

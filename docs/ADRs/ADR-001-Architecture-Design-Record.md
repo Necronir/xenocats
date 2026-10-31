@@ -137,8 +137,15 @@ func get_initiative_score() -> int:
 * Аватар игрока (сердечко/ядро кота) имеет 3 сегментных коллайдера:
   * **Верхний сектор:** попадание засчитывает урон в `Arms`.
   * **Центральный сектор:** урон в `Body`.
-  * **Нижний сектор:** урон в `Legs`.
-* Вражеские атаки спавнят пули с разными траекториями и зонами поражения.
+  * **Нижний сектор:** урон в `Legs` (при уничтожении снижает скорость перемещения аватара на 40%).
+* **Уникальные паттерны боссов и элиток (Issue #10):**
+  * **Трёхголовый пресс:** мощные вертикальные молоты с предупреждающими линиями телеграфа + осколки от удара по нижней зоне (Legs).
+  * **Атаманша:** сканирующий лазерный прицел турели крана + вращающиеся расширяющиеся лазерные лучи.
+  * **Спящий спутник:** орбитальная бомбардировка с прицельными ретикулами, самонаводящиеся радио-сферы и фазовые помехи.
+* **Предупреждающие маркеры (Telegraphing):**
+  * Кратковременные полупрозрачные красные зоны предупреждения (колонны `rect`, линии прицеливания `line`, ретикулы наведения `circle`) с динамической пульсацией перед залпами мощных снарядов.
+* **Модульность паттернов (Multi-Wave Sequencer):**
+  * Возможность привязывать к одной атаке босса комбинацию нескольких волн снарядов (`dodge_patterns: Array[StringName]` на уровне навыка или врага) либо одновременное наложение нескольких типов снарядов (`+`).
 
 ---
 
@@ -149,9 +156,9 @@ func get_initiative_score() -> int:
 * `res://data/resources/parts/`:
   * `PartData.gd` (`part_id`, `slot: PartSlot`, `max_hp`, `armor`, `skills: Array[SkillData]`, `sprite_frames`).
 * `res://data/resources/skills/`:
-  * `SkillData.gd` (`skill_name`, `target_type`, `base_damage`, `status_effects`, `qte_profile`).
+  * `SkillData.gd` (`skill_name`, `target_type`, `base_damage`, `status_effects`, `qte_profile`, `dodge_pattern_id`, `dodge_patterns: Array[StringName]`).
 * `res://data/resources/enemies/`:
-  * `EnemyData.gd` (`enemy_name`, `parts`, `ai_pattern`, `dodge_patterns: Array[PackedScene]`).
+  * `EnemyData.gd` (`enemy_name`, `parts`, `ai_pattern`, `dodge_pattern_id`, `dodge_patterns: Array[StringName]`).
 * `res://data/resources/music_tapes/`:
   * `MusicTapeData.gd` (`tape_id`, `track_stream`, `passive_aura_effect`).
 * `res://data/resources/tutorials/`:

@@ -574,6 +574,138 @@ func _ready() -> void:
 	SaveManager.settings.save_to_disk(SaveManager.SETTINGS_PATH)
 	print("[11] Settings, Audio Buses, Pause Menu, Battle Retry & Tutorial System verified OK")
 
+	# 12. Verify Unique Boss Patterns, Telegraph Markers & Multi-Wave Sequences (Issue #10)
+	var b_press: EnemyData = DataCatalog.get_enemy("boss_press")
+	var b_ata: EnemyData = DataCatalog.get_enemy("boss_atamansha")
+	var b_sat: EnemyData = DataCatalog.get_enemy("boss_satellite")
+	assert(b_press != null and b_press.dodge_pattern_id == &"boss_press_hammers", "boss_press must have boss_press_hammers pattern")
+	assert(b_press.dodge_patterns.has(&"boss_press_hammers") and b_press.dodge_patterns.has(&"press_crush"), "boss_press must have multi-wave dodge_patterns")
+	assert(b_ata != null and b_ata.dodge_pattern_id == &"boss_atamansha_crane", "boss_atamansha must have boss_atamansha_crane pattern")
+	assert(b_ata.dodge_patterns.has(&"boss_atamansha_crane") and b_ata.dodge_patterns.has(&"boss_atamansha_rotating"), "boss_atamansha must have rotating laser multi-wave")
+	assert(b_sat != null and b_sat.dodge_pattern_id == &"boss_satellite_orbital", "boss_satellite must have boss_satellite_orbital pattern")
+	assert(b_sat.dodge_patterns.size() == 3, "boss_satellite must have 3-wave sequence: orbital, homing, and interference")
+
+	var sk_press: SkillData = DataCatalog.get_skill("enemy_heavy_press")
+	var sk_laser: SkillData = DataCatalog.get_skill("enemy_laser_barrage")
+	var sk_sat: SkillData = DataCatalog.get_skill("enemy_satellite_strike")
+	assert(sk_press != null and sk_press.dodge_pattern_id == &"boss_press_hammers", "enemy_heavy_press skill must have boss_press_hammers")
+	assert(sk_laser != null and sk_laser.dodge_pattern_id == &"boss_atamansha_crane", "enemy_laser_barrage skill must have boss_atamansha_crane")
+	assert(sk_sat != null and sk_sat.dodge_pattern_id == &"boss_satellite_orbital", "enemy_satellite_strike skill must exist")
+
+	# Test Telegraphing primitives & callbacks
+	var test_dodge: DodgeArena = DodgeArena.new()
+	add_child(test_dodge)
+	await get_tree().process_frame
+	test_dodge.start_dodge("TEST", &"saw_sweep", 10, 1.0, 10.0)
+
+	var trig: Dictionary = {"rect": false, "line": false, "circle": false}
+	test_dodge.add_telegraph_rect(Rect2(20, 20, 30, 80), 0.2, func() -> void:
+		trig["rect"] = true
+	)
+	test_dodge.add_telegraph_line(Vector2(10, 10), Vector2(100, 100), 0.2, func() -> void:
+		trig["line"] = true
+	)
+	test_dodge.add_telegraph_circle(Vector2(50, 50), 15.0, 0.2, func() -> void:
+		trig["circle"] = true
+	)
+	assert(test_dodge._telegraphs.size() == 3, "3 telegraph markers must be registered")
+	test_dodge._process(0.25)
+	assert(trig["rect"] and trig["line"] and trig["circle"], "All telegraph callbacks must trigger upon timer completion")
+	assert(test_dodge._telegraphs.is_empty(), "Telegraphs must be cleared after triggering")
+
+	# Test unique Boss 1: Трёхголовый пресс (vertical hammers + floor shards)
+	test_dodge.start_dodge("FELIX", &"boss_press_hammers", 18, 1.0, 3.0)
+	test_dodge._spawn_pattern_wave()
+	assert(test_dodge._bullets.size() > 0, "Hammer bullet must be spawned")
+	assert(test_dodge._telegraphs.size() > 0, "Vertical column telegraph must be created for hammer")
+	var hammer_entry: Dictionary = test_dodge._bullets[0]
+	assert(hammer_entry["type"] == &"hammer" and bool(hammer_entry.get("primed", false)), "Hammer must start in primed state")
+	test_dodge._process(0.45)
+	assert(not bool(hammer_entry.get("primed", true)), "Hammer must unprime and fall after telegraph finishes")
+	var h_node: Area2D = hammer_entry["node"] as Area2D
+	if is_instance_valid(h_node):
+		h_node.position.y = test_dodge._box_origin.y + test_dodge.BOX_H - 7.0
+	test_dodge._process(0.05)
+	var found_shard: bool = false
+	for b_e: Dictionary in test_dodge._bullets:
+		if b_e.get("type") == &"shard":
+			found_shard = true
+			break
+	assert(found_shard, "Hammer ground impact must spawn shards in floor zone")
+
+	# Test unique Boss 2: Атаманша (Crane scanning laser & rotating beams)
+	test_dodge.start_dodge("FELIX", &"boss_atamansha_crane", 20, 1.0, 3.0)
+	test_dodge._spawn_pattern_wave()
+	assert(test_dodge._bullets.size() > 0, "Lead laser bullet must be spawned")
+	assert(test_dodge._telegraphs.size() > 0, "Crane laser sight line telegraph must be created")
+	var bullets_before_burst: int = test_dodge._bullets.size()
+	test_dodge._process(0.45)
+	assert(test_dodge._bullets.size() > bullets_before_burst, "Laser salvo must fire along telegraphed trajectory")
+
+	test_dodge.start_dodge("FELIX", &"boss_atamansha_rotating", 16, 1.0, 3.0)
+	test_dodge._spawn_pattern_wave()
+	var orbit_count: int = 0
+	for b_e: Dictionary in test_dodge._bullets:
+		if b_e.get("type") == &"orbit":
+			orbit_count += 1
+	assert(orbit_count >= 3, "Atamansha rotating beams must spawn at least 3 orbiting bullets")
+	var prev_angle: float = float(test_dodge._bullets[0].get("angle", 0.0))
+	test_dodge._process(0.1)
+	assert(float(test_dodge._bullets[0].get("angle", 0.0)) > prev_angle, "Orbiting bullets must rotate over time")
+
+	# Test unique Boss 3: Спящий спутник (Orbital bombardment, homing radio-spheres, phase interference)
+	test_dodge.start_dodge("FELIX", &"boss_satellite_orbital", 22, 1.0, 3.0)
+	test_dodge._spawn_pattern_wave()
+	assert(test_dodge._bullets.size() > 0 and test_dodge._telegraphs.size() > 0, "Orbital bomb and circular reticle must be created")
+
+	test_dodge.start_dodge("FELIX", &"boss_satellite_homing", 14, 1.0, 3.0)
+	test_dodge._spawn_pattern_wave()
+	var found_homing: bool = false
+	for b_e: Dictionary in test_dodge._bullets:
+		if b_e.get("type") == &"homing":
+			found_homing = true
+			break
+	assert(found_homing, "Satellite homing radio-sphere must be spawned")
+
+	test_dodge.start_dodge("FELIX", &"boss_satellite_interference", 12, 1.0, 3.0)
+	test_dodge._spawn_pattern_wave()
+	var found_wave: bool = false
+	for b_e: Dictionary in test_dodge._bullets:
+		if b_e.get("type") == &"wave":
+			found_wave = true
+			break
+	assert(found_wave, "Satellite phase interference pulse wave must be spawned")
+
+	# Test Multi-Wave Sequencer (Array of waves + Comma separated + Simultaneous '+')
+	var wave_res: Dictionary = {"switched": false}
+	test_dodge.wave_started.connect(func(idx: int, count: int, pat: StringName) -> void:
+		wave_res["switched"] = true
+	)
+	test_dodge.start_dodge("FELIX", [&"boss_press_hammers", &"acid_rain"], 15, 1.0, 2.0)
+	assert(test_dodge._pattern_sequence.size() == 2 and test_dodge._current_wave_index == 0, "Multi-wave must initialize with 2 waves at index 0")
+	test_dodge._process(1.1)
+	assert(wave_res["switched"] and test_dodge._current_wave_index == 1 and test_dodge._pattern_id == &"acid_rain", "Sequencer must advance to wave 2 at midpoint")
+
+	test_dodge.start_dodge("MULE", "boss_press_hammers,press_crush", 15, 1.0, 2.0)
+	assert(test_dodge._pattern_sequence.size() == 2, "Comma-separated string must parse into 2 waves")
+
+	test_dodge.start_dodge("HOUND", &"boss_press_hammers+acid_rain", 15, 1.0, 2.0)
+	test_dodge._spawn_pattern_wave()
+	var has_hammer: bool = false
+	var has_acid: bool = false
+	for b_e: Dictionary in test_dodge._bullets:
+		if b_e.get("type") == &"hammer":
+			has_hammer = true
+		if (b_e.get("node") as Area2D).position.y < test_dodge._box_origin.y:
+			has_acid = true
+	assert(has_hammer and has_acid, "Simultaneous '+' combo must spawn bullets from both patterns")
+
+	test_dodge.force_finish()
+	assert(not test_dodge._active and test_dodge._bullets.is_empty(), "force_finish must clear active state and bullets")
+	test_dodge.queue_free()
+	await get_tree().process_frame
+	print("[12] Unique Boss Bullet Patterns, Telegraph Markers & Multi-Wave Sequences (Issue #10) verified OK")
+
 	AudioManager.stop_music()
 	await get_tree().process_frame
 	SaveManager.delete_run_save()

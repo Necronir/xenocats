@@ -42,4 +42,5 @@ enum StatusEffect {
 @export var ignore_armor: bool = false
 @export var triggers_mark_combo: bool = false
 @export var preferred_part_slot: int = 0 # 0=BODY, 1=ARMS, 2=LEGS (for enemy AI targeting hint)
-
+@export var dodge_pattern_id: StringName = &""
+@export var dodge_patterns: Array[StringName] = []

@@ -417,10 +417,22 @@ static func _build_default_catalog_if_needed() -> void:
 		"enemy_heavy_press", "Гидравлический пресс", "Огромные прессы обрушиваются сверху и сбоку!",
 		SkillData.TargetType.ALL_ENEMIES, 18, SkillData.QTEProfile.NONE
 	)
+	esk_press.dodge_pattern_id = &"boss_press_hammers"
+	esk_press.dodge_patterns = [&"boss_press_hammers", &"press_crush"]
+
 	var esk_laser: SkillData = _make_skill(
 		"enemy_laser_barrage", "Лазерная засечка", "Прицельный обстрел высокоточными лучами.",
 		SkillData.TargetType.SINGLE_ENEMY, 20, SkillData.QTEProfile.NONE
 	)
+	esk_laser.dodge_pattern_id = &"boss_atamansha_crane"
+	esk_laser.dodge_patterns = [&"boss_atamansha_crane", &"boss_atamansha_rotating"]
+
+	var esk_satellite: SkillData = _make_skill(
+		"enemy_satellite_strike", "Орбитальный залп", "Орбитальная бомбардировка, радио-сферы и фазовые помехи.",
+		SkillData.TargetType.ALL_ENEMIES, 22, SkillData.QTEProfile.NONE
+	)
+	esk_satellite.dodge_pattern_id = &"boss_satellite_orbital"
+	esk_satellite.dodge_patterns = [&"boss_satellite_orbital", &"boss_satellite_homing", &"boss_satellite_interference"]
 
 	# Обычные мобы (единая шкала HP: is_modular = false)
 	_register_regular_enemy("scrap_drone", "Дрон-уборщик", 1, 52, 1, 11, "scrap_drone", "saw_sweep", [esk_saw], 22)
@@ -432,30 +444,36 @@ static func _build_default_catalog_if_needed() -> void:
 
 	# Элитки и Боссы (Модульные: is_modular = true, 3 разрушаемые детали!)
 	_register_modular_enemy(
-		"elite_crusher", "ЭЛИТА: Погрузчик-Крушитель", 1, true, false, "elite_crusher", "press_crush",
-		110, 75, 70, 3, 11, [esk_press], [esk_saw], 55, 1
+		"elite_crusher", "ЭЛИТА: Погрузчик-Крушитель", 1, true, false, "elite_crusher", "boss_press_hammers",
+		110, 75, 70, 3, 11, [esk_press], [esk_saw], 55, 1,
+		[&"boss_press_hammers"]
 	)
 	_register_modular_enemy(
 		"elite_driller", "ЭЛИТА: Штурмовой Бурильщик", 2, true, false, "elite_driller", "saw_sweep",
-		135, 85, 80, 4, 13, [esk_saw], [esk_laser], 70, 1
+		135, 85, 80, 4, 13, [esk_saw], [esk_laser], 70, 1,
+		[&"saw_sweep"]
 	)
 	_register_modular_enemy(
-		"elite_aegis", "ЭЛИТА: Эгида-Дроид", 3, true, false, "elite_aegis", "laser_grid",
-		160, 95, 90, 5, 14, [esk_laser], [esk_press], 90, 2
+		"elite_aegis", "ЭЛИТА: Эгида-Дроид", 3, true, false, "elite_aegis", "boss_atamansha_crane",
+		160, 95, 90, 5, 14, [esk_laser], [esk_press], 90, 2,
+		[&"boss_atamansha_crane"]
 	)
 
-	# 3 Босса секторов
+	# 3 Босса секторов с уникальными паттернами и модульными волнами (Issue #10)
 	_register_modular_enemy(
-		"boss_press", "БОСС: Трёхголовый Пресс", 1, false, true, "boss_press", "press_crush",
-		180, 110, 95, 3, 12, [esk_press], [esk_saw, esk_acid], 100, 2
+		"boss_press", "БОСС: Трёхголовый Пресс", 1, false, true, "boss_press", "boss_press_hammers",
+		180, 110, 95, 3, 12, [esk_press], [esk_saw, esk_acid], 100, 2,
+		[&"boss_press_hammers", &"press_crush"]
 	)
 	_register_modular_enemy(
-		"boss_atamansha", "БОСС: Атаманша (Кран-Шагатель)", 2, false, true, "boss_atamansha", "laser_grid",
-		230, 130, 115, 4, 14, [esk_laser, esk_press], [esk_saw], 140, 3
+		"boss_atamansha", "БОСС: Атаманша (Кран-Шагатель)", 2, false, true, "boss_atamansha", "boss_atamansha_crane",
+		230, 130, 115, 4, 14, [esk_laser, esk_press], [esk_saw], 140, 3,
+		[&"boss_atamansha_crane", &"boss_atamansha_rotating"]
 	)
 	_register_modular_enemy(
-		"boss_satellite", "ФИНАЛ: Спящий Спутник Бремен-4", 3, false, true, "boss_satellite", "laser_grid",
-		290, 160, 140, 5, 16, [esk_laser, esk_press], [esk_acid, esk_laser], 220, 5
+		"boss_satellite", "ФИНАЛ: Спящий Спутник Бремен-4", 3, false, true, "boss_satellite", "boss_satellite_orbital",
+		290, 160, 140, 5, 16, [esk_satellite, esk_press], [esk_acid, esk_satellite], 220, 5,
+		[&"boss_satellite_orbital", &"boss_satellite_homing", &"boss_satellite_interference"]
 	)
 
 	# Музыкальные кассеты
@@ -511,9 +529,14 @@ static func _build_default_catalog_if_needed() -> void:
 
 static func _register_regular_enemy(
 	p_id: String, p_name: String, p_sec: int, p_hp: int, p_armor: int, p_spd: int,
-	p_sprite: String, p_dodge: String, p_skills: Array[SkillData], p_scrap: int
+	p_sprite: String, p_dodge: String, p_skills: Array[SkillData], p_scrap: int,
+	p_dodge_patterns: Array[StringName] = []
 ) -> void:
 	if _enemies.has(p_id):
+		var existing: EnemyData = _enemies[p_id] as EnemyData
+		if existing != null:
+			existing.dodge_pattern_id = StringName(p_dodge)
+			existing.dodge_patterns = p_dodge_patterns
 		return
 	var e: EnemyData = EnemyData.new()
 	e.enemy_id = StringName(p_id)
@@ -527,6 +550,7 @@ static func _register_regular_enemy(
 	e.speed = p_spd
 	e.sprite_prefix = p_sprite
 	e.dodge_pattern_id = StringName(p_dodge)
+	e.dodge_patterns = p_dodge_patterns
 	e.skills = p_skills
 	e.scrap_reward = p_scrap
 	e.core_reward = 0
@@ -536,9 +560,14 @@ static func _register_modular_enemy(
 	p_id: String, p_name: String, p_sec: int, p_elite: bool, p_boss: bool,
 	p_sprite: String, p_dodge: String, p_bhp: int, p_ahp: int, p_lhp: int,
 	p_armor: int, p_spd: int, p_arm_skills: Array[SkillData], p_body_skills: Array[SkillData],
-	p_scrap: int, p_cores: int
+	p_scrap: int, p_cores: int,
+	p_dodge_patterns: Array[StringName] = []
 ) -> void:
 	if _enemies.has(p_id):
+		var existing: EnemyData = _enemies[p_id] as EnemyData
+		if existing != null:
+			existing.dodge_pattern_id = StringName(p_dodge)
+			existing.dodge_patterns = p_dodge_patterns
 		return
 	var bp: PartData = _make_part(
 		p_id + "_body", "Ядро (" + p_name + ")", "Центральный процессор и реактор.",
@@ -570,6 +599,7 @@ static func _register_modular_enemy(
 	e.legs_part = lp
 	e.sprite_prefix = p_sprite
 	e.dodge_pattern_id = StringName(p_dodge)
+	e.dodge_patterns = p_dodge_patterns
 	e.skills = p_body_skills
 	e.scrap_reward = p_scrap
 	e.core_reward = p_cores

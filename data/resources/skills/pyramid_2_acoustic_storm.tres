@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="1_n8uau"]
+
+[resource]
+script = ExtResource("1_n8uau")
+skill_id = &"pyramid_2_acoustic_storm"
+skill_name = "МАЛАЯ УЛЬТА: Дуэтный резонанс"
+description = "AoE-импульс малой башни (2 яруса) по всем врагам, игнорирующий броню!"
+target_type = 2
+base_damage = 26
+sync_gain = 0
+ignore_armor = true

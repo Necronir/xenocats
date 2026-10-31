@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="1_q8q0q"]
+
+[resource]
+script = ExtResource("1_q8q0q")
+skill_id = &"pyramid_2_cascade_overload"
+skill_name = "МАЛАЯ УЛЬТА: Двойной таран"
+description = "Сфокусированный удар 2 мехов по цели, игнорирующий броню и накладывающий Целеуказание (Mark)!"
+base_damage = 46
+status_effect = 1
+status_stacks = 1
+sync_gain = 0
+ignore_armor = true
