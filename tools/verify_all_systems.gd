@@ -3,6 +3,8 @@ extends Node
 func _ready() -> void:
 	print("=== XENOCATS: BREMEN-4 AUTOMATED VERIFICATION ===")
 	DataCatalog.ensure_loaded()
+	if SaveManager.settings != null:
+		SaveManager.settings.tutorials_enabled = false
 
 	# 1. Verify .tres catalog counts
 	var parts_count: int = DataCatalog.get_all_parts().size()
@@ -442,6 +444,135 @@ func _ready() -> void:
 	pyr_arena.queue_free()
 	await get_tree().process_frame
 	print("[10] Bremen Pyramid Unified HP Pool, proportional damage routing, undock VFX/SFX & 4 instrument themes verified OK")
+
+	# 11. Verify Settings, Audio Buses, Pause Menu, Battle Retry Checkpoint & Tutorial System (Issue #12)
+	var music_bus_idx: int = AudioServer.get_bus_index(AudioManager.BUS_MUSIC)
+	var sfx_bus_idx: int = AudioServer.get_bus_index(AudioManager.BUS_SFX)
+	assert(music_bus_idx >= 0 and sfx_bus_idx >= 0, "Music and SFX audio buses must exist")
+	assert(AudioManager._music_player.bus == AudioManager.BUS_MUSIC, "Music player must be routed to Music bus")
+	assert(AudioManager._sfx_players[0].bus == AudioManager.BUS_SFX, "SFX players must be routed to SFX bus")
+
+	SaveManager.settings.set_bus_linear(AudioManager.BUS_MUSIC, 0.5)
+	assert(is_equal_approx(AudioServer.get_bus_volume_db(music_bus_idx), linear_to_db(0.5)), "Music bus dB must match linear_to_db(0.5)")
+	assert(not AudioServer.is_bus_mute(music_bus_idx), "Music bus must not be muted at 0.5")
+	SaveManager.settings.set_bus_linear(AudioManager.BUS_MUSIC, 0.0)
+	assert(AudioServer.is_bus_mute(music_bus_idx), "Music bus must be muted at 0.0")
+	SaveManager.settings.set_bus_linear(AudioManager.BUS_MUSIC, 0.85)
+
+	AudioManager.set_pause_duck(true)
+	assert(AudioManager.is_pause_ducked, "AudioManager must report pause ducking active")
+	assert(AudioServer.is_bus_effect_enabled(music_bus_idx, 0) and AudioServer.is_bus_effect_enabled(music_bus_idx, 1), "Music bus ducking effects (LPF + Amplify) must be enabled on pause")
+	AudioManager.set_pause_duck(false)
+	assert(not AudioServer.is_bus_effect_enabled(music_bus_idx, 0) and not AudioServer.is_bus_effect_enabled(music_bus_idx, 1), "Music bus ducking effects must be disabled when unpaused")
+
+	# Settings persistence round-trip
+	var temp_settings_path: String = "user://verify_test_settings.cfg"
+	var gs_out: GameSettings = GameSettings.new()
+	gs_out.master_volume = 0.75
+	gs_out.music_volume = 0.40
+	gs_out.sfx_volume = 0.65
+	gs_out.fullscreen = true
+	gs_out.tutorials_enabled = false
+	gs_out.seen_tutorials = ["elite_targeting", "qte_timing"]
+	assert(gs_out.save_to_disk(temp_settings_path), "GameSettings save_to_disk must succeed")
+
+	var gs_in: GameSettings = GameSettings.new()
+	assert(gs_in.load_from_disk(temp_settings_path), "GameSettings load_from_disk must succeed")
+	assert(is_equal_approx(gs_in.master_volume, 0.75) and is_equal_approx(gs_in.music_volume, 0.40) and is_equal_approx(gs_in.sfx_volume, 0.65), "Loaded volumes must match")
+	assert(gs_in.fullscreen == true and gs_in.tutorials_enabled == false, "Loaded display and tutorial flags must match")
+	assert(gs_in.seen_tutorials.size() == 2 and gs_in.seen_tutorials.has("elite_targeting"), "Loaded seen_tutorials must match")
+	gs_in.apply_display()
+	if FileAccess.file_exists(temp_settings_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(temp_settings_path))
+
+	# PauseMenu in GameRoot: allowed only in MAP and BATTLE, blocked in HUB and after VICTORY
+	var root_packed: PackedScene = load("res://src/core/game_root.tscn") as PackedScene
+	var root_inst: SceneManager = root_packed.instantiate() as SceneManager
+	add_child(root_inst)
+	await get_tree().process_frame
+	assert(root_inst._pause_menu != null, "GameRoot must own a PauseMenu instance")
+	assert(not root_inst._pause_menu.allowed and not root_inst._pause_menu.open(), "PauseMenu must be disallowed in HUB")
+
+	root_inst.change_scene(&"MAP", {})
+	await get_tree().process_frame
+	assert(root_inst._pause_menu.allowed and root_inst._pause_menu.open(), "PauseMenu must open in MAP")
+	assert(get_tree().paused and AudioManager.is_pause_ducked, "Opening PauseMenu must pause SceneTree and duck music")
+	assert(not root_inst._pause_menu._retry_battle_btn.visible, "Retry Battle button must be hidden on MAP")
+	root_inst._pause_menu.close()
+	assert(not get_tree().paused and not AudioManager.is_pause_ducked, "Closing PauseMenu must unpause SceneTree and unduck music")
+
+	root_inst.change_scene(&"BATTLE", {"node_id": 3, "node_type": "COMBAT"})
+	await get_tree().process_frame
+	assert(root_inst._pause_menu.allowed and root_inst._pause_menu.open(), "PauseMenu must open in BATTLE")
+	assert(root_inst._pause_menu._retry_battle_btn.visible, "Retry Battle button must be visible in BATTLE")
+	root_inst._pause_menu.close()
+	var battle_node: CombatArena = root_inst._current_scene as CombatArena
+	battle_node._handle_victory()
+	assert(not battle_node.can_pause() and not root_inst._pause_menu.open(), "PauseMenu must be blocked on VICTORY screen")
+	root_inst.queue_free()
+	await get_tree().process_frame
+
+	# Battle Retry Checkpoint verification
+	SaveManager.start_new_run(314159)
+	var pre_battle_hp: int = SaveManager.party[0].body_part.current_hp
+	var pre_battle_scrap: int = SaveManager.run_scrap
+	var retry_arena: CombatArena = pyr_arena_packed.instantiate() as CombatArena
+	retry_arena.setup_battle({"node_id": 7, "node_type": "ELITE"})
+	add_child(retry_arena)
+	await get_tree().process_frame
+	assert(int(SaveManager.pending_battle.get("node_id", -1)) == 7 and String(SaveManager.pending_battle.get("node_type", "")) == "ELITE", "CombatArena must record pending_battle checkpoint on entry")
+	SaveManager.party[0].body_part.current_hp = 5
+	SaveManager.run_scrap = 999
+	var restored_payload: Dictionary = SaveManager.restore_battle_checkpoint()
+	assert(int(restored_payload.get("node_id", -1)) == 7, "restore_battle_checkpoint must return battle payload")
+	assert(SaveManager.party[0].body_part.current_hp == pre_battle_hp and SaveManager.run_scrap == pre_battle_scrap, "restore_battle_checkpoint must restore party HP and scrap to battle entry state")
+	SaveManager.clear_battle_checkpoint()
+	SaveManager.save_run()
+	SaveManager.load_run()
+	assert(SaveManager.pending_battle.is_empty(), "clear_battle_checkpoint + save_run must clear pending_battle on disk")
+	retry_arena.queue_free()
+	await get_tree().process_frame
+
+	# Tutorial Catalog, Modal TutorialOverlay & Non-blocking TutorialToast verification
+	var all_tuts: Array[TutorialData] = DataCatalog.get_all_tutorials()
+	assert(all_tuts.size() == 4, "DataCatalog must load all 4 TutorialData resources")
+	assert(DataCatalog.get_tutorial("pyramid_ready").presentation == TutorialData.Presentation.TOAST, "pyramid_ready tutorial must have TOAST presentation")
+
+	SaveManager.settings.reset_tutorials()
+	assert(SaveManager.settings.is_tutorial_needed(&"elite_targeting"), "elite_targeting must be needed after reset")
+	TutorialOverlay.show_if_needed(self, &"elite_targeting")
+	await get_tree().process_frame
+	var active_modals: Array[Node] = get_tree().get_nodes_in_group(&"modal_overlay")
+	assert(active_modals.size() == 1 and get_tree().paused, "TutorialOverlay must join modal_overlay group and pause SceneTree")
+	var modal_inst: TutorialOverlay = active_modals[0] as TutorialOverlay
+	modal_inst.confirm_and_close()
+	await get_tree().process_frame
+	assert(not get_tree().paused, "Closing TutorialOverlay must restore unpaused state")
+	assert(SaveManager.settings.seen_tutorials.has("elite_targeting") and not SaveManager.settings.is_tutorial_needed(&"elite_targeting"), "Confirmed tutorial must be marked seen")
+
+	TutorialOverlay.show_if_needed(self, &"qte_timing")
+	await get_tree().process_frame
+	var active_modals2: Array[Node] = get_tree().get_nodes_in_group(&"modal_overlay")
+	assert(active_modals2.size() == 1, "qte_timing TutorialOverlay must open")
+	(active_modals2[0] as TutorialOverlay).disable_tutorials_and_close()
+	await get_tree().process_frame
+	assert(not SaveManager.settings.tutorials_enabled, "Skip/Disable button must set tutorials_enabled = false")
+
+	SaveManager.settings.reset_tutorials()
+	var toast_inst: TutorialToast = TutorialToast.show_if_needed(self, &"pyramid_ready")
+	assert(toast_inst != null and toast_inst.is_inside_tree(), "TutorialToast must be spawned for pyramid_ready")
+	assert(not get_tree().paused, "TutorialToast must NOT pause SceneTree")
+	assert(SaveManager.settings.seen_tutorials.has("pyramid_ready"), "TutorialToast must immediately mark pyramid_ready seen")
+	toast_inst.dismiss()
+	await get_tree().process_frame
+
+	SaveManager.settings.reset_tutorials()
+	SaveManager.settings.master_volume = 1.0
+	SaveManager.settings.music_volume = 0.85
+	SaveManager.settings.sfx_volume = 0.90
+	SaveManager.settings.fullscreen = false
+	SaveManager.settings.save_to_disk(SaveManager.SETTINGS_PATH)
+	print("[11] Settings, Audio Buses, Pause Menu, Battle Retry & Tutorial System verified OK")
 
 	AudioManager.stop_music()
 	await get_tree().process_frame

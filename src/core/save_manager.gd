@@ -4,8 +4,11 @@ extends Node
 
 const META_SAVE_PATH: String = "user://meta_save.json"
 const RUN_SAVE_PATH: String = "user://current_run.json"
+const SETTINGS_PATH: String = "user://settings.cfg"
 const VICTORY_BONUS_SCRAP: int = 250
 const VICTORY_BONUS_CORES: int = 5
+
+var settings: GameSettings = null
 
 # --- Мета-состояние (Лагерь Бродяг / Hub) ---
 var titanium_scrap: int = 80
@@ -32,6 +35,7 @@ var run_scrap: int = 50
 var sync_gauge: int = 0
 var party: Array[CatMechInstance] = []
 var spare_parts_inventory: Array[String] = []
+var pending_battle: Dictionary = {}
 
 # --- Статистика забега (Issue #6) ---
 var run_elapsed_sec: float = 0.0
@@ -41,6 +45,10 @@ var run_cores_earned: int = 0
 
 func _ready() -> void:
 	DataCatalog.ensure_loaded()
+	settings = GameSettings.new()
+	if not settings.load_from_disk(SETTINGS_PATH):
+		settings.save_to_disk(SETTINGS_PATH)
+	settings.apply_all()
 	load_meta()
 	load_run()
 
@@ -96,6 +104,7 @@ func start_new_run(custom_seed: int = -1) -> void:
 	current_node_id = -1
 	completed_node_ids.clear()
 	map_graph.clear()
+	pending_battle.clear()
 
 	run_elapsed_sec = 0.0
 	run_enemies_defeated = 0
@@ -136,6 +145,7 @@ func advance_to_next_sector() -> void:
 	current_node_id = -1
 	completed_node_ids.clear()
 	map_graph.clear()
+	pending_battle.clear()
 	# По канону «Бременских музыкантов»:
 	# После победы над Хозяином-Мельником (Сектор 1 -> 2) к отряду присоединяется Осёл (M.U.L.E.)
 	if current_sector >= 2:
@@ -371,8 +381,23 @@ func load_meta() -> void:
 				shuttle_upgrades[String(k)] = int(upg[k])
 		equipped_tape_id = StringName(String(d.get("equipped_tape_id", "tape_hardbass")))
 
+# --- Чекпоинт боя для переигровки и выхода в Лагерь через паузу (Issue #12) ---
+
+func begin_battle_checkpoint(battle_payload: Dictionary) -> void:
+	pending_battle = battle_payload.duplicate(true)
+	save_run()
+
+func restore_battle_checkpoint() -> Dictionary:
+	var saved_elapsed: float = run_elapsed_sec
+	load_run()
+	run_elapsed_sec = maxf(run_elapsed_sec, saved_elapsed)
+	return pending_battle.duplicate(true)
+
+func clear_battle_checkpoint() -> void:
+	pending_battle.clear()
+
 # --- Сериализация RunState (user://current_run.json) ---
-# Вызывается ТОЛЬКО между нодами карты (ADR-001 Section 2.8)
+# Вызывается между нодами карты и на входе в бой (ADR-001 Section 2.8)
 
 func save_run() -> void:
 	var party_arr: Array[Dictionary] = []
@@ -390,6 +415,7 @@ func save_run() -> void:
 		"sync_gauge": sync_gauge,
 		"party": party_arr,
 		"spare_parts_inventory": spare_parts_inventory,
+		"pending_battle": pending_battle,
 		"run_elapsed_sec": run_elapsed_sec,
 		"run_enemies_defeated": run_enemies_defeated,
 		"run_scrap_earned": run_scrap_earned,
@@ -453,10 +479,15 @@ func load_run() -> bool:
 		for pid: Variant in d["spare_parts_inventory"]:
 			spare_parts_inventory.append(String(pid))
 
+	pending_battle.clear()
+	if d.has("pending_battle") and d["pending_battle"] is Dictionary:
+		pending_battle = (d["pending_battle"] as Dictionary).duplicate(true)
+
 	has_active_run = true
 	return true
 
 func delete_run_save() -> void:
+	pending_battle.clear()
 	if FileAccess.file_exists(RUN_SAVE_PATH):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(RUN_SAVE_PATH))
 	has_active_run = false

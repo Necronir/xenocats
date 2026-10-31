@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="TutorialData" format=3]
+
+[ext_resource type="Script" path="res://src/models/tutorial_data.gd" id="1_tut"]
+
+[resource]
+script = ExtResource("1_tut")
+tutorial_id = &"elite_targeting"
+title = "ПРИЦЕЛИВАНИЕ ПО ДЕТАЛЯМ (FRONT MISSION)"
+body = "У Элитных дроидов и Боссов 3 независимые детали:
+• РУКИ (Орудия): отстрел отключает мощные атаки врага.
+• НОГИ (Шасси): отстрел обрушивает инициативу врага на 70%.
+• КОРПУС (Ядро): уничтожение корпуса выводит врага из строя!"
+order = 1
+presentation = 0
+toast_duration = 7.0
+

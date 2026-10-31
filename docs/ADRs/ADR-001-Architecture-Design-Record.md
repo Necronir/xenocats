@@ -54,6 +54,7 @@ graph TD
     Autoloads --> AudioManager["AudioManager (Музыка и SFX)"]
 
     GameRoot --> Viewports["Screen Container"]
+    GameRoot --> PauseMenu["PauseMenu (CanvasLayer 50, PROCESS_ALWAYS)"]
     Viewports --> HubScene["Hub / Лагерь Бродяг"]
     Viewports --> MapScene["MapScene (StS Дерево нод)"]
     Viewports --> BattleScene["BattleScene (JRPG + Dodge Box)"]
@@ -61,13 +62,13 @@ graph TD
     Viewports --> GarageScene["GarageScene (Сборка деталей кота)"]
 ```
 
-#### Политика `Autoload` (Синглтонов)
+#### Политика `Autoload` (Синглтонов) и паузы
 Минимизировать количество Autoload до трёх критических сервисов:
 1. `EventBus`: Шина слабосвязанных событий (например: `cat_part_destroyed(cat_id, part_slot)`, `node_selected(node_id)`, `sync_gauge_filled()`).
-2. `SaveManager`: Сериализация/десериализация состояния забега (`RunState`) и мета-прогресса хаба (`MetaState`).
-3. `AudioManager`: Управление треками, аварийными кассетами (*Music Tapes*) и микшером.
+2. `SaveManager`: Сериализация/десериализация состояния забега (`RunState`), мета-прогресса хаба (`MetaState`) и пользовательских настроек (`GameSettings`).
+3. `AudioManager`: Управление треками, аварийными кассетами (*Music Tapes*) и микшером (`Master`, `Music`, `SFX`), а также приглушением музыки (LowPass + Amplify) на паузе.
 
-*Все остальные подсистемы инкапсулируются внутри соответствующих сцен!*
+*Все остальные подсистемы инкапсулируются внутри соответствующих сцен (`PauseMenu` в `GameRoot`, `SettingsPanel`, `TutorialOverlay` и `TutorialToast` в `src/ui/`). При постановке дерева на паузу (`get_tree().paused = true`) режим `PROCESS_MODE_ALWAYS` разрешён только для `AudioManager` и модальных UI-оверлеев; все боевые таймеры создаются с `process_always = false`.*
 
 ---
 
@@ -153,6 +154,8 @@ func get_initiative_score() -> int:
   * `EnemyData.gd` (`enemy_name`, `parts`, `ai_pattern`, `dodge_patterns: Array[PackedScene]`).
 * `res://data/resources/music_tapes/`:
   * `MusicTapeData.gd` (`tape_id`, `track_stream`, `passive_aura_effect`).
+* `res://data/resources/tutorials/`:
+  * `TutorialData.gd` (`tutorial_id`, `title`, `body`, `order`, `presentation: MODAL | TOAST`, `toast_duration`).
 
 ---
 
@@ -182,9 +185,11 @@ func get_initiative_score() -> int:
   * Количество `Titanium Scrap` и `AI Cores`.
   * Разблокированные музыкальные кассеты (*Music Tapes*).
 * **Файл текущего забега:** `user://current_run.json`
-  * Сохраняется **только после завершения ноды карты** (после победы в бою или завершения диалога).
-  * Хранит: текущий сид, карту, индекс текущей ноды, состояние деталей партии (текущие HP и экипировка), инвентарь запчастей.
+  * Сохраняется между нодами карты, а также на **входе в бой** (чекпоинт `pending_battle` для переигровки боя с начала или возврата из Лагеря).
+  * Хранит: текущий сид, карту, индекс текущей ноды, состояние деталей партии (текущие HP и экипировка), инвентарь запчастей и `pending_battle`.
   * При гибели или удалении забега файл стирается.
+* **Файл пользовательских настроек:** `user://settings.cfg`
+  * Хранит громкость шин (`Master`, `Music`, `SFX`), полноэкранный режим (`fullscreen`), флаг активности обучения (`tutorials_enabled`) и список просмотренных подсказок (`seen_tutorials`). Не затрагивается при сбросе прогресса.
 
 ---
 
@@ -204,7 +209,7 @@ res://
 │   │   ├── save_manager.gd
 │   │   ├── audio_manager.gd
 │   │   └── scene_manager.gd
-│   ├── models/           # Ресурсы и типы данных (PartData, CatMechInstance...)
+│   ├── models/           # Ресурсы и типы данных (PartData, CatMechInstance, GameSettings, TutorialData...)
 │   ├── combat/
 │   │   ├── combat_arena.gd
 │   │   ├── combat_fsm.gd
@@ -213,8 +218,8 @@ res://
 │   ├── map/              # Генератор и отображение StS-карты
 │   ├── garage/           # Экран сборки/замены деталей кошачьих мехов
 │   ├── hub/              # Лагерь Бродяг (мета-прогрессия)
-│   └── ui/               # HUD, шкала Синхронизации, диалоговые окна
-└── data/                 # .tres ресурсы деталей, скиллов, врагов
+│   └── ui/               # PauseMenu, SettingsPanel, TutorialOverlay, TutorialToast
+└── data/                 # .tres ресурсы деталей, скиллов, врагов, кассет, обучения
 ```
 
 ---

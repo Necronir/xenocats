@@ -27,6 +27,12 @@ func _init() -> void:
 		if tp != null:
 			ResourceSaver.save(tp, "res://data/resources/music_tapes/" + String(tid) + ".tres")
 
+	# Save all tutorials as .tres
+	for tut_id: Variant in DataCatalog._tutorials.keys():
+		var td: TutorialData = DataCatalog._tutorials[tut_id] as TutorialData
+		if td != null:
+			ResourceSaver.save(td, "res://data/resources/tutorials/" + String(tut_id) + ".tres")
+
 	print("Successfully exported all .tres resources to res://data/resources/!")
 	quit(0)
 

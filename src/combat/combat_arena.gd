@@ -68,6 +68,14 @@ var _battle_payload: Dictionary = {}
 func setup_battle(payload: Dictionary) -> void:
 	_battle_payload = payload
 
+func can_pause() -> bool:
+	if _fsm == null:
+		return false
+	return (
+		_fsm.current_state != CombatFSM.State.VICTORY
+		and _fsm.current_state != CombatFSM.State.DEFEAT
+	)
+
 func _exit_tree() -> void:
 	if _shake_tween != null and _shake_tween.is_valid():
 		_shake_tween.kill()
@@ -75,6 +83,7 @@ func _exit_tree() -> void:
 func _ready() -> void:
 	_rng.randomize()
 	DataCatalog.ensure_loaded()
+	SaveManager.begin_battle_checkpoint(_battle_payload)
 
 	_fsm = CombatFSM.new()
 	add_child(_fsm)
@@ -378,7 +387,7 @@ func _emit_spark_burst(spawn_pos: Vector2, count: int = 18) -> void:
 	burst.color = Color(1.0, 0.75, 0.2, 1.0)
 	burst.z_index = 20
 	add_child(burst)
-	get_tree().create_timer(0.65).timeout.connect(burst.queue_free)
+	get_tree().create_timer(0.65, false).timeout.connect(burst.queue_free)
 
 func spawn_damage_number(spawn_pos: Vector2, text: String, color: Color = Color.WHITE, is_crit: bool = false) -> Label:
 	var lbl: Label = Label.new()
@@ -1051,7 +1060,7 @@ func _advance_turn() -> void:
 				cat.stunned = false
 				_log_label.text = cat.display_name + " перегружен (Оглушение) и пропускает ход!"
 				_refresh_hud()
-				await get_tree().create_timer(0.6).timeout
+				await get_tree().create_timer(0.6, false).timeout
 				if not is_inside_tree():
 					return
 				continue
@@ -1078,7 +1087,7 @@ func _advance_turn() -> void:
 				en.stunned = false
 				_log_label.text = en.data.enemy_name + " оглушён звуковой волной и пропускает ход!"
 				_refresh_hud()
-				await get_tree().create_timer(0.6).timeout
+				await get_tree().create_timer(0.6, false).timeout
 				if not is_inside_tree():
 					return
 				continue
@@ -1127,6 +1136,7 @@ func _begin_player_turn(cat_index: int) -> void:
 		pyr_btn.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
 		pyr_btn.pressed.connect(_activate_bremen_pyramid)
 		_action_box.add_child(pyr_btn)
+		TutorialToast.show_if_needed(self, &"pyramid_ready")
 
 	var skills: Array[SkillData] = []
 	if _pyramid_active:
@@ -1427,11 +1437,13 @@ func _on_skill_chosen(sk: SkillData) -> void:
 	t_lbl.add_theme_color_override("font_color", Color(0.4, 0.95, 1.0))
 	_target_box.add_child(t_lbl)
 
+	var has_modular_enemy: bool = false
 	for e_idx: int in range(_enemies.size()):
 		var en: EnemyInstance = _enemies[e_idx]
 		if not en.is_alive():
 			continue
 		if en.is_modular():
+			has_modular_enemy = true
 			# 3 кнопки выбора конкретной детали у Элитки или Босса!
 			var row: HBoxContainer = HBoxContainer.new()
 			row.add_theme_constant_override("separation", 3)
@@ -1475,11 +1487,17 @@ func _on_skill_chosen(sk: SkillData) -> void:
 	)
 	_target_box.add_child(back_btn)
 
+	if has_modular_enemy:
+		await TutorialOverlay.show_if_needed(self, &"elite_targeting")
+
 func _start_player_qte() -> void:
 	_action_box.visible = false
 	_target_box.visible = false
 	if _selected_skill.qte_profile == SkillData.QTEProfile.NONE:
 		_on_qte_completed(1.0, "АВТО", 5)
+		return
+	await TutorialOverlay.show_if_needed(self, &"qte_timing")
+	if not is_inside_tree():
 		return
 	_fsm.transition_to(CombatFSM.State.QTE_ATTACK_PHASE)
 	_qte.start_qte(_selected_skill.skill_name)
@@ -1603,7 +1621,7 @@ func _on_qte_completed(multiplier: float, rating_label: String, bonus_sync: int)
 
 	_log_label.text = " | ".join(log_parts)
 	_refresh_hud()
-	await get_tree().create_timer(0.65).timeout
+	await get_tree().create_timer(0.65, false).timeout
 	if not is_inside_tree():
 		return
 	_advance_turn()
@@ -1644,7 +1662,10 @@ func _begin_enemy_turn(enemy_index: int) -> void:
 	)
 	_refresh_hud()
 
-	await get_tree().create_timer(0.55).timeout
+	await get_tree().create_timer(0.55, false).timeout
+	if not is_inside_tree():
+		return
+	await TutorialOverlay.show_if_needed(self, &"dodge_segments")
 	if not is_inside_tree():
 		return
 	_fsm.transition_to(CombatFSM.State.SPAWN_DODGE_BOX)
@@ -1736,7 +1757,7 @@ func _on_dodge_finished(total_hits: int) -> void:
 		SaveManager.add_sync(10)
 		_log_label.text = "ИДЕАЛЬНОЕ УКЛОНЕНИЕ! Ни один снаряд не задел кота (+10 Гармонии)!"
 	_refresh_hud()
-	await get_tree().create_timer(0.45).timeout
+	await get_tree().create_timer(0.45, false).timeout
 	if not is_inside_tree():
 		return
 	_advance_turn()
@@ -1774,6 +1795,7 @@ func _check_battle_end() -> bool:
 func _handle_victory() -> void:
 	if _pyramid_active:
 		_deactivate_bremen_pyramid()
+	SaveManager.clear_battle_checkpoint()
 	_fsm.transition_to(CombatFSM.State.VICTORY)
 	_action_box.visible = false
 	_target_box.visible = false
@@ -1911,6 +1933,7 @@ func _handle_victory() -> void:
 		)
 
 func _handle_defeat() -> void:
+	SaveManager.clear_battle_checkpoint()
 	_fsm.transition_to(CombatFSM.State.DEFEAT)
 	_action_box.visible = false
 	_target_box.visible = false
