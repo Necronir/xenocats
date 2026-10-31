@@ -233,7 +233,27 @@ static func _build_default_catalog_if_needed() -> void:
 		SkillData.TargetType.ALL_ENEMIES, 16, SkillData.QTEProfile.TIMING_BAR, SkillData.StatusEffect.BLEED, 2, 0, 0, 20
 	)
 
-	# Ультимейты Пирамиды Бремена
+	# Ультимейты Башни (3 стадии по числу живых участников: 2 = Дуэт [~55%], 3 = Трио [~75%], 4 = Полная Пирамида Бремена [100%])
+	_make_skill(
+		"pyramid_2_acoustic_storm", "МАЛАЯ УЛЬТА: Дуэтный резонанс",
+		"AoE-импульс малой башни (2 яруса) по всем врагам, игнорирующий броню!",
+		SkillData.TargetType.ALL_ENEMIES, 26, SkillData.QTEProfile.TIMING_BAR, SkillData.StatusEffect.NONE, 0, 0, 0, 0, true
+	)
+	_make_skill(
+		"pyramid_2_cascade_overload", "МАЛАЯ УЛЬТА: Двойной таран",
+		"Сфокусированный удар 2 мехов по цели, игнорирующий броню и накладывающий Целеуказание (Mark)!",
+		SkillData.TargetType.SINGLE_PART, 46, SkillData.QTEProfile.TIMING_BAR, SkillData.StatusEffect.MARK, 1, 0, 0, 0, true
+	)
+	_make_skill(
+		"pyramid_3_acoustic_storm", "СРЕДНЯЯ УЛЬТА: Трио-шторм",
+		"AoE-залп средней башни (3 яруса) по всем врагам + Оглушение (Stun)!",
+		SkillData.TargetType.ALL_ENEMIES, 36, SkillData.QTEProfile.TIMING_BAR, SkillData.StatusEffect.STUN, 1, 0, 0, 0, true
+	)
+	_make_skill(
+		"pyramid_3_cascade_overload", "СРЕДНЯЯ УЛЬТА: Тройной перегруз",
+		"Мощный залп орудий 3 мехов в цель, игнорирующий броню и щиты!",
+		SkillData.TargetType.SINGLE_PART, 64, SkillData.QTEProfile.TIMING_BAR, SkillData.StatusEffect.MARK, 1, 0, 0, 0, true
+	)
 	_make_skill(
 		"pyramid_acoustic_storm", "УЛЬТА: Акустический шторм",
 		"AoE-контузия всех врагов сигналом тревоги максимальной громкости + Оглушение!",
@@ -321,6 +341,8 @@ static func _build_default_catalog_if_needed() -> void:
 	c_felix.cat_id = &"FELIX"
 	c_felix.display_name = "FELIX"
 	c_felix.role_title = "Ловкач / Комбо-лидер"
+	c_felix.instrument_name = "Гитара"
+	c_felix.theme_path = "res://assets/audio/themes/theme_felix_guitar.wav"
 	c_felix.portrait_prefix = "felix"
 	c_felix.default_body = felix_body
 	c_felix.default_arms = felix_arms
@@ -331,6 +353,8 @@ static func _build_default_catalog_if_needed() -> void:
 	c_mule.cat_id = &"MULE"
 	c_mule.display_name = "M.U.L.E."
 	c_mule.role_title = "Тяжёлый танк / Щиты"
+	c_mule.instrument_name = "Бас"
+	c_mule.theme_path = "res://assets/audio/themes/theme_mule_bass.wav"
 	c_mule.portrait_prefix = "mule"
 	c_mule.default_body = mule_body
 	c_mule.default_arms = mule_arms
@@ -341,6 +365,8 @@ static func _build_default_catalog_if_needed() -> void:
 	c_hound.cat_id = &"HOUND"
 	c_hound.display_name = "H.O.U.N.D."
 	c_hound.role_title = "Брузер / Утечка масла"
+	c_hound.instrument_name = "Барабан"
+	c_hound.theme_path = "res://assets/audio/themes/theme_hound_drums.wav"
 	c_hound.portrait_prefix = "hound"
 	c_hound.default_body = hound_body
 	c_hound.default_arms = hound_arms
@@ -351,6 +377,8 @@ static func _build_default_catalog_if_needed() -> void:
 	c_cock.cat_id = &"COCK"
 	c_cock.display_name = "C.O.C.K."
 	c_cock.role_title = "РЭБ-маг / Саппорт"
+	c_cock.instrument_name = "Синтезатор"
+	c_cock.theme_path = "res://assets/audio/themes/theme_cock_synth.wav"
 	c_cock.portrait_prefix = "cock"
 	c_cock.default_body = cock_body
 	c_cock.default_arms = cock_arms

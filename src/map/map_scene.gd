@@ -31,6 +31,7 @@ func _ready() -> void:
 
 	_build_ui()
 	_populate_map_nodes()
+	AudioManager.sync_music_to_party(SaveManager.party)
 
 func _build_ui() -> void:
 	var bg: TextureRect = TextureRect.new()
