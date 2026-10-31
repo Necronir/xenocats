@@ -1671,9 +1671,17 @@ func _begin_enemy_turn(enemy_index: int) -> void:
 	_fsm.transition_to(CombatFSM.State.SPAWN_DODGE_BOX)
 	_fsm.transition_to(CombatFSM.State.DODGE_REALTIME_MINIGAME)
 
+	var chosen_pattern: Variant = en.data.dodge_pattern_id
+	if not _enemy_skill.dodge_patterns.is_empty():
+		chosen_pattern = _enemy_skill.dodge_patterns
+	elif _enemy_skill.dodge_pattern_id != &"":
+		chosen_pattern = _enemy_skill.dodge_pattern_id
+	elif not en.data.dodge_patterns.is_empty():
+		chosen_pattern = en.data.dodge_patterns
+
 	_dodge_arena.start_dodge(
 		target_title,
-		en.data.dodge_pattern_id,
+		chosen_pattern,
 		_enemy_skill.base_damage,
 		1.0 if _pyramid_active else defender.get_dodge_speed_multiplier(),
 		3.5

@@ -10,3 +10,5 @@ description = "Огромные прессы обрушиваются сверх
 target_type = 2
 base_damage = 18
 qte_profile = 3
+dodge_pattern_id = &"boss_press_hammers"
+dodge_patterns = Array[StringName]([&"boss_press_hammers", &"press_crush"])

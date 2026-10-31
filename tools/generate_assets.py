@@ -314,6 +314,43 @@ def generate_ui_and_dodge() -> None:
     dp.rectangle([0, 0, 21, 11], fill=(200, 110, 40, 255), outline=(255, 210, 80, 255))
     press.save(os.path.join(ui_dir, "bullet_press.png"))
 
+    # Heavy hydraulic hammer head (24x20)
+    hammer = Image.new("RGBA", (24, 20), (0, 0, 0, 0))
+    dh = ImageDraw.Draw(hammer)
+    dh.rectangle([9, 0, 14, 6], fill=(100, 105, 115, 255), outline=(20, 22, 28, 255))
+    dh.rectangle([1, 6, 22, 18], fill=(180, 70, 40, 255), outline=(255, 180, 60, 255))
+    dh.line([(4, 8), (8, 16)], fill=(255, 230, 80, 255), width=2)
+    dh.line([(10, 8), (14, 16)], fill=(255, 230, 80, 255), width=2)
+    dh.line([(16, 8), (20, 16)], fill=(255, 230, 80, 255), width=2)
+    hammer.save(os.path.join(ui_dir, "bullet_hammer.png"))
+
+    # Metal shard / debris (10x8)
+    shard = Image.new("RGBA", (10, 8), (0, 0, 0, 0))
+    dsh = ImageDraw.Draw(shard)
+    dsh.polygon([(1, 4), (5, 1), (9, 3), (7, 7), (2, 6)], fill=(255, 160, 50, 255), outline=(255, 240, 140, 255))
+    shard.save(os.path.join(ui_dir, "bullet_shard.png"))
+
+    # Homing radio sphere / electromagnetic orb (14x14)
+    orb = Image.new("RGBA", (14, 14), (0, 0, 0, 0))
+    do = ImageDraw.Draw(orb)
+    do.ellipse([1, 1, 12, 12], fill=(160, 60, 240, 255), outline=(220, 140, 255, 255))
+    do.ellipse([4, 4, 9, 9], fill=(255, 220, 255, 255))
+    do.point([(0, 6), (0, 7), (13, 6), (13, 7), (6, 0), (7, 0), (6, 13), (7, 13)], fill=(120, 240, 255, 255))
+    orb.save(os.path.join(ui_dir, "bullet_orb.png"))
+
+    # Orbital bombardment energy bomb (14x22)
+    sat_bomb = Image.new("RGBA", (14, 22), (0, 0, 0, 0))
+    dsb = ImageDraw.Draw(sat_bomb)
+    dsb.polygon([(6, 21), (1, 12), (3, 2), (10, 2), (12, 12)], fill=(40, 220, 255, 255), outline=(240, 255, 255, 255))
+    dsb.rectangle([4, 4, 9, 14], fill=(255, 255, 255, 255))
+    sat_bomb.save(os.path.join(ui_dir, "bullet_satellite_bomb.png"))
+
+    # Phase interference / glitch pulse (18x10)
+    pulse = Image.new("RGBA", (18, 10), (0, 0, 0, 0))
+    dpul = ImageDraw.Draw(pulse)
+    dpul.line([(1, 5), (5, 1), (9, 8), (13, 2), (17, 5)], fill=(80, 220, 255, 255), width=2)
+    pulse.save(os.path.join(ui_dir, "bullet_pulse.png"))
+
     # Map node icons (24x24)
     nodes = [
         ("node_combat", (220, 75, 75, 255)),
