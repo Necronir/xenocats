@@ -104,6 +104,55 @@ func _ready() -> void:
 		await get_tree().process_frame
 		print("[6] Scene verified OK: ", spath)
 
+	# 7. Verify Story & Cutscene Timelines (.dtl) and Boss Portraits (Issue #7)
+	var story_timelines: Array[String] = [
+		"res://data/dialogues/story_intro_crash.dtl",
+		"res://data/dialogues/boss_prelude_sector1.dtl",
+		"res://data/dialogues/boss_prelude_sector2.dtl",
+		"res://data/dialogues/boss_prelude_sector3.dtl",
+		"res://data/dialogues/boss_postlude_sector1.dtl",
+		"res://data/dialogues/boss_postlude_sector2.dtl",
+		"res://data/dialogues/boss_postlude_sector3.dtl"
+	]
+	for tl_path: String in story_timelines:
+		assert(FileAccess.file_exists(tl_path), "Timeline missing: " + tl_path)
+		var f: FileAccess = FileAccess.open(tl_path, FileAccess.READ)
+		var txt: String = f.get_as_text()
+		f.close()
+		assert(txt.length() > 50, "Timeline file too short: " + tl_path)
+
+	# Verify portraits for 4 cats and 3 bosses across 4 mood states
+	var required_portraits: Array[String] = [
+		"felix", "mule", "hound", "cock", "atamansha", "press", "satellite"
+	]
+	var moods: Array[String] = ["normal", "battle", "damaged", "glitch"]
+	for p_char: String in required_portraits:
+		for mood: String in moods:
+			var img_path: String = "res://assets/sprites/portraits/" + p_char + "_" + mood + ".png"
+			assert(ResourceLoader.exists(img_path), "Portrait texture missing: " + img_path)
+
+	# Test EventScene with story cutscene payload
+	var ev_scene_packed: PackedScene = load("res://src/event/event_scene.tscn") as PackedScene
+	var ev_node: EventScene = ev_scene_packed.instantiate() as EventScene
+	ev_node.setup_event({
+		"timeline": "res://data/dialogues/story_intro_crash.dtl",
+		"next_scene": &"MAP",
+		"title": "ТЕСТОВОЕ ИНТРО",
+		"continue_text": "ВПЕРЁД ->",
+		"action_on_complete": "save"
+	})
+	add_child(ev_node)
+	await get_tree().process_frame
+	# Advance through all lines of narrative cutscene
+	while ev_node._line_cursor < ev_node._lines.size() - 1:
+		ev_node._line_cursor += 1
+		ev_node._render_dialogue_state()
+	assert(ev_node._continue_btn.visible, "Continue button must be visible at end of narrative cutscene")
+	assert(ev_node._continue_btn.text == "ВПЕРЁД ->", "Continue button text mismatch")
+	ev_node.queue_free()
+	await get_tree().process_frame
+	print("[7] Story cutscenes, boss preludes/postludes and portraits verified OK")
+
 	AudioManager.stop_music()
 	await get_tree().process_frame
 	SaveManager.delete_run_save()

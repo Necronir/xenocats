@@ -151,7 +151,13 @@ func _build_ui() -> void:
 	new_run_btn.pressed.connect(func() -> void:
 		AudioManager.play_sfx("ui_click")
 		SaveManager.start_new_run()
-		EventBus.request_scene_change.emit(&"MAP", {})
+		EventBus.request_scene_change.emit(&"EVENT", {
+			"timeline": "res://data/dialogues/story_intro_crash.dtl",
+			"next_scene": &"MAP",
+			"next_payload": {},
+			"title": "КРУШЕНИЕ BREMEN-04 // ПРОБУЖДЕНИЕ",
+			"continue_text": "ОТПРАВИТЬСЯ К ВЫШКЕ ->"
+		})
 	)
 	bot_hbox.add_child(new_run_btn)
 

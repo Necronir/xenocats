@@ -956,18 +956,47 @@ func _handle_victory() -> void:
 	EventBus.battle_finished.emit(true, total_scrap, total_cores, dropped_part_name)
 
 	_end_overlay.visible = true
-	if was_boss and SaveManager.current_sector >= 3:
-		_end_title.text = "ПОБЕДА! СИГНАЛ БРЕМЕН-4 ОТПРАВЛЕН!"
-		_end_title.add_theme_color_override("font_color", Color(0.3, 1.0, 0.55))
-		_end_desc.text = (
-			"Спящий Спутник повержен! FELIX и банда котов передали аварийный сигнал SOS на частоте Бремен-4!\n"
-			+ "Получено: +" + str(total_scrap) + " Титанового лома, +" + str(total_cores) + " Ядер ИИ."
-		)
-		_end_btn.text = "В ЛАГЕРЬ БРОДЯГ (ХАБ)"
-		_end_btn.pressed.connect(func() -> void:
-			SaveManager.delete_run_save()
-			EventBus.request_scene_change.emit(&"HUB", {})
-		)
+	if was_boss:
+		var current_sec: int = clampi(SaveManager.current_sector, 1, 3)
+		var postlude_path: String = "res://data/dialogues/boss_postlude_sector" + str(current_sec) + ".dtl"
+		if current_sec >= 3:
+			_end_title.text = "ПОБЕДА! СИГНАЛ БРЕМЕН-4 ОТПРАВЛЕН!"
+			_end_title.add_theme_color_override("font_color", Color(0.3, 1.0, 0.55))
+			_end_desc.text = (
+				"Спящий Спутник повержен! FELIX и банда котов готовы передать аварийный сигнал SOS на частоте Бремен-4!\n"
+				+ "Получено: +" + str(total_scrap) + " Титанового лома, +" + str(total_cores) + " Ядер ИИ."
+			)
+			_end_btn.text = "СЮЖЕТ: ФИНАЛЬНАЯ ТРАНСЛЯЦИЯ ->"
+			_end_btn.pressed.connect(func() -> void:
+				EventBus.request_scene_change.emit(&"EVENT", {
+					"timeline": postlude_path,
+					"next_scene": &"HUB",
+					"next_payload": {},
+					"title": "ФИНАЛ: ТРАНСЛЯЦИЯ СИГНАЛА SOS // БРЕМЕН-4",
+					"continue_text": "В ЛАГЕРЬ БРОДЯГ (ХАБ) ->",
+					"action_on_complete": "finish_run"
+				})
+			)
+		else:
+			_end_title.text = "ПОБЕДА НАД БОССОМ СЕКТОРА " + str(current_sec) + "!"
+			_end_title.add_theme_color_override("font_color", Color(0.35, 0.95, 1.0))
+			var drop_txt: String = ("\nНайден модуль: [" + dropped_part_name + "]!") if dropped_part_name != "" else ""
+			_end_desc.text = (
+				"Собрано лома: +" + str(total_scrap)
+				+ ((" | Ядра ИИ: +" + str(total_cores)) if total_cores > 0 else "")
+				+ drop_txt
+			)
+			_end_btn.text = "СЮЖЕТ: ИТОГ БОЯ ->"
+			_end_btn.pressed.connect(func() -> void:
+				EventBus.request_scene_change.emit(&"EVENT", {
+					"timeline": postlude_path,
+					"next_scene": &"MAP",
+					"next_payload": {},
+					"title": "СЕКТОР " + str(current_sec) + " ЗАЧИЩЕН // ПЕРЕХОД",
+					"continue_text": "ПЕРЕЙТИ В СЕКТОР " + str(current_sec + 1) + " ->",
+					"action_on_complete": "advance_sector"
+				})
+			)
 	else:
 		_end_title.text = "ПОБЕДА В БОЮ!"
 		_end_title.add_theme_color_override("font_color", Color(0.35, 0.95, 1.0))
@@ -979,10 +1008,7 @@ func _handle_victory() -> void:
 		)
 		_end_btn.text = "ВЕРНУТЬСЯ НА КАРТУ"
 		_end_btn.pressed.connect(func() -> void:
-			if was_boss:
-				SaveManager.advance_to_next_sector()
-			else:
-				SaveManager.save_run()
+			SaveManager.save_run()
 			EventBus.request_scene_change.emit(&"MAP", {})
 		)
 

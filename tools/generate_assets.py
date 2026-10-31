@@ -155,6 +155,8 @@ def generate_portraits() -> None:
         "hound": ((175, 45, 55, 255), (255, 70, 70, 255)),
         "cock": ((140, 65, 195, 255), (120, 255, 160, 255)),
         "atamansha": ((200, 40, 90, 255), (255, 230, 50, 255)),
+        "press": ((180, 65, 50, 255), (255, 180, 40, 255)),
+        "satellite": ((70, 95, 185, 255), (120, 255, 255, 255)),
     }
     moods = ["normal", "battle", "damaged", "glitch"]
     for name, (bg_col, eye_col) in chars.items():

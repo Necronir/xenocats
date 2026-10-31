@@ -29,7 +29,9 @@ const SPEAKER_NAMES: Dictionary = {
 	"mule": "M.U.L.E. (Тяжёлый Погрузчик)",
 	"hound": "H.O.U.N.D. (Патрульный Брузер)",
 	"cock": "C.O.C.K. (РЭБ-Связист)",
-	"atamansha": "АТАМАНША (ИИ Фабрики)"
+	"atamansha": "АТАМАНША (ИИ Фабрики)",
+	"press": "ТРЁХГОЛОВЫЙ ПРЕСС (Утилизатор Свалки)",
+	"satellite": "СПЯЩИЙ СПУТНИК (Автономный Ретранслятор)"
 }
 
 func setup_event(payload: Dictionary) -> void:
@@ -47,7 +49,9 @@ func _ready() -> void:
 	EventBus.dialogic_event_triggered.connect(_on_eventbus_dialogic_reward)
 
 	_build_ui()
-	var tl_path: String = TIMELINE_FILES[_rng.randi_range(0, TIMELINE_FILES.size() - 1)]
+	var tl_path: String = String(_payload.get("timeline", ""))
+	if tl_path == "" or not FileAccess.file_exists(tl_path):
+		tl_path = TIMELINE_FILES[_rng.randi_range(0, TIMELINE_FILES.size() - 1)]
 	_parse_dtl_timeline(tl_path)
 	_render_dialogue_state()
 
@@ -80,7 +84,7 @@ func _build_ui() -> void:
 	main_panel.add_child(root_vbox)
 
 	var top_title: Label = Label.new()
-	top_title.text = "РАДИОПЕРЕХВАТ / СОБЫТИЕ СЕКТОРА (Dialogic 2 DTL)"
+	top_title.text = String(_payload.get("title", "РАДИОПЕРЕХВАТ / СОБЫТИЕ СЕКТОРА (Dialogic 2 DTL)"))
 	top_title.add_theme_font_size_override("font_size", 11)
 	top_title.add_theme_color_override("font_color", Color(0.8, 0.6, 1.0))
 	root_vbox.add_child(top_title)
@@ -122,15 +126,25 @@ func _build_ui() -> void:
 	root_vbox.add_child(_outcome_label)
 
 	_continue_btn = Button.new()
-	_continue_btn.text = "ВЕРНУТЬСЯ НА КАРТУ ->"
+	_continue_btn.text = String(_payload.get("continue_text", "ВЕРНУТЬСЯ НА КАРТУ ->"))
 	_continue_btn.visible = false
 	_continue_btn.add_theme_font_size_override("font_size", 10)
-	_continue_btn.pressed.connect(func() -> void:
-		AudioManager.play_sfx("ui_click")
-		SaveManager.save_run()
-		EventBus.request_scene_change.emit(&"MAP", {})
-	)
+	_continue_btn.pressed.connect(_on_continue_pressed)
 	root_vbox.add_child(_continue_btn)
+
+func _on_continue_pressed() -> void:
+	AudioManager.play_sfx("ui_click")
+	var action: String = String(_payload.get("action_on_complete", ""))
+	if action == "advance_sector":
+		SaveManager.advance_to_next_sector()
+	elif action == "finish_run":
+		SaveManager.delete_run_save()
+	else:
+		SaveManager.save_run()
+
+	var next_sc: StringName = _payload.get("next_scene", &"MAP")
+	var next_pl: Dictionary = _payload.get("next_payload", {})
+	EventBus.request_scene_change.emit(next_sc, next_pl)
 
 func _parse_dtl_timeline(path: String) -> void:
 	_lines.clear()
@@ -185,6 +199,12 @@ func _render_dialogue_state() -> void:
 		var p_path: String = "res://assets/sprites/portraits/" + cid + "_" + mood + ".png"
 		if ResourceLoader.exists(p_path):
 			_portrait_rect.texture = load(p_path) as Texture2D
+		elif ResourceLoader.exists("res://assets/sprites/portraits/" + cid + "_normal.png"):
+			_portrait_rect.texture = load("res://assets/sprites/portraits/" + cid + "_normal.png") as Texture2D
+		elif ResourceLoader.exists("res://assets/sprites/enemies/boss_" + cid + ".png"):
+			_portrait_rect.texture = load("res://assets/sprites/enemies/boss_" + cid + ".png") as Texture2D
+		elif ResourceLoader.exists("res://assets/sprites/enemies/" + cid + ".png"):
+			_portrait_rect.texture = load("res://assets/sprites/enemies/" + cid + ".png") as Texture2D
 
 		_speaker_label.text = String(SPEAKER_NAMES.get(cid, cid.to_upper())) + " [" + mood.to_upper() + "]"
 		_dialogue_text.text = String(item["text"])
@@ -200,6 +220,12 @@ func _render_dialogue_state() -> void:
 			)
 			_choices_box.add_child(next_btn)
 			return
+
+	# Если в диалоге нет развилок (чисто сюжетная кат-сцена / прелюдия / постлюдия)
+	if _choices.is_empty():
+		_continue_btn.text = String(_payload.get("continue_text", "ПРОДОЛЖИТЬ ->"))
+		_continue_btn.visible = true
+		return
 
 	# Отображаем варианты выбора из таймлайна Dialogic 2
 	for ch: Dictionary in _choices:
@@ -275,5 +301,6 @@ func _on_eventbus_dialogic_reward(event_code: String, _amount: int) -> void:
 			summary = "Слита охлаждающая жидкость и редкие сплавы: +40 Лома!"
 
 	_outcome_label.text = "ИТОГ СОБЫТИЯ: " + summary
+	_continue_btn.text = String(_payload.get("continue_text", "ВЕРНУТЬСЯ НА КАРТУ ->"))
 	_continue_btn.visible = true
 

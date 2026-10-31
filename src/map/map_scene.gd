@@ -233,8 +233,19 @@ func _on_node_clicked(node_dict: Dictionary) -> void:
 	EventBus.node_selected.emit(nid, StringName(ntype))
 
 	match ntype:
-		"COMBAT", "ELITE", "BOSS":
+		"COMBAT", "ELITE":
 			EventBus.request_scene_change.emit(&"BATTLE", {"node_id": nid, "node_type": ntype})
+		"BOSS":
+			var sec: int = clampi(SaveManager.current_sector, 1, 3)
+			var prelude_path: String = "res://data/dialogues/boss_prelude_sector" + str(sec) + ".dtl"
+			SaveManager.save_run()
+			EventBus.request_scene_change.emit(&"EVENT", {
+				"timeline": prelude_path,
+				"next_scene": &"BATTLE",
+				"next_payload": {"node_id": nid, "node_type": "BOSS"},
+				"title": "БОЕВАЯ ТРЕВОГА // ПЕРЕХВАТ ЧАСТОТЫ БОССА",
+				"continue_text": "В БОЙ ->"
+			})
 		"WORKSHOP":
 			SaveManager.save_run()
 			EventBus.request_scene_change.emit(&"GARAGE", {"node_id": nid, "free_tuneup": true})
