@@ -157,7 +157,6 @@ jobs:
     name: Deploy Web Build to GitHub Pages
     needs: build-and-release
     runs-on: ubuntu-latest
-    continue-on-error: true
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -165,4 +164,10 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      - name: Check Pages Deployment Result
+        if: steps.deployment.outcome != 'success'
+        run: |
+          echo "::warning title=GitHub Pages Deployment Skipped or Failed::GitHub Pages deployment could not complete (status 404/not found). GitHub Pages requires: 1) Repository must be public (or account on GitHub Pro/Team plan for private repos), and 2) Settings -> Pages -> Source must be set to 'GitHub Actions'."
 

@@ -136,6 +136,6 @@ The project includes an automated GitHub Actions CI/CD pipeline:
 * **Target Export Platforms:**
   * **Windows Desktop (`x86_64`):** `Xenocats-Windows-x86_64.zip` (standalone executable with embedded `.pck`)
   * **Linux (`x86_64`):** `Xenocats-Linux-x86_64.zip` (standalone executable with execute permissions)
-  * **Web (`HTML5/Wasm`):** `Xenocats-Web.zip` + automatic deployment to **GitHub Pages**
+  * **Web (`HTML5/Wasm`):** `Xenocats-Web.zip` + automatic deployment to **GitHub Pages** (requires GitHub Pages enabled in repo Settings with Source: *GitHub Actions*; on Free accounts, GitHub Pages requires a public repository)
 * **Automated Release Notes:** GitHub automatically generates release changelogs from commits and pull requests.
 
