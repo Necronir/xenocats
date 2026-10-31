@@ -9,6 +9,9 @@ var _shuttle_box: VBoxContainer = null
 var _perks_box: VBoxContainer = null
 var _tapes_box: VBoxContainer = null
 var _continue_run_btn: Button = null
+var _settings_btn: Button = null
+var _settings_backdrop: ColorRect = null
+var _settings_panel: SettingsPanel = null
 
 const SHUTTLE_MODULES: Array[Dictionary] = [
 	{
@@ -102,6 +105,19 @@ func _build_ui() -> void:
 	_res_label.add_theme_color_override("font_color", Color(0.4, 0.95, 1.0))
 	top_hbox.add_child(_res_label)
 
+	_settings_btn = Button.new()
+	_settings_btn.text = "⚙ НАСТРОЙКИ"
+	_settings_btn.add_theme_font_size_override("font_size", 9)
+	_settings_btn.add_theme_color_override("font_color", Color(0.95, 0.9, 0.5))
+	_settings_btn.pressed.connect(func() -> void:
+		AudioManager.play_sfx("ui_click")
+		if _settings_backdrop != null:
+			_settings_backdrop.visible = true
+		if _settings_panel != null:
+			_settings_panel.open_panel()
+	)
+	top_hbox.add_child(_settings_btn)
+
 	# Три колонки мета-прогрессии
 	var cols: HBoxContainer = HBoxContainer.new()
 	cols.position = Vector2(8, 63)
@@ -171,9 +187,27 @@ func _build_ui() -> void:
 	_continue_run_btn.add_theme_font_size_override("font_size", 10)
 	_continue_run_btn.pressed.connect(func() -> void:
 		AudioManager.play_sfx("ui_click")
-		EventBus.request_scene_change.emit(&"MAP", {})
+		if not SaveManager.pending_battle.is_empty():
+			EventBus.request_scene_change.emit(&"BATTLE", SaveManager.pending_battle.duplicate(true))
+		else:
+			EventBus.request_scene_change.emit(&"MAP", {})
 	)
 	bot_hbox.add_child(_continue_run_btn)
+
+	# Оверлей настроек поверх Хаба (без паузы)
+	_settings_backdrop = ColorRect.new()
+	_settings_backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_settings_backdrop.color = Color(0.0, 0.0, 0.0, 0.65)
+	_settings_backdrop.visible = false
+	add_child(_settings_backdrop)
+
+	_settings_panel = SettingsPanel.new()
+	_settings_panel.visible = false
+	_settings_panel.closed.connect(func() -> void:
+		if _settings_backdrop != null:
+			_settings_backdrop.visible = false
+	)
+	add_child(_settings_panel)
 
 func _refresh_hub() -> void:
 	_res_label.text = (
@@ -275,8 +309,13 @@ func _refresh_hub() -> void:
 	# 4. Кнопка продолжения забега
 	if SaveManager.has_active_run:
 		_continue_run_btn.visible = true
+		var prefix_txt: String = (
+			"ВЕРНУТЬСЯ В БОЙ"
+			if not SaveManager.pending_battle.is_empty()
+			else "ПРОДОЛЖИТЬ ЗАБЕГ"
+		)
 		_continue_run_btn.text = (
-			"ПРОДОЛЖИТЬ ЗАБЕГ (Сектор " + str(SaveManager.current_sector)
+			prefix_txt + " (Сектор " + str(SaveManager.current_sector)
 			+ ", Этаж " + str(maxi(1, SaveManager.current_floor)) + ")"
 		)
 	else:

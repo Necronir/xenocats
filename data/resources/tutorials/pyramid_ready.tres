@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TutorialData" format=3]
+
+[ext_resource type="Script" path="res://src/models/tutorial_data.gd" id="1_tut"]
+
+[resource]
+script = ExtResource("1_tut")
+tutorial_id = &"pyramid_ready"
+title = "★ ГАРМОНИЯ 100%: ПИРАМИДА БРЕМЕНА ★"
+body = "Нажмите «★ СТЫКОВКА» в меню хода! Отряд соберётся в единый мега-тотем с общим пулом HP и сокрушительными атаками Резонатора."
+order = 4
+presentation = 1
+toast_duration = 7.0
+

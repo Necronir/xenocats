@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="TutorialData" format=3]
+
+[ext_resource type="Script" path="res://src/models/tutorial_data.gd" id="1_tut"]
+
+[resource]
+script = ExtResource("1_tut")
+tutorial_id = &"qte_timing"
+title = "ТАЙМИНГ АТАКИ QTE (PAPER MARIO)"
+body = "Нажмите [ПРОБЕЛ], [ENTER], [Z] или кнопку «УДАР!», когда бегунок попадёт в цветную зону:
+• Жёлтая зона (ТОЧНО): урон ×1.15 и +5% Гармонии.
+• Бирюзовая зона (КРИТ-СИНХРО): урон ×1.5 и +12% Гармонии!"
+order = 2
+presentation = 0
+toast_duration = 7.0
+

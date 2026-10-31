@@ -130,7 +130,9 @@ func trigger_strike() -> void:
 	_title_label.text = label_str
 	_bar_area.queue_redraw()
 
-	await get_tree().create_timer(0.32).timeout
+	await get_tree().create_timer(0.32, false).timeout
+	if not is_inside_tree():
+		return
 	visible = false
 	qte_completed.emit(mult, label_str, bonus_sync)
 

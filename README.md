@@ -104,6 +104,8 @@ res://
 * **Mouse (`LMB`):** select map nodes, skills, target specific enemy parts, and interact with Garage/Hub menus.
 * **`Space` / `Enter` / `Z` (or `STRIKE!` button):** lock in timing on the attack QTE bar.
 * **`WASD` / `Arrow Keys`:** move the 3-segmented cat core inside the `DodgeArena` during enemy attacks.
+* **`Esc` (or Joypad `Start`):** open the Pause Menu during battle and on the sector map (volume sliders, fullscreen toggle, tutorial handbook, retry battle, or return to Hub).
+* **`F11`:** toggle fullscreen mode at any time.
 
 ---
 

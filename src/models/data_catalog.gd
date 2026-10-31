@@ -6,6 +6,7 @@ static var _parts: Dictionary = {}
 static var _enemies: Dictionary = {}
 static var _cats: Dictionary = {}
 static var _tapes: Dictionary = {}
+static var _tutorials: Dictionary = {}
 static var _initialized: bool = false
 
 static func ensure_loaded() -> void:
@@ -16,6 +17,7 @@ static func ensure_loaded() -> void:
 	_load_dir_resources("res://data/resources/parts", _parts, "part_id")
 	_load_dir_resources("res://data/resources/enemies", _enemies, "enemy_id")
 	_load_dir_resources("res://data/resources/music_tapes", _tapes, "tape_id")
+	_load_dir_resources("res://data/resources/tutorials", _tutorials, "tutorial_id")
 	_build_default_catalog_if_needed()
 
 static func _load_dir_resources(dir_path: String, target_dict: Dictionary, id_prop: String) -> void:
@@ -90,12 +92,29 @@ static func get_all_tapes() -> Array[MusicTapeData]:
 			res.append(t)
 	return res
 
+static func get_tutorial(tutorial_id: String) -> TutorialData:
+	ensure_loaded()
+	return _tutorials.get(tutorial_id, null) as TutorialData
+
+static func get_all_tutorials() -> Array[TutorialData]:
+	ensure_loaded()
+	var res: Array[TutorialData] = []
+	for k: Variant in _tutorials.keys():
+		var td: TutorialData = _tutorials[k] as TutorialData
+		if td != null:
+			res.append(td)
+	res.sort_custom(func(a: TutorialData, b: TutorialData) -> bool:
+		return a.order < b.order
+	)
+	return res
+
 static func clear_cache() -> void:
 	_skills.clear()
 	_parts.clear()
 	_enemies.clear()
 	_cats.clear()
 	_tapes.clear()
+	_tutorials.clear()
 	_initialized = false
 
 static func create_cat_instance(cat_id: String) -> CatMechInstance:
@@ -456,6 +475,40 @@ static func _build_default_catalog_if_needed() -> void:
 		"res://assets/audio/tapes/tape_synth.wav", &"SPEED_AURA", 4
 	)
 
+	# Подсказки внутриигрового обучения (Issue #12)
+	_register_tutorial(
+		"elite_targeting",
+		"ПРИЦЕЛИВАНИЕ ПО ДЕТАЛЯМ (FRONT MISSION)",
+		"У Элитных дроидов и Боссов 3 независимые детали:\n• РУКИ (Орудия): отстрел отключает мощные атаки врага.\n• НОГИ (Шасси): отстрел обрушивает инициативу врага на 70%.\n• КОРПУС (Ядро): уничтожение корпуса выводит врага из строя!",
+		1,
+		TutorialData.Presentation.MODAL,
+		7.0
+	)
+	_register_tutorial(
+		"qte_timing",
+		"ТАЙМИНГ АТАКИ QTE (PAPER MARIO)",
+		"Нажмите [ПРОБЕЛ], [ENTER], [Z] или кнопку «УДАР!», когда бегунок попадёт в цветную зону:\n• Жёлтая зона (ТОЧНО): урон ×1.15 и +5% Гармонии.\n• Бирюзовая зона (КРИТ-СИНХРО): урон ×1.5 и +12% Гармонии!",
+		2,
+		TutorialData.Presentation.MODAL,
+		7.0
+	)
+	_register_tutorial(
+		"dodge_segments",
+		"СЕГМЕНТНЫЙ УВОРОТ (DODGE BOX)",
+		"Двигайте аватар клавишами [WASD] или [Стрелками]. У аватара 3 зоны попадания:\n• ВЕРХНИЙ сегмент принимает урон в РУКИ;\n• СРЕДНИЙ сегмент принимает урон в КОРПУС;\n• НИЖНИЙ сегмент принимает урон в НОГИ (сломанные ноги снижают скорость уворота на 40%).",
+		3,
+		TutorialData.Presentation.MODAL,
+		7.0
+	)
+	_register_tutorial(
+		"pyramid_ready",
+		"★ ГАРМОНИЯ 100%: ПИРАМИДА БРЕМЕНА ★",
+		"Нажмите «★ СТЫКОВКА» в меню хода! Отряд соберётся в единый мега-тотем с общим пулом HP и сокрушительными атаками Резонатора.",
+		4,
+		TutorialData.Presentation.TOAST,
+		7.0
+	)
+
 static func _register_regular_enemy(
 	p_id: String, p_name: String, p_sec: int, p_hp: int, p_armor: int, p_spd: int,
 	p_sprite: String, p_dodge: String, p_skills: Array[SkillData], p_scrap: int
@@ -535,3 +588,23 @@ static func _register_tape(
 	t.passive_aura_type = p_aura
 	t.passive_aura_value = p_val
 	_tapes[p_id] = t
+
+static func _register_tutorial(
+	p_id: String,
+	p_title: String,
+	p_body: String,
+	p_order: int,
+	p_presentation: TutorialData.Presentation,
+	p_duration: float
+) -> void:
+	if _tutorials.has(p_id):
+		return
+	var td: TutorialData = TutorialData.new()
+	td.tutorial_id = StringName(p_id)
+	td.title = p_title
+	td.body = p_body
+	td.order = p_order
+	td.presentation = p_presentation
+	td.toast_duration = p_duration
+	_tutorials[p_id] = td
+

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="TutorialData" format=3]
+
+[ext_resource type="Script" path="res://src/models/tutorial_data.gd" id="1_tut"]
+
+[resource]
+script = ExtResource("1_tut")
+tutorial_id = &"dodge_segments"
+title = "СЕГМЕНТНЫЙ УВОРОТ (DODGE BOX)"
+body = "Двигайте аватар клавишами [WASD] или [Стрелками]. У аватара 3 зоны попадания:
+• ВЕРХНИЙ сегмент принимает урон в РУКИ;
+• СРЕДНИЙ сегмент принимает урон в КОРПУС;
+• НИЖНИЙ сегмент принимает урон в НОГИ (сломанные ноги снижают скорость уворота на 40%)."
+order = 3
+presentation = 0
+toast_duration = 7.0
+

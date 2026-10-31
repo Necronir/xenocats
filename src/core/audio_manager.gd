@@ -12,6 +12,11 @@ var current_story_stage: int = 0
 var active_instruments: Array[String] = []
 var last_sfx_played: String = ""
 var is_muted: bool = false
+var is_pause_ducked: bool = false
+
+const BUS_MASTER: StringName = &"Master"
+const BUS_MUSIC: StringName = &"Music"
+const BUS_SFX: StringName = &"SFX"
 
 const SFX_PATHS: Dictionary = {
 	"hit": "res://assets/audio/sfx/hit.wav",
@@ -100,16 +105,24 @@ const BOSS_STAGE_CONFIG: Dictionary = {
 }
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	_ensure_audio_buses()
+
 	_music_player = AudioStreamPlayer.new()
+	_music_player.bus = BUS_MUSIC
 	_music_player.volume_db = -9.0
 	_music_player.finished.connect(_on_music_finished)
 	add_child(_music_player)
 
 	for i: int in range(6):
 		var p: AudioStreamPlayer = AudioStreamPlayer.new()
+		p.bus = BUS_SFX
 		p.volume_db = -4.0
 		add_child(p)
 		_sfx_players.append(p)
+
+	if SaveManager.settings != null:
+		SaveManager.settings.apply_audio()
 
 	for sfx_key: Variant in SFX_PATHS.keys():
 		var path: String = String(SFX_PATHS[sfx_key])
@@ -293,3 +306,40 @@ func play_sfx(sfx_name: String) -> void:
 			return
 	_sfx_players[0].stream = stream
 	_sfx_players[0].play()
+
+func _ensure_audio_buses() -> void:
+	var music_idx: int = AudioServer.get_bus_index(BUS_MUSIC)
+	if music_idx < 0:
+		music_idx = AudioServer.bus_count
+		AudioServer.add_bus(music_idx)
+		AudioServer.set_bus_name(music_idx, String(BUS_MUSIC))
+		AudioServer.set_bus_send(music_idx, BUS_MASTER)
+
+	if AudioServer.get_bus_effect_count(music_idx) < 2:
+		while AudioServer.get_bus_effect_count(music_idx) > 0:
+			AudioServer.remove_bus_effect(music_idx, 0)
+		var lpf: AudioEffectLowPassFilter = AudioEffectLowPassFilter.new()
+		lpf.cutoff_hz = 900.0
+		AudioServer.add_bus_effect(music_idx, lpf, 0)
+		AudioServer.set_bus_effect_enabled(music_idx, 0, is_pause_ducked)
+
+		var amp: AudioEffectAmplify = AudioEffectAmplify.new()
+		amp.volume_db = -8.0
+		AudioServer.add_bus_effect(music_idx, amp, 1)
+		AudioServer.set_bus_effect_enabled(music_idx, 1, is_pause_ducked)
+
+	var sfx_idx: int = AudioServer.get_bus_index(BUS_SFX)
+	if sfx_idx < 0:
+		sfx_idx = AudioServer.bus_count
+		AudioServer.add_bus(sfx_idx)
+		AudioServer.set_bus_name(sfx_idx, String(BUS_SFX))
+		AudioServer.set_bus_send(sfx_idx, BUS_MASTER)
+
+func set_pause_duck(enabled: bool) -> void:
+	is_pause_ducked = enabled
+	_ensure_audio_buses()
+	var music_idx: int = AudioServer.get_bus_index(BUS_MUSIC)
+	if music_idx >= 0:
+		for fx_i: int in range(AudioServer.get_bus_effect_count(music_idx)):
+			AudioServer.set_bus_effect_enabled(music_idx, fx_i, enabled)
+
