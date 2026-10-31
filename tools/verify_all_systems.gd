@@ -95,6 +95,10 @@ func _ready() -> void:
 			await get_tree().process_frame
 			assert(not arena._dodge_arena._active, "DodgeArena must stop immediately when cat Body HP reaches 0")
 			await get_tree().create_timer(0.5).timeout
+		elif spath == "res://src/garage/garage_scene.tscn":
+			var garage: GarageScene = node as GarageScene
+			assert(garage._exit_btn != null and garage._exit_btn.is_inside_tree(), "Garage must have active exit button in scene tree")
+			assert(garage._repair_all_btn != null and garage._repair_all_btn.is_inside_tree(), "Garage must have repair_all button")
 		node.queue_free()
 		await get_tree().process_frame
 		await get_tree().process_frame
