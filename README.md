@@ -41,14 +41,24 @@ Each of the 4 cats (as well as **Elite** and **Boss** enemies) consists of **3 i
   * **Center Segment** → projectile hits deal damage to `Body`
   * **Bottom Segment** → projectile hits deal damage to `Legs`
 
-### 4. Signature Mechanic: "The Bremen Pyramid" (Docking)
+### 4. Visual Feedback, Micro-Animations & VFX (Juice)
+* **Modular `Marker2D` Sockets:** `ArmsJoint` and `LegsJoint` coordinate points anchored directly onto the Body sprite, enabling dynamic alignment and modular visual swaps.
+* **Punchy Recoil & Hurt Animations (`create_tween()`):**
+  * Attack recoil backward upon firing / striking;
+  * Rapid displacement jitter and color flash on hit;
+  * Dynamic screen shake during "Crit-Sync" perfect QTE timings and part breakdowns.
+* **Status Particles & Floating Numbers:**
+  * Real-time `CPUParticles2D` emitting smoke and electrical sparks whenever a module's HP falls below 25% or breaks;
+  * Floating pop-up damage and heal numbers with crit scaling.
+
+### 5. Signature Mechanic: "The Bremen Pyramid" (Docking)
 Successful QTE crits, Mark combos, and flawless dodges fill the **Harmony Bar (`Sync Gauge`)**. At 100% charge, all surviving cats leap onto each other's shoulders, locking magnetic connectors to form a single towering mecha-totem for 1 round:
 * Cleanses all negative status effects and grants a party-wide energy shield.
 * Unlocks 2 ultimate abilities:
   * **Acoustic Storm** — massive AoE sonic bombardment across all enemies with a high stun chance.
   * **Cascade Overload** — a concentrated full-arsenal burst against a single target/part that pierces all armor and shields.
 
-### 5. Roguelike Map (StS DAG) & Vagabond Camp (Hub)
+### 6. Roguelike Map (StS DAG) & Vagabond Camp (Hub)
 * The climb toward the relay spire spans **3 biome sectors** of **15 floors** each (procedurally generated Directed Acyclic Graph seeded by `run_seed`):
   1. *Scrap Valley* — Sector Boss: **Three-Headed Press**
   2. *Outlaw Hub* — Sector Boss: **Atamansha (Crane-Walker)**

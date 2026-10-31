@@ -39,6 +39,7 @@ var _enemies_stage: Node2D = null
 var _cat_rigs: Array[Dictionary] = []
 var _pyramid_sprite: Sprite2D = null
 var _enemy_rigs: Array[Dictionary] = []
+var _shake_tween: Tween = null
 
 # UI узлы
 var _top_bar_label: Label = null
@@ -56,6 +57,10 @@ var _battle_payload: Dictionary = {}
 
 func setup_battle(payload: Dictionary) -> void:
 	_battle_payload = payload
+
+func _exit_tree() -> void:
+	if _shake_tween != null and _shake_tween.is_valid():
+		_shake_tween.kill()
 
 func _ready() -> void:
 	_rng.randomize()
@@ -238,6 +243,172 @@ func _init_combat_entities() -> void:
 	_spawn_enemy_rigs()
 	_refresh_hud()
 
+# --- VFX, партиклы, микро-анимации и шейк экрана (ADR-001 Section 4, Issue #11) ---
+
+func _create_smoke_particles() -> CPUParticles2D:
+	var p: CPUParticles2D = CPUParticles2D.new()
+	p.emitting = false
+	p.amount = 8
+	p.lifetime = 0.65
+	p.speed_scale = 1.0
+	p.direction = Vector2(0, -1)
+	p.spread = 30.0
+	p.gravity = Vector2(0, -16)
+	p.initial_velocity_min = 10.0
+	p.initial_velocity_max = 24.0
+	p.scale_amount_min = 2.0
+	p.scale_amount_max = 4.0
+	p.color = Color(0.28, 0.28, 0.32, 0.65)
+	p.z_index = 8
+	return p
+
+func _create_sparks_particles() -> CPUParticles2D:
+	var p: CPUParticles2D = CPUParticles2D.new()
+	p.emitting = false
+	p.amount = 10
+	p.lifetime = 0.45
+	p.speed_scale = 1.2
+	p.direction = Vector2(0, -1)
+	p.spread = 50.0
+	p.gravity = Vector2(0, 48)
+	p.initial_velocity_min = 18.0
+	p.initial_velocity_max = 42.0
+	p.scale_amount_min = 1.5
+	p.scale_amount_max = 3.0
+	p.color = Color(1.0, 0.82, 0.2, 0.95)
+	p.z_index = 9
+	return p
+
+func _emit_spark_burst(spawn_pos: Vector2, count: int = 18) -> void:
+	var burst: CPUParticles2D = CPUParticles2D.new()
+	burst.position = spawn_pos
+	burst.emitting = true
+	burst.one_shot = true
+	burst.explosiveness = 1.0
+	burst.amount = count
+	burst.lifetime = 0.5
+	burst.direction = Vector2(0, -1)
+	burst.spread = 180.0
+	burst.gravity = Vector2(0, 70)
+	burst.initial_velocity_min = 35.0
+	burst.initial_velocity_max = 75.0
+	burst.scale_amount_min = 1.5
+	burst.scale_amount_max = 3.5
+	burst.color = Color(1.0, 0.75, 0.2, 1.0)
+	burst.z_index = 20
+	add_child(burst)
+	get_tree().create_timer(0.65).timeout.connect(burst.queue_free)
+
+func spawn_damage_number(spawn_pos: Vector2, text: String, color: Color = Color.WHITE, is_crit: bool = false) -> Label:
+	var lbl: Label = Label.new()
+	lbl.text = text
+	lbl.position = spawn_pos + Vector2(_rng.randf_range(-6.0, 6.0) - 25.0, -32.0)
+	lbl.custom_minimum_size = Vector2(50, 18)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.add_theme_font_size_override("font_size", 11 if is_crit else 9)
+	lbl.add_theme_color_override("font_color", color)
+	lbl.add_theme_color_override("font_outline_color", Color(0.06, 0.08, 0.12, 1.0))
+	lbl.add_theme_constant_override("outline_size", 3 if is_crit else 2)
+	lbl.z_index = 45
+	add_child(lbl)
+
+	var start_pos: Vector2 = lbl.position
+	var end_pos: Vector2 = start_pos + Vector2(0, -20)
+	var tw: Tween = create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(lbl, "position", end_pos, 0.75).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	if is_crit:
+		lbl.scale = Vector2(1.35, 1.35)
+		lbl.pivot_offset = Vector2(25, 9)
+		tw.tween_property(lbl, "scale", Vector2(1.0, 1.0), 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(lbl, "modulate:a", 0.0, 0.75).set_ease(Tween.EASE_IN)
+	tw.finished.connect(lbl.queue_free)
+	return lbl
+
+func _trigger_screenshake(intensity: float = 7.0, duration: float = 0.22) -> void:
+	if _shake_tween != null and _shake_tween.is_valid():
+		_shake_tween.kill()
+	_shake_tween = create_tween()
+	var steps: int = 6
+	var step_time: float = duration / float(steps)
+	for s: int in range(steps):
+		var decay: float = 1.0 - (float(s) / float(steps))
+		var offset: Vector2 = Vector2(
+			_rng.randf_range(-intensity, intensity) * decay,
+			_rng.randf_range(-intensity, intensity) * decay
+		)
+		_shake_tween.tween_property(self, "position", offset, step_time)
+	_shake_tween.tween_property(self, "position", Vector2.ZERO, 0.03)
+
+func _play_cat_attack_recoil(cat_index: int) -> void:
+	if _pyramid_active and _pyramid_sprite != null:
+		var orig_p_pos: Vector2 = Vector2(112, 148)
+		var p_tw: Tween = create_tween()
+		p_tw.tween_property(_pyramid_sprite, "position:x", orig_p_pos.x - 12.0, 0.07).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		p_tw.tween_property(_pyramid_sprite, "position:x", orig_p_pos.x, 0.15).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		return
+
+	if cat_index < 0 or cat_index >= _cat_rigs.size():
+		return
+	var rig: Dictionary = _cat_rigs[cat_index]
+	var root: Node2D = rig["root"] as Node2D
+	var base_pos: Vector2 = rig["base_pos"] as Vector2
+	var body_spr: Sprite2D = rig["body_spr"] as Sprite2D
+
+	var tw: Tween = create_tween()
+	# Отдача назад при выстреле/ударе кота (Issue #11)
+	tw.tween_property(root, "position:x", base_pos.x - 10.0, 0.07).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	if body_spr != null:
+		tw.parallel().tween_property(body_spr, "rotation", -0.08, 0.07)
+	tw.tween_property(root, "position:x", base_pos.x, 0.15).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if body_spr != null:
+		tw.parallel().tween_property(body_spr, "rotation", 0.0, 0.15)
+
+func _play_enemy_attack_recoil(enemy_index: int) -> void:
+	if enemy_index < 0 or enemy_index >= _enemy_rigs.size():
+		return
+	var rig: Dictionary = _enemy_rigs[enemy_index]
+	var root: Node2D = rig["root"] as Node2D
+	var base_pos: Vector2 = rig["base_pos"] as Vector2
+	var body_spr: Sprite2D = rig["body_spr"] as Sprite2D
+
+	var tw: Tween = create_tween()
+	# Отдача назад для врага (смотрит влево -> отдача вправо)
+	tw.tween_property(root, "position:x", base_pos.x + 10.0, 0.07).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	if body_spr != null:
+		tw.parallel().tween_property(body_spr, "rotation", 0.08, 0.07)
+	tw.tween_property(root, "position:x", base_pos.x, 0.15).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if body_spr != null:
+		tw.parallel().tween_property(body_spr, "rotation", 0.0, 0.15)
+
+func _play_rig_hurt(rig: Dictionary, intensity: float = 6.0, target_part: PartData.PartSlot = PartData.PartSlot.BODY) -> void:
+	var root: Node2D = rig.get("root") as Node2D
+	var base_pos: Vector2 = rig.get("base_pos", Vector2.ZERO) as Vector2
+	if root == null:
+		return
+
+	# Встряска спрайта при получении урона (Issue #11)
+	var tw: Tween = create_tween()
+	tw.tween_property(root, "position", base_pos + Vector2(-intensity, 0), 0.03)
+	tw.tween_property(root, "position", base_pos + Vector2(intensity * 0.8, -1), 0.03)
+	tw.tween_property(root, "position", base_pos + Vector2(-intensity * 0.4, 1), 0.03)
+	tw.tween_property(root, "position", base_pos, 0.04)
+
+	# Вспышка поврежденного спрайта
+	var flash_spr: Sprite2D = null
+	if target_part == PartData.PartSlot.ARMS and rig.get("arms_spr") != null:
+		flash_spr = rig["arms_spr"] as Sprite2D
+	elif target_part == PartData.PartSlot.LEGS and rig.get("legs_spr") != null:
+		flash_spr = rig["legs_spr"] as Sprite2D
+	else:
+		flash_spr = rig.get("body_spr") as Sprite2D
+
+	if flash_spr != null:
+		var orig_mod: Color = flash_spr.modulate
+		var flash_tw: Tween = create_tween()
+		flash_tw.tween_property(flash_spr, "modulate", Color(1.9, 0.4, 0.4, 1.0), 0.04)
+		flash_tw.tween_property(flash_spr, "modulate", orig_mod, 0.14)
+
 func _spawn_cat_rigs() -> void:
 	for child: Node in _cats_stage.get_children():
 		child.queue_free()
@@ -253,33 +424,78 @@ func _spawn_cat_rigs() -> void:
 	for i: int in range(_party.size()):
 		var cat: CatMechInstance = _party[i]
 		var root: Node2D = Node2D.new()
+		root.name = "CatRig_" + cat.cat_id
 		root.position = positions[i % positions.size()]
 		_cats_stage.add_child(root)
 
-		# Модульная сборка спрайтов через Marker2D (ADR-001 Section 4)
-		var legs_mount: Marker2D = Marker2D.new()
-		legs_mount.position = Vector2(0, 12)
-		root.add_child(legs_mount)
-		var legs_spr: Sprite2D = Sprite2D.new()
-		if cat.legs_part != null and cat.legs_part.data != null and ResourceLoader.exists(cat.legs_part.data.texture_path):
-			legs_spr.texture = load(cat.legs_part.data.texture_path) as Texture2D
-		legs_mount.add_child(legs_spr)
-
-		var body_mount: Marker2D = Marker2D.new()
-		body_mount.position = Vector2(0, -4)
-		root.add_child(body_mount)
+		# Спрайт Корпуса (Body) - центральный опорный узел
 		var body_spr: Sprite2D = Sprite2D.new()
+		body_spr.name = "BodySprite"
+		body_spr.position = Vector2(0, -4)
 		if cat.body_part != null and cat.body_part.data != null and ResourceLoader.exists(cat.body_part.data.texture_path):
 			body_spr.texture = load(cat.body_part.data.texture_path) as Texture2D
-		body_mount.add_child(body_spr)
+		root.add_child(body_spr)
 
-		var arms_mount: Marker2D = Marker2D.new()
-		arms_mount.position = Vector2(2, -2)
-		root.add_child(arms_mount)
+		# Точки сочленений Marker2D на спрайте Корпуса (ADR-001 Section 4, Issue #11)
+		var arms_joint_pos: Vector2 = Vector2(2, 2)
+		var legs_joint_pos: Vector2 = Vector2(0, 16)
+		if cat.body_part != null and cat.body_part.data != null:
+			arms_joint_pos = cat.body_part.data.arms_joint_offset
+			legs_joint_pos = cat.body_part.data.legs_joint_offset
+
+		var arms_joint: Marker2D = Marker2D.new()
+		arms_joint.name = "ArmsJoint"
+		arms_joint.position = arms_joint_pos
+		body_spr.add_child(arms_joint)
+
 		var arms_spr: Sprite2D = Sprite2D.new()
+		arms_spr.name = "ArmsSprite"
 		if cat.arms_part != null and cat.arms_part.data != null and ResourceLoader.exists(cat.arms_part.data.texture_path):
 			arms_spr.texture = load(cat.arms_part.data.texture_path) as Texture2D
-		arms_mount.add_child(arms_spr)
+		arms_joint.add_child(arms_spr)
+
+		var legs_joint: Marker2D = Marker2D.new()
+		legs_joint.name = "LegsJoint"
+		legs_joint.position = legs_joint_pos
+		body_spr.add_child(legs_joint)
+
+		var legs_spr: Sprite2D = Sprite2D.new()
+		legs_spr.name = "LegsSprite"
+		legs_spr.show_behind_parent = true
+		if cat.legs_part != null and cat.legs_part.data != null and ResourceLoader.exists(cat.legs_part.data.texture_path):
+			legs_spr.texture = load(cat.legs_part.data.texture_path) as Texture2D
+		legs_joint.add_child(legs_spr)
+
+		# Партиклы повреждений (CPUParticles2D) для Корпуса, Рук и Ног
+		var body_smoke: CPUParticles2D = _create_smoke_particles()
+		body_smoke.name = "BodySmoke"
+		body_smoke.position = Vector2(0, -2)
+		body_spr.add_child(body_smoke)
+
+		var body_sparks: CPUParticles2D = _create_sparks_particles()
+		body_sparks.name = "BodySparks"
+		body_sparks.position = Vector2(0, -2)
+		body_spr.add_child(body_sparks)
+
+		var arms_smoke: CPUParticles2D = _create_smoke_particles()
+		arms_smoke.name = "ArmsSmoke"
+		arms_smoke.position = Vector2(4, 0)
+		arms_joint.add_child(arms_smoke)
+
+		var arms_sparks: CPUParticles2D = _create_sparks_particles()
+		arms_sparks.name = "ArmsSparks"
+		arms_sparks.position = Vector2(4, 0)
+		arms_joint.add_child(arms_sparks)
+
+		var legs_smoke: CPUParticles2D = _create_smoke_particles()
+		legs_smoke.name = "LegsSmoke"
+		legs_smoke.position = Vector2(0, 4)
+		legs_joint.add_child(legs_smoke)
+
+		var legs_sparks: CPUParticles2D = _create_sparks_particles()
+		legs_sparks.name = "LegsSparks"
+		legs_sparks.position = Vector2(0, 4)
+		legs_joint.add_child(legs_sparks)
 
 		var name_lbl: Label = Label.new()
 		name_lbl.position = Vector2(-24, -32)
@@ -289,9 +505,18 @@ func _spawn_cat_rigs() -> void:
 
 		_cat_rigs.append({
 			"root": root,
+			"base_pos": positions[i % positions.size()],
 			"body_spr": body_spr,
+			"arms_joint": arms_joint,
 			"arms_spr": arms_spr,
+			"legs_joint": legs_joint,
 			"legs_spr": legs_spr,
+			"body_smoke": body_smoke,
+			"body_sparks": body_sparks,
+			"arms_smoke": arms_smoke,
+			"arms_sparks": arms_sparks,
+			"legs_smoke": legs_smoke,
+			"legs_sparks": legs_sparks,
 			"label": name_lbl
 		})
 
@@ -316,16 +541,69 @@ func _spawn_enemy_rigs() -> void:
 	for i: int in range(_enemies.size()):
 		var en: EnemyInstance = _enemies[i]
 		var root: Node2D = Node2D.new()
+		root.name = "EnemyRig_" + str(i)
 		root.position = positions[i % positions.size()]
 		_enemies_stage.add_child(root)
 
 		var body_spr: Sprite2D = Sprite2D.new()
+		body_spr.name = "BodySprite"
+		root.add_child(body_spr)
+
+		var arms_joint: Marker2D = null
 		var arms_spr: Sprite2D = null
+		var legs_joint: Marker2D = null
 		var legs_spr: Sprite2D = null
 
+		var body_smoke: CPUParticles2D = _create_smoke_particles()
+		body_smoke.name = "BodySmoke"
+		body_spr.add_child(body_smoke)
+
+		var body_sparks: CPUParticles2D = _create_sparks_particles()
+		body_sparks.name = "BodySparks"
+		body_sparks.position = Vector2(0, -2)
+		body_spr.add_child(body_sparks)
+
+		var arms_smoke: CPUParticles2D = null
+		var arms_sparks: CPUParticles2D = null
+		var legs_smoke: CPUParticles2D = null
+		var legs_sparks: CPUParticles2D = null
+
 		if en.is_modular():
+			arms_joint = Marker2D.new()
+			arms_joint.name = "ArmsJoint"
+			arms_joint.position = Vector2(-2, 2)
+			body_spr.add_child(arms_joint)
+
 			arms_spr = Sprite2D.new()
+			arms_spr.name = "ArmsSprite"
+			arms_joint.add_child(arms_spr)
+
+			legs_joint = Marker2D.new()
+			legs_joint.name = "LegsJoint"
+			legs_joint.position = Vector2(0, 16)
+			body_spr.add_child(legs_joint)
+
 			legs_spr = Sprite2D.new()
+			legs_spr.name = "LegsSprite"
+			legs_spr.show_behind_parent = true
+			legs_joint.add_child(legs_spr)
+
+			arms_smoke = _create_smoke_particles()
+			arms_smoke.name = "ArmsSmoke"
+			arms_joint.add_child(arms_smoke)
+
+			arms_sparks = _create_sparks_particles()
+			arms_sparks.name = "ArmsSparks"
+			arms_joint.add_child(arms_sparks)
+
+			legs_smoke = _create_smoke_particles()
+			legs_smoke.name = "LegsSmoke"
+			legs_joint.add_child(legs_smoke)
+
+			legs_sparks = _create_sparks_particles()
+			legs_sparks.name = "LegsSparks"
+			legs_joint.add_child(legs_sparks)
+
 			var pfx: String = "res://assets/sprites/enemies/" + en.data.sprite_prefix
 			if ResourceLoader.exists(pfx + "_legs.png"):
 				legs_spr.texture = load(pfx + "_legs.png") as Texture2D
@@ -333,14 +611,10 @@ func _spawn_enemy_rigs() -> void:
 				body_spr.texture = load(pfx + "_body.png") as Texture2D
 			if ResourceLoader.exists(pfx + "_arms.png"):
 				arms_spr.texture = load(pfx + "_arms.png") as Texture2D
-			root.add_child(legs_spr)
-			root.add_child(body_spr)
-			root.add_child(arms_spr)
 		else:
 			var sp_path: String = "res://assets/sprites/enemies/" + en.data.sprite_prefix + ".png"
 			if ResourceLoader.exists(sp_path):
 				body_spr.texture = load(sp_path) as Texture2D
-			root.add_child(body_spr)
 
 		var info_lbl: Label = Label.new()
 		info_lbl.position = Vector2(-52, -48)
@@ -349,16 +623,25 @@ func _spawn_enemy_rigs() -> void:
 
 		_enemy_rigs.append({
 			"root": root,
+			"base_pos": positions[i % positions.size()],
 			"body_spr": body_spr,
+			"arms_joint": arms_joint,
 			"arms_spr": arms_spr,
+			"legs_joint": legs_joint,
 			"legs_spr": legs_spr,
+			"body_smoke": body_smoke,
+			"body_sparks": body_sparks,
+			"arms_smoke": arms_smoke,
+			"arms_sparks": arms_sparks,
+			"legs_smoke": legs_smoke,
+			"legs_sparks": legs_sparks,
 			"label": info_lbl
 		})
 
 func _refresh_hud() -> void:
 	_sync_bar.value = SaveManager.sync_gauge
 
-	# Обновляем визуальное состояние модульных спрайтов котов
+	# Обновляем визуальное состояние модульных спрайтов и партиклов котов
 	for i: int in range(_party.size()):
 		var cat: CatMechInstance = _party[i]
 		var rig: Dictionary = _cat_rigs[i]
@@ -372,14 +655,50 @@ func _refresh_hud() -> void:
 		a_spr.modulate = Color(0.4, 0.2, 0.2, 0.65) if cat.arms_part.is_broken() else Color(1, 1, 1)
 		l_spr.modulate = Color(0.4, 0.2, 0.2, 0.65) if cat.legs_part.is_broken() else Color(1, 1, 1)
 
+		# Партиклы дыма и искр при HP детали ниже 25% или ее поломке (Issue #11)
+		var cat_is_alive: bool = cat.is_alive() and (not _pyramid_active)
+		var b_crit: bool = cat_is_alive and (cat.body_part.is_broken() or float(cat.body_part.current_hp) <= float(cat.body_part.get_max_hp()) * 0.25)
+		var a_crit: bool = cat_is_alive and (cat.arms_part.is_broken() or float(cat.arms_part.current_hp) <= float(cat.arms_part.get_max_hp()) * 0.25)
+		var l_crit: bool = cat_is_alive and (cat.legs_part.is_broken() or float(cat.legs_part.current_hp) <= float(cat.legs_part.get_max_hp()) * 0.25)
+
+		(rig["body_smoke"] as CPUParticles2D).emitting = b_crit
+		(rig["body_sparks"] as CPUParticles2D).emitting = b_crit
+		(rig["arms_smoke"] as CPUParticles2D).emitting = a_crit
+		(rig["arms_sparks"] as CPUParticles2D).emitting = a_crit
+		(rig["legs_smoke"] as CPUParticles2D).emitting = l_crit
+		(rig["legs_sparks"] as CPUParticles2D).emitting = l_crit
+
 	_pyramid_sprite.visible = _pyramid_active
 
-	# Обновляем спрайты и подписи врагов
+	# Обновляем спрайты, подписи и партиклы врагов
 	for j: int in range(_enemies.size()):
 		var en: EnemyInstance = _enemies[j]
 		var erig: Dictionary = _enemy_rigs[j]
 		var eroot: Node2D = erig["root"] as Node2D
 		eroot.visible = en.is_alive()
+
+		var en_is_alive: bool = en.is_alive()
+		if en.is_modular():
+			var eb: PartInstance = en.body_part
+			var ea: PartInstance = en.arms_part
+			var el: PartInstance = en.legs_part
+			var eb_crit: bool = en_is_alive and (eb.is_broken() or float(eb.current_hp) <= float(eb.get_max_hp()) * 0.25)
+			var ea_crit: bool = en_is_alive and (ea.is_broken() or float(ea.current_hp) <= float(ea.get_max_hp()) * 0.25)
+			var el_crit: bool = en_is_alive and (el.is_broken() or float(el.current_hp) <= float(el.get_max_hp()) * 0.25)
+
+			(erig["body_smoke"] as CPUParticles2D).emitting = eb_crit
+			(erig["body_sparks"] as CPUParticles2D).emitting = eb_crit
+			if erig.get("arms_smoke") != null:
+				(erig["arms_smoke"] as CPUParticles2D).emitting = ea_crit
+				(erig["arms_sparks"] as CPUParticles2D).emitting = ea_crit
+			if erig.get("legs_smoke") != null:
+				(erig["legs_smoke"] as CPUParticles2D).emitting = el_crit
+				(erig["legs_sparks"] as CPUParticles2D).emitting = el_crit
+		else:
+			var non_crit: bool = en_is_alive and (float(en.current_hp) <= float(en.data.max_hp) * 0.25)
+			(erig["body_smoke"] as CPUParticles2D).emitting = non_crit
+			(erig["body_sparks"] as CPUParticles2D).emitting = non_crit
+
 		if not en.is_alive():
 			continue
 
@@ -540,8 +859,13 @@ func _advance_turn() -> void:
 			if not cat.is_alive():
 				continue
 			if cat.bleed_stacks > 0:
-				cat.apply_part_damage(PartData.PartSlot.BODY, cat.bleed_stacks * 2, true)
+				var bleed_dmg: int = cat.bleed_stacks * 2
+				cat.apply_part_damage(PartData.PartSlot.BODY, bleed_dmg, true)
 				cat.bleed_stacks = maxi(0, cat.bleed_stacks - 1)
+				if idx < _cat_rigs.size():
+					var crig: Dictionary = _cat_rigs[idx]
+					_play_rig_hurt(crig, 4.0, PartData.PartSlot.BODY)
+					spawn_damage_number((crig["root"] as Node2D).position, "МАСЛО -" + str(bleed_dmg), Color(0.85, 0.45, 1.0))
 				if not cat.is_alive():
 					_refresh_hud()
 					if _check_battle_end():
@@ -560,8 +884,13 @@ func _advance_turn() -> void:
 			if not en.is_alive():
 				continue
 			if en.bleed_stacks > 0:
-				en.take_damage(en.bleed_stacks * 4, PartData.PartSlot.BODY, true)
+				var bleed_dmg: int = en.bleed_stacks * 4
+				en.take_damage(bleed_dmg, PartData.PartSlot.BODY, true)
 				en.bleed_stacks = maxi(0, en.bleed_stacks - 1)
+				if idx < _enemy_rigs.size():
+					var erig: Dictionary = _enemy_rigs[idx]
+					_play_rig_hurt(erig, 4.0, PartData.PartSlot.BODY)
+					spawn_damage_number((erig["root"] as Node2D).position, "МАСЛО -" + str(bleed_dmg), Color(0.85, 0.45, 1.0))
 				_refresh_hud()
 				if not en.is_alive():
 					if _check_battle_end():
@@ -736,6 +1065,14 @@ func _on_qte_completed(multiplier: float, rating_label: String, bonus_sync: int)
 	_last_qte_mult = multiplier
 	_fsm.transition_to(CombatFSM.State.RESOLVE_PLAYER_DAMAGE)
 
+	var is_crit_sync: bool = multiplier >= 1.4 or rating_label.begins_with("КРИТ-СИНХРО")
+	if is_crit_sync:
+		# Тряска экрана (screenshake) при идеальном QTE-ударе («Крит-Синхро») (Issue #11)
+		_trigger_screenshake(7.5, 0.25)
+
+	# Отдача назад при выстреле/ударе кота (Issue #11)
+	_play_cat_attack_recoil(_active_cat_index)
+
 	var cat: CatMechInstance = _party[_active_cat_index]
 	var sk: SkillData = _selected_skill
 	SaveManager.add_sync(sk.sync_gain + bonus_sync)
@@ -746,17 +1083,27 @@ func _on_qte_completed(multiplier: float, rating_label: String, bonus_sync: int)
 
 	if sk.target_type == SkillData.TargetType.ALL_ALLIES or sk.target_type == SkillData.TargetType.SELF:
 		AudioManager.play_sfx("heal")
-		for ally: CatMechInstance in _party:
+		for a_i: int in range(_party.size()):
+			var ally: CatMechInstance = _party[a_i]
 			if not ally.is_alive():
 				continue
-			if sk.shield_amount > 0:
-				ally.shield += int(round(float(sk.shield_amount) * multiplier))
-			if sk.heal_amount > 0:
-				ally.body_part.repair(int(round(float(sk.heal_amount) * multiplier)))
+			var sh_amt: int = int(round(float(sk.shield_amount) * multiplier))
+			var h_amt: int = int(round(float(sk.heal_amount) * multiplier))
+			if sh_amt > 0:
+				ally.shield += sh_amt
+			if h_amt > 0:
+				ally.body_part.repair(h_amt)
 			if sk.status_effect == SkillData.StatusEffect.CLEANSE:
 				ally.clear_debuffs()
 			elif sk.status_effect == SkillData.StatusEffect.SPEED_UP:
 				ally.speed_buff_turns = maxi(ally.speed_buff_turns, sk.status_stacks)
+
+			if a_i < _cat_rigs.size():
+				var ally_pos: Vector2 = (_cat_rigs[a_i]["root"] as Node2D).position
+				if h_amt > 0:
+					spawn_damage_number(ally_pos, "+" + str(h_amt) + " HP", Color(0.35, 1.0, 0.55), false)
+				if sh_amt > 0:
+					spawn_damage_number(ally_pos + Vector2(0, -10 if h_amt > 0 else 0), "+ЩИТ " + str(sh_amt), Color(0.35, 0.85, 1.0), false)
 		log_parts.append("Поддержка отряда выполнена!")
 	elif sk.target_type == SkillData.TargetType.ALL_ENEMIES:
 		AudioManager.play_sfx("laser")
@@ -766,32 +1113,70 @@ func _on_qte_completed(multiplier: float, rating_label: String, bonus_sync: int)
 				continue
 			var res: Dictionary = en.take_damage(scaled_dmg, PartData.PartSlot.BODY, sk.ignore_armor)
 			_apply_skill_status_to_enemy(en, sk, multiplier)
-			log_parts.append(en.data.enemy_name + ": -" + str(res["damage"]) + " HP")
+			var dealt_dmg: int = int(res["damage"])
+			log_parts.append(en.data.enemy_name + ": -" + str(dealt_dmg) + " HP")
+
+			if e_idx < _enemy_rigs.size():
+				var erig: Dictionary = _enemy_rigs[e_idx]
+				var epos: Vector2 = (erig["root"] as Node2D).position
+				_play_rig_hurt(erig, 5.0, PartData.PartSlot.BODY)
+				spawn_damage_number(epos, ("КРИТ! -" if is_crit_sync else "-") + str(dealt_dmg), Color(1.0, 0.9, 0.25) if is_crit_sync else Color(1.0, 0.35, 0.35), is_crit_sync)
+				_emit_spark_burst(epos, 16 if is_crit_sync else 8)
+				if not en.is_alive():
+					_emit_spark_burst(epos, 26)
+					_trigger_screenshake(8.0, 0.25)
 	else:
 		AudioManager.play_sfx("laser")
 		if sk.shield_amount > 0:
 			cat.shield += sk.shield_amount
+			var cat_pos: Vector2 = (_cat_rigs[_active_cat_index]["root"] as Node2D).position
+			spawn_damage_number(cat_pos, "+ЩИТ " + str(sk.shield_amount), Color(0.35, 0.85, 1.0), false)
 		if sk.status_effect == SkillData.StatusEffect.TAUNT:
 			cat.taunt_turns = sk.status_stacks
 
 		var target_en: EnemyInstance = _enemies[_selected_enemy_index]
+		var actual_e_idx: int = _selected_enemy_index
 		if not target_en.is_alive():
-			for fallback_en: EnemyInstance in _enemies:
-				if fallback_en.is_alive():
-					target_en = fallback_en
+			for fallback_idx: int in range(_enemies.size()):
+				if _enemies[fallback_idx].is_alive():
+					target_en = _enemies[fallback_idx]
+					actual_e_idx = fallback_idx
 					break
 		if target_en != null and target_en.is_alive():
 			var hit_res: Dictionary = target_en.take_damage(scaled_dmg, _selected_part_slot, sk.ignore_armor)
 			_apply_skill_status_to_enemy(target_en, sk, multiplier)
 			var slot_str: String = PartData.slot_to_russian(hit_res["slot"] as PartData.PartSlot)
-			log_parts.append(target_en.data.enemy_name + " (" + slot_str + "): -" + str(hit_res["damage"]) + " HP")
+			var dealt_dmg: int = int(hit_res["damage"])
+			log_parts.append(target_en.data.enemy_name + " (" + slot_str + "): -" + str(dealt_dmg) + " HP")
+
+			var is_crit_hit: bool = is_crit_sync or bool(hit_res["triggered_mark"])
+			if actual_e_idx < _enemy_rigs.size():
+				var erig: Dictionary = _enemy_rigs[actual_e_idx]
+				var epos: Vector2 = (erig["root"] as Node2D).position
+				_play_rig_hurt(erig, 6.0, hit_res["slot"] as PartData.PartSlot)
+				var d_text: String = ("КРИТ! -" if is_crit_hit else "-") + str(dealt_dmg)
+				var d_col: Color = Color(1.0, 0.9, 0.25) if is_crit_hit else Color(1.0, 0.35, 0.35)
+				spawn_damage_number(epos, d_text, d_col, is_crit_hit)
+				_emit_spark_burst(epos, 16 if is_crit_hit else 9)
+
 			if bool(hit_res["triggered_mark"]):
 				SaveManager.add_sync(15)
 				log_parts.append("КОМБО ПО МЕТКЕ!")
 			if bool(hit_res["just_broken"]) and target_en.is_modular():
 				AudioManager.play_sfx("part_break")
-				EventBus.enemy_part_destroyed.emit(_selected_enemy_index, int(hit_res["slot"]))
+				EventBus.enemy_part_destroyed.emit(actual_e_idx, int(hit_res["slot"]))
 				log_parts.append("ДЕТАЛЬ [" + slot_str + "] ОТСТРЕЛЕНА!")
+				# Тряска экрана и искры при взрыве детали (Issue #11)
+				_trigger_screenshake(9.0, 0.3)
+				if actual_e_idx < _enemy_rigs.size():
+					var epos: Vector2 = (_enemy_rigs[actual_e_idx]["root"] as Node2D).position
+					_emit_spark_burst(epos, 28)
+					spawn_damage_number(epos + Vector2(0, -14), "СЛОМАН!", Color(1.0, 0.25, 0.25), true)
+			elif not target_en.is_alive():
+				_trigger_screenshake(8.0, 0.25)
+				if actual_e_idx < _enemy_rigs.size():
+					var epos: Vector2 = (_enemy_rigs[actual_e_idx]["root"] as Node2D).position
+					_emit_spark_burst(epos, 26)
 
 	_log_label.text = " | ".join(log_parts)
 	_refresh_hud()
@@ -823,6 +1208,9 @@ func _begin_enemy_turn(enemy_index: int) -> void:
 	_enemy_skill = en.choose_next_skill(_rng)
 	_defending_cat_index = _pick_target_cat_index()
 	var defender: CatMechInstance = _party[_defending_cat_index]
+
+	# Отдача назад врага при атаке (Issue #11)
+	_play_enemy_attack_recoil(enemy_index)
 
 	_log_label.text = (
 		en.data.enemy_name + " применяет «" + _enemy_skill.skill_name
@@ -867,6 +1255,14 @@ func _on_dodge_part_hit(slot: PartData.PartSlot, raw_damage: int) -> void:
 	var dealt: int = int(res["damage"])
 	var part_obj: PartInstance = defender.get_part(actual_slot)
 
+	# Встряска спрайта кота, вспышка, цифра урона и партиклы искр (Issue #11)
+	if _defending_cat_index < _cat_rigs.size():
+		var def_rig: Dictionary = _cat_rigs[_defending_cat_index]
+		_play_rig_hurt(def_rig, 5.0, actual_slot)
+		var cpos: Vector2 = (def_rig["root"] as Node2D).position
+		spawn_damage_number(cpos, "-" + str(dealt), Color(1.0, 0.4, 0.4), false)
+		_emit_spark_burst(cpos, 10)
+
 	EventBus.cat_part_damaged.emit(defender.cat_id, int(actual_slot), dealt, part_obj.current_hp)
 	var s_name: String = PartData.slot_to_russian(actual_slot)
 	_log_label.text = "ПОПАДАНИЕ в [" + s_name + "] (" + defender.display_name + "): -" + str(dealt) + " HP!"
@@ -875,6 +1271,12 @@ func _on_dodge_part_hit(slot: PartData.PartSlot, raw_damage: int) -> void:
 		AudioManager.play_sfx("part_break")
 		EventBus.cat_part_destroyed.emit(defender.cat_id, int(actual_slot))
 		_log_label.text += " ДЕТАЛЬ [" + s_name + "] РАЗРУШЕНА!"
+		# Тряска экрана и искры при взрыве детали (Issue #11)
+		_trigger_screenshake(9.0, 0.3)
+		if _defending_cat_index < _cat_rigs.size():
+			var cpos: Vector2 = (_cat_rigs[_defending_cat_index]["root"] as Node2D).position
+			_emit_spark_burst(cpos, 28)
+			spawn_damage_number(cpos + Vector2(0, -14), "СЛОМАН!", Color(1.0, 0.25, 0.25), true)
 
 	_refresh_hud()
 

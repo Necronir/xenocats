@@ -17,6 +17,8 @@ enum PartSlot {
 @export var base_speed: int = 12
 @export var skills: Array[SkillData] = []
 @export var texture_path: String = ""
+@export var arms_joint_offset: Vector2 = Vector2(2, 2)
+@export var legs_joint_offset: Vector2 = Vector2(0, 16)
 
 static func slot_to_russian(p_slot: PartSlot) -> String:
 	match p_slot:
