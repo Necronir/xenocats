@@ -342,6 +342,247 @@ def generate_backgrounds() -> None:
         img.save(os.path.join(bg_dir, f"{name}.png"))
 
 
+def _draw_mini_unit(d: ImageDraw.ImageDraw, x: int, y: int, body_col, eye_col, kind: str) -> None:
+    """Draws a recognizable mini pixel-art character for story cutscene panels."""
+    # Legs/tracks
+    d.rectangle([x + 2, y + 18, x + 16, y + 24], fill=(55, 60, 72, 255), outline=(15, 18, 24, 255))
+    # Torso
+    d.rectangle([x, y + 8, x + 18, y + 19], fill=body_col, outline=(15, 18, 24, 255))
+    # Head
+    d.rectangle([x + 2, y, x + 16, y + 9], fill=body_col, outline=(15, 18, 24, 255))
+    # Eyes
+    d.rectangle([x + 5, y + 3, x + 8, y + 6], fill=eye_col)
+    d.rectangle([x + 11, y + 3, x + 14, y + 6], fill=eye_col)
+    if kind == "felix":
+        d.polygon([(x + 2, y), (x + 5, y - 5), (x + 8, y)], fill=body_col)
+        d.polygon([(x + 10, y), (x + 13, y - 5), (x + 16, y)], fill=body_col)
+    elif kind == "hound":
+        d.rectangle([x + 4, y + 7, x + 15, y + 10], fill=(210, 215, 225, 255))
+        d.polygon([(x + 2, y), (x + 6, y - 4), (x + 9, y)], fill=body_col)
+    elif kind == "mule":
+        # Long donkey ears
+        d.rectangle([x + 1, y - 8, x + 5, y], fill=body_col, outline=(15, 18, 24, 255))
+        d.rectangle([x + 13, y - 8, x + 17, y], fill=body_col, outline=(15, 18, 24, 255))
+    elif kind == "cock":
+        # Red rooster crest
+        d.polygon([(x + 6, y), (x + 9, y - 7), (x + 13, y)], fill=(255, 55, 110, 255))
+
+
+def _draw_note(d: ImageDraw.ImageDraw, x: int, y: int, col) -> None:
+    d.ellipse([x, y + 6, x + 5, y + 10], fill=col)
+    d.line([(x + 5, y + 8), (x + 5, y)], fill=col, width=1)
+    d.line([(x + 5, y), (x + 10, y + 2)], fill=col, width=2)
+
+
+def generate_story_illustrations() -> None:
+    story_dir = os.path.join(ROOT, "sprites", "story")
+    ensure_dir(story_dir)
+    W, H = 260, 92
+
+    # 1. story_cat_exile.png: Old cat warming by reactor with synth-lute vs Acid disposal order
+    img = Image.new("RGBA", (W, H), (22, 18, 28, 255))
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, W - 1, H - 1], outline=(90, 200, 255, 255), width=2)
+    # Warm fireplace reactor on left
+    d.rectangle([14, 22, 58, 76], fill=(65, 45, 40, 255), outline=(255, 140, 50, 255), width=2)
+    d.ellipse([22, 36, 50, 68], fill=(255, 120, 30, 255))
+    d.ellipse([28, 44, 44, 62], fill=(255, 230, 90, 255))
+    # FELIX sitting by warm reactor with lute
+    _draw_mini_unit(d, 68, 48, (55, 145, 220, 255), (80, 255, 255, 255), "felix")
+    d.ellipse([78, 56, 94, 66], fill=(235, 165, 45, 255), outline=(20, 20, 20, 255))
+    d.line([(88, 60), (104, 52)], fill=(235, 165, 45, 255), width=2)
+    _draw_note(d, 92, 26, (80, 255, 255, 255))
+    _draw_note(d, 110, 18, (255, 220, 80, 255))
+    # Little cyber-mouse escaping unharmed
+    d.ellipse([112, 68, 122, 74], fill=(150, 160, 175, 255))
+    d.line([(106, 71), (112, 71)], fill=(255, 100, 150, 255), width=1)
+    # Cruel Master monitor & Acid Vat on right
+    d.rectangle([156, 12, 242, 46], fill=(45, 15, 22, 255), outline=(255, 50, 60, 255), width=2)
+    d.line([(170, 20), (186, 36)], fill=(255, 60, 60, 255), width=3)
+    d.line([(186, 20), (170, 36)], fill=(255, 60, 60, 255), width=3)
+    d.line([(198, 28), (230, 28)], fill=(255, 80, 80, 255), width=3)
+    d.polygon([(214, 38), (206, 30), (222, 30)], fill=(255, 80, 80, 255))
+    # Bubbling green acid vat below monitor
+    d.rectangle([162, 54, 238, 82], fill=(25, 75, 30, 255), outline=(120, 255, 80, 255), width=2)
+    for bx in (176, 196, 218):
+        d.ellipse([bx, 48, bx + 8, 56], fill=(140, 255, 90, 255))
+    img.save(os.path.join(story_dir, "story_cat_exile.png"))
+
+    # 2. story_cat_alone_road.png: FELIX walking alone at night toward glowing Bremen-4 tower
+    img = Image.new("RGBA", (W, H), (14, 18, 34, 255))
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, W - 1, H - 1], outline=(80, 220, 255, 255), width=2)
+    # Stars
+    for sx, sy in [(25, 16), (60, 12), (105, 22), (145, 14), (180, 24)]:
+        d.point((sx, sy), fill=(220, 240, 255, 255))
+    # Road perspective
+    d.polygon([(0, 88), (W, 88), (215, 58), (45, 58)], fill=(42, 46, 58, 255))
+    d.line([(0, 58), (W, 58)], fill=(90, 110, 140, 255), width=1)
+    # Distant Bremen-4 Tower with glowing beacon & music waves
+    d.polygon([(205, 58), (215, 12), (225, 58)], fill=(60, 80, 115, 255), outline=(100, 240, 255, 255))
+    d.ellipse([211, 8, 219, 16], fill=(255, 230, 70, 255))
+    d.arc([198, 2, 232, 28], 0, 360, fill=(80, 255, 255, 255), width=1)
+    _draw_note(d, 186, 12, (255, 220, 70, 255))
+    # Lonely FELIX walking on left with synth-guitar
+    _draw_mini_unit(d, 48, 48, (55, 145, 220, 255), (80, 255, 255, 255), "felix")
+    d.line([(44, 52), (66, 64)], fill=(235, 165, 45, 255), width=3)
+    _draw_note(d, 74, 36, (80, 255, 255, 255))
+    img.save(os.path.join(story_dir, "story_cat_alone_road.png"))
+
+    # 3. story_meet_hound.png: FELIX meets exhausted H.O.U.N.D. by roadside milestone
+    img = Image.new("RGBA", (W, H), (28, 22, 24, 255))
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, W - 1, H - 1], outline=(255, 110, 90, 255), width=2)
+    d.rectangle([0, 62, W, H], fill=(52, 40, 34, 255))
+    # Milestone signpost in middle
+    d.rectangle([124, 30, 130, 64], fill=(120, 125, 135, 255))
+    d.polygon([(112, 24), (148, 24), (156, 30), (148, 36), (112, 36)], fill=(215, 165, 45, 255), outline=(20, 20, 20, 255))
+    # FELIX on left offering paw
+    _draw_mini_unit(d, 64, 42, (55, 145, 220, 255), (80, 255, 255, 255), "felix")
+    d.line([(82, 54), (96, 54)], fill=(80, 255, 255, 255), width=2)
+    # H.O.U.N.D. sitting exhausted on right with broken chain
+    _draw_mini_unit(d, 158, 44, (175, 45, 55, 255), (255, 70, 70, 255), "hound")
+    d.line([(176, 62), (198, 68)], fill=(160, 165, 175, 255), width=2)
+    # Hunter crosshair in distant sky (old master threat)
+    d.ellipse([212, 14, 236, 38], outline=(255, 60, 60, 255), width=1)
+    d.line([(224, 10), (224, 42)], fill=(255, 60, 60, 255), width=1)
+    d.line([(208, 26), (240, 26)], fill=(255, 60, 60, 255), width=1)
+    _draw_note(d, 98, 28, (80, 255, 255, 255))
+    _draw_note(d, 162, 24, (255, 90, 90, 255))
+    img.save(os.path.join(story_dir, "story_meet_hound.png"))
+
+    # 4. story_mill_mule_captive.png: Miller-Press about to crush M.U.L.E. weighed down by ore sacks
+    img = Image.new("RGBA", (W, H), (32, 20, 18, 255))
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, W - 1, H - 1], outline=(255, 165, 45, 255), width=2)
+    d.rectangle([0, 68, W, H], fill=(55, 38, 30, 255))
+    # FELIX & HOUND charging from left
+    _draw_mini_unit(d, 18, 44, (55, 145, 220, 255), (80, 255, 255, 255), "felix")
+    _draw_mini_unit(d, 46, 44, (175, 45, 55, 255), (255, 70, 70, 255), "hound")
+    # M.U.L.E. in center-right pinned under heavy ore sacks
+    _draw_mini_unit(d, 114, 46, (215, 165, 40, 255), (255, 220, 70, 255), "mule")
+    d.rounded_rectangle([108, 32, 138, 48], radius=4, fill=(130, 135, 145, 255), outline=(30, 30, 35, 255))
+    d.rounded_rectangle([116, 22, 142, 36], radius=4, fill=(110, 115, 125, 255), outline=(30, 30, 35, 255))
+    # Giant 3-Headed Miller-Press on right looming over M.U.L.E.
+    d.rectangle([172, 12, 244, 68], fill=(180, 65, 50, 255), outline=(25, 20, 20, 255), width=2)
+    for hx in (180, 202, 224):
+        d.rectangle([hx, 20, hx + 14, 34], fill=(20, 22, 30, 255))
+        d.rectangle([hx + 3, 24, hx + 11, 30], fill=(255, 190, 40, 255))
+        # Hydraulic hammers
+        d.rectangle([hx + 2, 48, hx + 12, 66], fill=(95, 100, 115, 255), outline=(255, 180, 40, 255))
+    img.save(os.path.join(story_dir, "story_mill_mule_captive.png"))
+
+    # 5. story_mule_joins.png: Miller-Press wrecked, M.U.L.E. joins FELIX & H.O.U.N.D.
+    img = Image.new("RGBA", (W, H), (24, 28, 36, 255))
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, W - 1, H - 1], outline=(255, 220, 70, 255), width=2)
+    d.rectangle([0, 66, W, H], fill=(45, 50, 62, 255))
+    # Wrecked press smoking on right
+    d.rectangle([196, 42, 244, 68], fill=(80, 45, 40, 255), outline=(30, 25, 25, 255))
+    d.line([(202, 46), (238, 64)], fill=(255, 120, 40, 255), width=2)
+    # Trio celebrating together: FELIX, HOUND, MULE
+    _draw_mini_unit(d, 48, 42, (55, 145, 220, 255), (80, 255, 255, 255), "felix")
+    _draw_mini_unit(d, 88, 42, (175, 45, 55, 255), (255, 70, 70, 255), "hound")
+    _draw_mini_unit(d, 130, 40, (215, 165, 40, 255), (255, 220, 70, 255), "mule")
+    _draw_note(d, 58, 18, (80, 255, 255, 255))
+    _draw_note(d, 98, 14, (255, 90, 90, 255))
+    _draw_note(d, 138, 16, (255, 220, 70, 255))
+    img.save(os.path.join(story_dir, "story_mule_joins.png"))
+
+    # 6. story_tavern_cock_soup.png: C.O.C.K. crowing in cage above boiling soup pot & Atamansha
+    img = Image.new("RGBA", (W, H), (24, 18, 34, 255))
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, W - 1, H - 1], outline=(255, 70, 130, 255), width=2)
+    d.rectangle([0, 68, W, H], fill=(42, 34, 54, 255))
+    # Trio on left
+    _draw_mini_unit(d, 14, 44, (55, 145, 220, 255), (80, 255, 255, 255), "felix")
+    _draw_mini_unit(d, 38, 44, (175, 45, 55, 255), (255, 70, 70, 255), "hound")
+    _draw_mini_unit(d, 62, 42, (215, 165, 40, 255), (255, 220, 70, 255), "mule")
+    # Hanging cage at top-center with C.O.C.K. crowing
+    d.line([(130, 2), (130, 12)], fill=(180, 185, 195, 255), width=2)
+    d.rectangle([114, 12, 146, 44], fill=(20, 18, 28, 255), outline=(180, 190, 210, 255), width=2)
+    _draw_mini_unit(d, 121, 18, (140, 65, 195, 255), (120, 255, 160, 255), "cock")
+    for cx in range(118, 146, 6):
+        d.line([(cx, 12), (cx, 44)], fill=(150, 160, 175, 255), width=1)
+    # Sonic rings around cage
+    d.arc([104, 6, 156, 50], 0, 360, fill=(120, 255, 160, 255), width=1)
+    # Boiling plasma soup cauldron below cage
+    d.polygon([(112, 54), (148, 54), (142, 74), (118, 74)], fill=(60, 65, 78, 255), outline=(255, 140, 50, 255), width=2)
+    d.line([(114, 54), (146, 54)], fill=(120, 255, 90, 255), width=3)
+    d.rectangle([118, 74, 142, 80], fill=(255, 90, 30, 255))
+    # Atamansha boss on right with laser cleaver
+    d.rectangle([178, 18, 240, 68], fill=(195, 45, 95, 255), outline=(25, 15, 25, 255), width=2)
+    d.rectangle([190, 28, 228, 42], fill=(20, 18, 28, 255))
+    d.rectangle([196, 32, 222, 38], fill=(255, 230, 60, 255))
+    # Laser cleaver in her claw
+    d.rectangle([156, 34, 178, 46], fill=(255, 50, 90, 255), outline=(255, 220, 220, 255))
+    img.save(os.path.join(story_dir, "story_tavern_cock_soup.png"))
+
+    # 7. story_cock_joins_quartet.png: All 4 Bremen Musicians united!
+    img = Image.new("RGBA", (W, H), (20, 24, 38, 255))
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, W - 1, H - 1], outline=(120, 255, 160, 255), width=2)
+    d.rectangle([0, 66, W, H], fill=(38, 44, 66, 255))
+    _draw_mini_unit(d, 38, 40, (215, 165, 40, 255), (255, 220, 70, 255), "mule")
+    _draw_mini_unit(d, 86, 42, (175, 45, 55, 255), (255, 70, 70, 255), "hound")
+    _draw_mini_unit(d, 134, 42, (55, 145, 220, 255), (80, 255, 255, 255), "felix")
+    _draw_mini_unit(d, 182, 42, (140, 65, 195, 255), (120, 255, 160, 255), "cock")
+    for nx, ncol in [(44, (255, 220, 70, 255)), (92, (255, 90, 90, 255)), (140, (80, 255, 255, 255)), (188, (120, 255, 160, 255))]:
+        _draw_note(d, nx, 16, ncol)
+    img.save(os.path.join(story_dir, "story_cock_joins_quartet.png"))
+
+    # 8. story_bremen_window_pyramid.png: 4 Musicians stacked in Pyramid at window scaring the Satellite Boss
+    img = Image.new("RGBA", (W, H), (14, 18, 32, 255))
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, W - 1, H - 1], outline=(100, 245, 255, 255), width=2)
+    # Warm Broadcast House interior on right half
+    d.rectangle([120, 6, 254, 86], fill=(48, 34, 28, 255), outline=(255, 190, 70, 255), width=2)
+    # Glowing window frame in center (x=116..126)
+    d.rectangle([114, 10, 126, 82], fill=(255, 235, 130, 255))
+    # Pyramid of 4 animals stacked vertically on left of window (x=68)
+    # Bottom: MULE
+    d.rectangle([62, 64, 96, 84], fill=(215, 165, 40, 255), outline=(15, 18, 24, 255))
+    # 2nd: HOUND
+    d.rectangle([65, 46, 93, 64], fill=(175, 45, 55, 255), outline=(15, 18, 24, 255))
+    # 3rd: FELIX
+    d.rectangle([68, 28, 90, 46], fill=(55, 145, 220, 255), outline=(15, 18, 24, 255))
+    # Top: COCK with red crest
+    d.rectangle([71, 12, 87, 28], fill=(140, 65, 195, 255), outline=(15, 18, 24, 255))
+    d.polygon([(74, 12), (79, 4), (84, 12)], fill=(255, 55, 110, 255))
+    # Sonic blast crashing through window!
+    for r in (16, 28, 40):
+        d.arc([95 - r, 46 - r, 95 + r, 46 + r], -55, 55, fill=(120, 255, 255, 255), width=2)
+    # Feast table of golden AI cores & terrified Satellite Boss inside house
+    d.rectangle([142, 58, 186, 82], fill=(95, 65, 40, 255), outline=(20, 20, 20, 255))
+    d.ellipse([152, 48, 164, 58], fill=(255, 220, 60, 255))
+    d.ellipse([166, 48, 178, 58], fill=(80, 245, 255, 255))
+    # Startled Satellite Boss
+    d.rectangle([194, 22, 244, 72], fill=(70, 95, 185, 255), outline=(120, 255, 255, 255), width=2)
+    d.rectangle([204, 34, 234, 48], fill=(15, 20, 32, 255))
+    d.ellipse([212, 36, 226, 46], fill=(255, 70, 70, 255))
+    img.save(os.path.join(story_dir, "story_bremen_window_pyramid.png"))
+
+    # 9. story_bremen_victory_concert.png: Satellite flees into dark space, 4 Musicians broadcast from house
+    img = Image.new("RGBA", (W, H), (26, 20, 36, 255))
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, W - 1, H - 1], outline=(255, 225, 70, 255), width=2)
+    d.rectangle([0, 68, W, H], fill=(55, 40, 48, 255))
+    # Golden Microphone & Transmitter in center
+    d.rectangle([124, 26, 132, 68], fill=(255, 210, 60, 255))
+    d.ellipse([118, 14, 138, 32], fill=(255, 235, 90, 255), outline=(255, 140, 40, 255), width=2)
+    for rad in (22, 36, 50):
+        d.arc([128 - rad, 22 - rad, 128 + rad, 22 + rad], 0, 360, fill=(80, 245, 255, 255), width=1)
+    # 4 Musicians around the Golden Microphone
+    _draw_mini_unit(d, 26, 42, (215, 165, 40, 255), (255, 220, 70, 255), "mule")
+    _draw_mini_unit(d, 64, 44, (175, 45, 55, 255), (255, 70, 70, 255), "hound")
+    _draw_mini_unit(d, 152, 44, (55, 145, 220, 255), (80, 255, 255, 255), "felix")
+    _draw_mini_unit(d, 188, 44, (140, 65, 195, 255), (120, 255, 160, 255), "cock")
+    # Scratched & battered Satellite fleeing in top-right corner
+    d.rectangle([222, 8, 250, 32], fill=(70, 95, 185, 255), outline=(255, 80, 80, 255))
+    d.line([(224, 10), (248, 30)], fill=(255, 60, 60, 255), width=2)
+    img.save(os.path.join(story_dir, "story_bremen_victory_concert.png"))
+
+
 def write_wav(path: str, samples: list[float], sample_rate: int = 22050) -> None:
     with wave.open(path, "w") as wf:
         wf.setnchannels(1)
@@ -466,6 +707,7 @@ if __name__ == "__main__":
     generate_enemies()
     generate_ui_and_dodge()
     generate_backgrounds()
+    generate_story_illustrations()
     generate_audio()
     print("All Xenocats pixel-art sprites and WAV audio assets generated!")
 

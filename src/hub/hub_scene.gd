@@ -155,8 +155,8 @@ func _build_ui() -> void:
 			"timeline": "res://data/dialogues/story_intro_crash.dtl",
 			"next_scene": &"MAP",
 			"next_payload": {},
-			"title": "КРУШЕНИЕ BREMEN-04 // ПРОБУЖДЕНИЕ",
-			"continue_text": "ОТПРАВИТЬСЯ К ВЫШКЕ ->"
+			"title": "ПРОЛОГ: ИЗГНАНИЕ КОТА И ВСТРЕЧА С ПСОМ",
+			"continue_text": "В ПУТЬ ВДВОЁМ С ПСОМ (СЕКТОР 1) ->"
 		})
 	)
 	bot_hbox.add_child(new_run_btn)

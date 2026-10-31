@@ -222,12 +222,13 @@ func _init_combat_entities() -> void:
 		var elites: Array[EnemyData] = DataCatalog.get_enemies_for_sector(sec, true, false)
 		if not elites.is_empty():
 			_enemies.append(EnemyInstance.new(elites[_rng.randi_range(0, elites.size() - 1)]))
-		var regs: Array[EnemyData] = DataCatalog.get_enemies_for_sector(sec, false, false)
-		if not regs.is_empty():
-			_enemies.append(EnemyInstance.new(regs[_rng.randi_range(0, regs.size() - 1)]))
+		if _party.size() >= 3:
+			var regs: Array[EnemyData] = DataCatalog.get_enemies_for_sector(sec, false, false)
+			if not regs.is_empty():
+				_enemies.append(EnemyInstance.new(regs[_rng.randi_range(0, regs.size() - 1)]))
 	else:
 		var regular_pool: Array[EnemyData] = DataCatalog.get_enemies_for_sector(sec, false, false)
-		var count: int = _rng.randi_range(2, 3)
+		var count: int = _rng.randi_range(1, 2) if _party.size() <= 2 else (2 if _party.size() == 3 else _rng.randi_range(2, 3))
 		for i: int in range(count):
 			if not regular_pool.is_empty():
 				var ed: EnemyData = regular_pool[_rng.randi_range(0, regular_pool.size() - 1)]
@@ -960,25 +961,41 @@ func _handle_victory() -> void:
 		var current_sec: int = clampi(SaveManager.current_sector, 1, 3)
 		var postlude_path: String = "res://data/dialogues/boss_postlude_sector" + str(current_sec) + ".dtl"
 		if current_sec >= 3:
-			_end_title.text = "ПОБЕДА! СИГНАЛ БРЕМЕН-4 ОТПРАВЛЕН!"
+			_end_title.text = "ПОБЕДА! ИЗБА НА ВЕРШИНЕ ЗАХВАЧЕНА!"
 			_end_title.add_theme_color_override("font_color", Color(0.3, 1.0, 0.55))
 			_end_desc.text = (
-				"Спящий Спутник повержен! FELIX и банда котов готовы передать аварийный сигнал SOS на частоте Бремен-4!\n"
+				"Надзиратель Спутник повержен! Бременские музыканты заняли радиорубку «Бремен-4»!\n"
 				+ "Получено: +" + str(total_scrap) + " Титанового лома, +" + str(total_cores) + " Ядер ИИ."
 			)
-			_end_btn.text = "СЮЖЕТ: ФИНАЛЬНАЯ ТРАНСЛЯЦИЯ ->"
+			_end_btn.text = "СЮЖЕТ: НОЧНОЕ ИЗГНАНИЕ И КОНЦЕРТ ->"
 			_end_btn.pressed.connect(func() -> void:
 				EventBus.request_scene_change.emit(&"EVENT", {
 					"timeline": postlude_path,
 					"next_scene": &"HUB",
 					"next_payload": {},
-					"title": "ФИНАЛ: ТРАНСЛЯЦИЯ СИГНАЛА SOS // БРЕМЕН-4",
+					"title": "ФИНАЛ: КОНЦЕРТ БРЕМЕНСКИХ МУЗЫКАНТОВ",
 					"continue_text": "В ЛАГЕРЬ БРОДЯГ (ХАБ) ->",
 					"action_on_complete": "finish_run"
 				})
 			)
 		else:
-			_end_title.text = "ПОБЕДА НАД БОССОМ СЕКТОРА " + str(current_sec) + "!"
+			var win_titles: Dictionary = {
+				1: "ХОЗЯИН МЕЛЬНИЦЫ ПОВЕРЖЕН!",
+				2: "ХОЗЯЙКА ПРИТОНА ПОВЕРЖЕНА!"
+			}
+			var win_btns: Dictionary = {
+				1: "СПАСТИ ОСЛА M.U.L.E. ->",
+				2: "СПАСТИ ПЕТУХА C.O.C.K. ->"
+			}
+			var post_titles: Dictionary = {
+				1: "СПАСЕНИЕ ОСЛА // M.U.L.E. ВСТУПАЕТ В ГРУППУ!",
+				2: "СПАСЕНИЕ ПЕТУХА ОТ СУПА // КВАРТЕТ В СБОРЕ!"
+			}
+			var next_btns: Dictionary = {
+				1: "В ПУТЬ ВТРОЁМ С ОСЛОМ (СЕКТОР 2) ->",
+				2: "В ПУТЬ КВАРТЕТОМ НА ВЕРШИНУ (СЕКТОР 3) ->"
+			}
+			_end_title.text = String(win_titles.get(current_sec, "ПОБЕДА НАД БОССОМ!"))
 			_end_title.add_theme_color_override("font_color", Color(0.35, 0.95, 1.0))
 			var drop_txt: String = ("\nНайден модуль: [" + dropped_part_name + "]!") if dropped_part_name != "" else ""
 			_end_desc.text = (
@@ -986,14 +1003,14 @@ func _handle_victory() -> void:
 				+ ((" | Ядра ИИ: +" + str(total_cores)) if total_cores > 0 else "")
 				+ drop_txt
 			)
-			_end_btn.text = "СЮЖЕТ: ИТОГ БОЯ ->"
+			_end_btn.text = String(win_btns.get(current_sec, "СЮЖЕТ: ИТОГ БОЯ ->"))
 			_end_btn.pressed.connect(func() -> void:
 				EventBus.request_scene_change.emit(&"EVENT", {
 					"timeline": postlude_path,
 					"next_scene": &"MAP",
 					"next_payload": {},
-					"title": "СЕКТОР " + str(current_sec) + " ЗАЧИЩЕН // ПЕРЕХОД",
-					"continue_text": "ПЕРЕЙТИ В СЕКТОР " + str(current_sec + 1) + " ->",
+					"title": String(post_titles.get(current_sec, "СЕКТОР ЗАЧИЩЕН")),
+					"continue_text": String(next_btns.get(current_sec, "ПЕРЕЙТИ В СЛЕДУЮЩИЙ СЕКТОР ->")),
 					"action_on_complete": "advance_sector"
 				})
 			)

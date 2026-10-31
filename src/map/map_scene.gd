@@ -15,9 +15,9 @@ const MAP_TOP_PAD: float = 42.0
 const MAP_HEIGHT_SPAN: float = 165.0
 
 const SECTOR_NAMES: Dictionary = {
-	1: "СЕКТОР 1: Свалка переработки (Scrap Valley)",
-	2: "СЕКТОР 2: Трущобы разбойников (Outlaw Hub)",
-	3: "СЕКТОР 3: Вертикаль ретранслятора (Bremen Spire)"
+	1: "СЕКТОР 1: Тракт у Старой Мельницы (Отряд: Кот и Пёс)",
+	2: "СЕКТОР 2: Притон Разбойников (Отряд: Кот, Пёс и Осёл)",
+	3: "СЕКТОР 3: Вершина Бремен-4 (Квартет в сборе!)"
 }
 
 func _ready() -> void:
@@ -238,13 +238,23 @@ func _on_node_clicked(node_dict: Dictionary) -> void:
 		"BOSS":
 			var sec: int = clampi(SaveManager.current_sector, 1, 3)
 			var prelude_path: String = "res://data/dialogues/boss_prelude_sector" + str(sec) + ".dtl"
+			var boss_titles: Dictionary = {
+				1: "МЕЛЬНИЦА СВАЛКИ // ХОЗЯИН ОСЛА (ТРЁХГОЛОВЫЙ ПРЕСС)",
+				2: "ПРИТОН РАЗБОЙНИКОВ // ПЕТУХ И СУП АТАМАНШИ",
+				3: "ИЗБА НА ВЕРШИНЕ // ПИРАМИДА БРЕМЕНА В ОКНЕ"
+			}
+			var boss_btns: Dictionary = {
+				1: "В БОЙ ЗА СПАСЕНИЕ ОСЛА ->",
+				2: "В БОЙ ЗА СПАСЕНИЕ ПЕТУХА ->",
+				3: "ВЛОМИТЬСЯ В ОКНО (ФИНАЛЬНЫЙ БОЙ) ->"
+			}
 			SaveManager.save_run()
 			EventBus.request_scene_change.emit(&"EVENT", {
 				"timeline": prelude_path,
 				"next_scene": &"BATTLE",
 				"next_payload": {"node_id": nid, "node_type": "BOSS"},
-				"title": "БОЕВАЯ ТРЕВОГА // ПЕРЕХВАТ ЧАСТОТЫ БОССА",
-				"continue_text": "В БОЙ ->"
+				"title": String(boss_titles.get(sec, "БОЕВАЯ ТРЕВОГА")),
+				"continue_text": String(boss_btns.get(sec, "В БОЙ ->"))
 			})
 		"WORKSHOP":
 			SaveManager.save_run()

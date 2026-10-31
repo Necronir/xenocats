@@ -89,12 +89,28 @@ func start_new_run(custom_seed: int = -1) -> void:
 	run_scrap = 50 + recycler_lvl * 35
 	sync_gauge = clampi(battery_lvl * 25, 0, 100)
 
-	party = DataCatalog.create_default_party()
+	party = DataCatalog.create_starting_party()
 	spare_parts_inventory = ["scrap_arms", "titan_body"]
 	_apply_meta_and_tape_bonuses_to_party()
 
 	has_active_run = true
 	save_run()
+
+func has_party_member(cat_id: String) -> bool:
+	for cat: CatMechInstance in party:
+		if String(cat.cat_id) == cat_id:
+			return true
+	return false
+
+func recruit_cat(cat_id: String) -> bool:
+	if has_party_member(cat_id):
+		return false
+	var new_cat: CatMechInstance = DataCatalog.create_cat_instance(cat_id)
+	if new_cat == null:
+		return false
+	party.append(new_cat)
+	_apply_meta_and_tape_bonuses_to_cat(new_cat)
+	return true
 
 func advance_to_next_sector() -> void:
 	current_sector += 1
@@ -102,6 +118,13 @@ func advance_to_next_sector() -> void:
 	current_node_id = -1
 	completed_node_ids.clear()
 	map_graph.clear()
+	# По канону «Бременских музыкантов»:
+	# После победы над Хозяином-Мельником (Сектор 1 -> 2) к отряду присоединяется Осёл (M.U.L.E.)
+	if current_sector >= 2:
+		recruit_cat("MULE")
+	# После победы над Хозяйкой-Атаманшей (Сектор 2 -> 3) к отряду присоединяется Петух (C.O.C.K.)
+	if current_sector >= 3:
+		recruit_cat("COCK")
 	# Частичный авто-ремонт между секторами (30% HP всем деталям)
 	for cat: CatMechInstance in party:
 		for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
@@ -111,6 +134,10 @@ func advance_to_next_sector() -> void:
 	save_run()
 
 func _apply_meta_and_tape_bonuses_to_party() -> void:
+	for cat: CatMechInstance in party:
+		_apply_meta_and_tape_bonuses_to_cat(cat)
+
+func _apply_meta_and_tape_bonuses_to_cat(cat: CatMechInstance) -> void:
 	var hull_lvl: int = int(shuttle_upgrades.get("hull_reinforce", 0))
 	var tape: MusicTapeData = get_active_tape()
 	var armor_aura: int = 0
@@ -121,25 +148,24 @@ func _apply_meta_and_tape_bonuses_to_party() -> void:
 		elif tape.passive_aura_type == &"SPEED_AURA":
 			speed_aura = tape.passive_aura_value
 
-	for cat: CatMechInstance in party:
-		var cid: String = String(cat.cat_id)
-		var perk_hp: int = 15 if has_perk(cid + "_CORE_HP") else 0
-		var perk_arm: int = 1 if has_perk(cid + "_ARMOR") else 0
-		var perk_spd: int = 3 if has_perk(cid + "_SPEED") else 0
+	var cid: String = String(cat.cat_id)
+	var perk_hp: int = 15 if has_perk(cid + "_CORE_HP") else 0
+	var perk_arm: int = 1 if has_perk(cid + "_ARMOR") else 0
+	var perk_spd: int = 3 if has_perk(cid + "_SPEED") else 0
 
-		if cat.body_part != null:
-			cat.body_part.max_hp_bonus = hull_lvl * 12 + perk_hp
-			cat.body_part.armor_bonus = armor_aura + perk_arm
-			cat.body_part.repair_full()
-		if cat.arms_part != null:
-			cat.arms_part.max_hp_bonus = perk_hp / 2
-			cat.arms_part.armor_bonus = armor_aura + perk_arm
-			cat.arms_part.repair_full()
-		if cat.legs_part != null:
-			cat.legs_part.max_hp_bonus = perk_hp / 2
-			cat.legs_part.armor_bonus = armor_aura + perk_arm
-			cat.legs_part.speed_bonus = speed_aura + perk_spd
-			cat.legs_part.repair_full()
+	if cat.body_part != null:
+		cat.body_part.max_hp_bonus = hull_lvl * 12 + perk_hp
+		cat.body_part.armor_bonus = armor_aura + perk_arm
+		cat.body_part.repair_full()
+	if cat.arms_part != null:
+		cat.arms_part.max_hp_bonus = perk_hp / 2
+		cat.arms_part.armor_bonus = armor_aura + perk_arm
+		cat.arms_part.repair_full()
+	if cat.legs_part != null:
+		cat.legs_part.max_hp_bonus = perk_hp / 2
+		cat.legs_part.armor_bonus = armor_aura + perk_arm
+		cat.legs_part.speed_bonus = speed_aura + perk_spd
+		cat.legs_part.repair_full()
 
 func add_sync(amount: int) -> void:
 	var tape: MusicTapeData = get_active_tape()

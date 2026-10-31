@@ -131,7 +131,30 @@ func _ready() -> void:
 			var img_path: String = "res://assets/sprites/portraits/" + p_char + "_" + mood + ".png"
 			assert(ResourceLoader.exists(img_path), "Portrait texture missing: " + img_path)
 
-	# Test EventScene with story cutscene payload
+	# Verify all 9 Brothers Grimm story cutscene illustrations
+	var story_illustrations: Array[String] = [
+		"res://assets/sprites/story/story_cat_exile.png",
+		"res://assets/sprites/story/story_cat_alone_road.png",
+		"res://assets/sprites/story/story_meet_hound.png",
+		"res://assets/sprites/story/story_mill_mule_captive.png",
+		"res://assets/sprites/story/story_mule_joins.png",
+		"res://assets/sprites/story/story_tavern_cock_soup.png",
+		"res://assets/sprites/story/story_cock_joins_quartet.png",
+		"res://assets/sprites/story/story_bremen_window_pyramid.png",
+		"res://assets/sprites/story/story_bremen_victory_concert.png"
+	]
+	for sil_path: String in story_illustrations:
+		assert(ResourceLoader.exists(sil_path), "Story illustration missing: " + sil_path)
+
+	# Verify progressive Bremen Musicians party recruitment (Sector 1: 2 -> Sector 2: 3 -> Sector 3: 4)
+	SaveManager.start_new_run(777888)
+	assert(SaveManager.party.size() == 2, "Sector 1 must start with FELIX + HOUND (2 musicians)")
+	SaveManager.advance_to_next_sector()
+	assert(SaveManager.party.size() == 3 and SaveManager.has_party_member("MULE"), "Sector 2 must recruit MULE (3 musicians)")
+	SaveManager.advance_to_next_sector()
+	assert(SaveManager.party.size() == 4 and SaveManager.has_party_member("COCK"), "Sector 3 must recruit COCK (4 musicians)")
+
+	# Test EventScene with story cutscene payload and dynamic illustration switching
 	var ev_scene_packed: PackedScene = load("res://src/event/event_scene.tscn") as PackedScene
 	var ev_node: EventScene = ev_scene_packed.instantiate() as EventScene
 	ev_node.setup_event({
@@ -143,6 +166,7 @@ func _ready() -> void:
 	})
 	add_child(ev_node)
 	await get_tree().process_frame
+	assert(ev_node._illustration_rect.texture != null, "Story illustration must be loaded on first slide")
 	# Advance through all lines of narrative cutscene
 	while ev_node._line_cursor < ev_node._lines.size() - 1:
 		ev_node._line_cursor += 1
@@ -151,7 +175,7 @@ func _ready() -> void:
 	assert(ev_node._continue_btn.text == "ВПЕРЁД ->", "Continue button text mismatch")
 	ev_node.queue_free()
 	await get_tree().process_frame
-	print("[7] Story cutscenes, boss preludes/postludes and portraits verified OK")
+	print("[7] Bremen Musicians story cutscenes, 9 illustrations, party recruitment (2->3->4) verified OK")
 
 	AudioManager.stop_music()
 	await get_tree().process_frame

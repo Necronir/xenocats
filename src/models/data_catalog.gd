@@ -98,10 +98,26 @@ static func clear_cache() -> void:
 	_tapes.clear()
 	_initialized = false
 
+static func create_cat_instance(cat_id: String) -> CatMechInstance:
+	ensure_loaded()
+	var cdata: CatMechData = _cats.get(cat_id, null) as CatMechData
+	if cdata != null:
+		return CatMechInstance.new(cdata)
+	return null
+
+static func create_starting_party() -> Array[CatMechInstance]:
+	ensure_loaded()
+	var party: Array[CatMechInstance] = []
+	for cid: String in ["FELIX", "HOUND"]:
+		var inst: CatMechInstance = create_cat_instance(cid)
+		if inst != null:
+			party.append(inst)
+	return party
+
 static func create_default_party() -> Array[CatMechInstance]:
 	ensure_loaded()
 	var party: Array[CatMechInstance] = []
-	for cid: String in ["FELIX", "MULE", "HOUND", "COCK"]:
+	for cid: String in ["FELIX", "HOUND", "MULE", "COCK"]:
 		var cdata: CatMechData = _cats.get(cid, null) as CatMechData
 		if cdata != null:
 			party.append(CatMechInstance.new(cdata))
