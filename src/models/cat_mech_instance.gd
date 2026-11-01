@@ -39,6 +39,37 @@ func _init(p_data: CatMechData = null) -> void:
 func is_alive() -> bool:
 	return body_part != null and body_part.current_hp > 0
 
+func get_total_weight() -> int:
+	var total: int = 0
+	if body_part != null:
+		total += body_part.get_weight()
+	if arms_part != null:
+		total += arms_part.get_weight()
+	if legs_part != null:
+		total += legs_part.get_weight()
+	return total
+
+func get_power_capacity() -> int:
+	if body_part != null:
+		return body_part.get_power_output()
+	return 0
+
+func get_overweight() -> int:
+	var cap: int = get_power_capacity()
+	if cap <= 0:
+		return 0
+	return maxi(0, get_total_weight() - cap)
+
+func is_overweight() -> bool:
+	return get_overweight() > 0
+
+func get_overweight_penalty_multiplier() -> float:
+	var ow: int = get_overweight()
+	if ow <= 0:
+		return 1.0
+	# -30% к скорости за каждую единицу перегруза (ADR-001 / Issue #8, Вариант Б)
+	return clampf(1.0 - (float(ow) * 0.3), 0.15, 1.0)
+
 func get_initiative_score() -> int:
 	if legs_part == null:
 		return 1
@@ -46,13 +77,18 @@ func get_initiative_score() -> int:
 	if speed_buff_turns > 0:
 		spd += 4
 	if legs_part.is_broken():
-		return maxi(1, int(float(spd) * 0.3)) # Штраф 70% скорости при сломанных ногах (ADR-001)
+		spd = maxi(1, int(float(spd) * 0.3)) # Штраф 70% скорости при сломанных ногах (ADR-001)
+	if is_overweight():
+		spd = maxi(1, int(float(spd) * get_overweight_penalty_multiplier()))
 	return spd
 
 func get_dodge_speed_multiplier() -> float:
+	var mult: float = 1.0
 	if legs_part != null and legs_part.is_broken():
-		return 0.6 # Скорость движения аватара в Dodge Box падает на 40% (ADR-001)
-	return 1.0
+		mult = 0.6 # Скорость движения аватара в Dodge Box падает на 40% (ADR-001)
+	if is_overweight():
+		mult *= get_overweight_penalty_multiplier()
+	return maxf(0.15, mult)
 
 func get_part(slot: PartData.PartSlot) -> PartInstance:
 	match slot:

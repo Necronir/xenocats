@@ -21,6 +21,7 @@ description = "Высокочастотные резаки с целеуказа
 slot = 1
 max_hp = 50
 armor = 1
+weight = 12
 base_speed = 16
 skills = Array[ExtResource("2_y3bco")]([SubResource("Resource_ge5w3")])
 texture_path = "res://assets/sprites/cats/felix_arms.png"

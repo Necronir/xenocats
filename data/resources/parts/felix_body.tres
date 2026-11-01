@@ -18,6 +18,7 @@ part_id = &"felix_body"
 part_name = "Сервисное ядро FELIX"
 description = "Лёгкий корпус сервисного кота-лидера."
 max_hp = 65
+power_output = 35
 base_speed = 16
 skills = Array[ExtResource("2_xctvi")]([SubResource("Resource_kamf7")])
 texture_path = "res://assets/sprites/cats/felix_body.png"

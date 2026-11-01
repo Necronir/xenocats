@@ -22,6 +22,7 @@ description = "Укреплённые гусеницы с реактивным �
 slot = 2
 max_hp = 85
 armor = 4
+weight = 20
 base_speed = 15
 skills = Array[ExtResource("2_bf326")]([SubResource("Resource_04sj1")])
 texture_path = "res://assets/sprites/cats/titan_legs.png"

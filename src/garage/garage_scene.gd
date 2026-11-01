@@ -253,6 +253,70 @@ func _refresh_view() -> void:
 	title.add_theme_color_override("font_color", Color(0.95, 0.88, 0.35))
 	_cat_details_box.add_child(title)
 
+	# Индикатор нагрузки и лимита мощности Front Mission (ADR-001 / Issue #8)
+	var total_w: int = cat.get_total_weight()
+	var cap_w: int = cat.get_power_capacity()
+	var is_ow: bool = cat.is_overweight()
+	var ow_val: int = cat.get_overweight()
+
+	var weight_box: VBoxContainer = VBoxContainer.new()
+	weight_box.name = "WeightIndicatorBox"
+	weight_box.add_theme_constant_override("separation", 2)
+	_cat_details_box.add_child(weight_box)
+
+	var weight_hbox: HBoxContainer = HBoxContainer.new()
+	weight_hbox.add_theme_constant_override("separation", 6)
+	weight_box.add_child(weight_hbox)
+
+	var w_lbl: Label = Label.new()
+	w_lbl.name = "WeightSummaryLabel"
+	w_lbl.add_theme_font_size_override("font_size", 9)
+	if is_ow:
+		w_lbl.text = "Вес: " + str(total_w) + " / " + str(cap_w) + " т [ПЕРЕГРУЗ +" + str(ow_val) + " т!]"
+		w_lbl.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
+	elif cap_w > 0 and total_w >= int(float(cap_w) * 0.85):
+		w_lbl.text = "Вес: " + str(total_w) + " / " + str(cap_w) + " т [ПРЕДЕЛ]"
+		w_lbl.add_theme_color_override("font_color", Color(0.95, 0.85, 0.3))
+	else:
+		w_lbl.text = "Вес: " + str(total_w) + " / " + str(cap_w) + " т [НОРМА]"
+		w_lbl.add_theme_color_override("font_color", Color(0.4, 0.95, 0.65))
+	weight_hbox.add_child(w_lbl)
+
+	var w_bar: ProgressBar = ProgressBar.new()
+	w_bar.name = "WeightProgressBar"
+	w_bar.custom_minimum_size = Vector2(90, 8)
+	w_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	w_bar.show_percentage = false
+	var safe_cap_w: int = maxi(1, cap_w)
+	var safe_max: int = maxi(safe_cap_w, total_w)
+	w_bar.max_value = float(safe_max)
+	w_bar.value = float(clampi(total_w, 0, safe_max))
+
+	var bar_fill: StyleBoxFlat = StyleBoxFlat.new()
+	bar_fill.set_corner_radius_all(2)
+	if is_ow:
+		bar_fill.bg_color = Color(0.95, 0.25, 0.25)
+	elif cap_w > 0 and total_w >= int(float(cap_w) * 0.85):
+		bar_fill.bg_color = Color(0.95, 0.8, 0.2)
+	else:
+		bar_fill.bg_color = Color(0.3, 0.85, 0.45)
+	w_bar.add_theme_stylebox_override("fill", bar_fill)
+
+	var bar_bg: StyleBoxFlat = StyleBoxFlat.new()
+	bar_bg.bg_color = Color(0.12, 0.14, 0.18, 0.9)
+	bar_bg.set_corner_radius_all(2)
+	w_bar.add_theme_stylebox_override("background", bar_bg)
+	weight_hbox.add_child(w_bar)
+
+	if is_ow:
+		var penalty_pct: int = int(round((1.0 - cat.get_overweight_penalty_multiplier()) * 100.0))
+		var warn_lbl: Label = Label.new()
+		warn_lbl.name = "OverweightWarningLabel"
+		warn_lbl.add_theme_font_size_override("font_size", 8)
+		warn_lbl.add_theme_color_override("font_color", Color(1.0, 0.45, 0.3))
+		warn_lbl.text = "⚠️ Внимание: Штраф -" + str(penalty_pct) + "% к скорости и инициативе в бою!"
+		weight_box.add_child(warn_lbl)
+
 	for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
 		var part: PartInstance = cat.get_part(slot)
 		var slot_card: VBoxContainer = VBoxContainer.new()
@@ -267,6 +331,8 @@ func _refresh_view() -> void:
 			"[" + slot_ru + "] " + p_name
 			+ " | HP: " + str(part.current_hp) + "/" + str(part.get_max_hp())
 			+ " | Бр: " + str(part.get_armor())
+			+ (" | Вес: " + str(part.get_weight()) + " т" if part != null else "")
+			+ (" | Мощн: " + str(part.get_power_output()) + " т" if (slot == PartData.PartSlot.BODY and part != null) else "")
 		)
 		s_lbl.add_theme_color_override("font_color", Color(0.45, 0.95, 0.65) if not part.is_broken() else Color(1.0, 0.4, 0.4))
 		slot_card.add_child(s_lbl)
@@ -332,11 +398,30 @@ func _refresh_view() -> void:
 		ilbl.text = (
 			"[" + PartData.slot_to_russian(pdata.slot) + "] " + pdata.part_name
 			+ "\nHP:" + str(pdata.max_hp) + " Бр:" + str(pdata.armor) + " Скор:" + str(pdata.base_speed)
+			+ " Вес:" + str(pdata.weight) + " т"
+			+ (" Мощн:" + str(pdata.power_output) + " т" if pdata.slot == PartData.PartSlot.BODY else "")
 		)
 		item_box.add_child(ilbl)
 
 		var eq_btn: Button = Button.new()
-		eq_btn.text = "Установить на " + cat.display_name
+		var cur_total: int = cat.get_total_weight()
+		var old_part: PartInstance = cat.get_part(pdata.slot)
+		var old_w: int = old_part.get_weight() if old_part != null else 0
+		var proj_w: int = (cur_total - old_w) + pdata.weight
+		var proj_cap: int = pdata.power_output if pdata.slot == PartData.PartSlot.BODY else cat.get_power_capacity()
+		var will_overweight: bool = proj_cap > 0 and proj_w > proj_cap
+		var ow_diff: int = maxi(0, proj_w - proj_cap) if proj_cap > 0 else 0
+
+		var strict_limit: bool = SaveManager.settings != null and SaveManager.settings.strict_weight_limit
+		if will_overweight and strict_limit:
+			eq_btn.text = "⛔ Превышен вес (" + str(proj_w) + "/" + str(proj_cap) + " т)"
+			eq_btn.disabled = true
+			eq_btn.add_theme_color_override("font_color", Color(0.95, 0.4, 0.4))
+		elif will_overweight:
+			eq_btn.text = "⚠️ Установить (" + str(proj_w) + "/" + str(proj_cap) + " т: +" + str(ow_diff) + " т)"
+			eq_btn.add_theme_color_override("font_color", Color(1.0, 0.75, 0.25))
+		else:
+			eq_btn.text = "Установить на " + cat.display_name + " (" + str(proj_w) + "/" + str(proj_cap) + " т)"
 		eq_btn.add_theme_font_size_override("font_size", 8)
 		eq_btn.pressed.connect(func() -> void:
 			_equip_inventory_part(inv_idx, pdata)

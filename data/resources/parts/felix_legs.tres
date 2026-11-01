@@ -22,6 +22,7 @@ description = "Максимальная инициатива и скорость
 slot = 2
 max_hp = 50
 armor = 1
+weight = 11
 base_speed = 18
 skills = Array[ExtResource("2_pfank")]([SubResource("Resource_04sj1")])
 texture_path = "res://assets/sprites/cats/felix_legs.png"

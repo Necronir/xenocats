@@ -9,5 +9,6 @@ part_id = &"hound_legs"
 part_name = "Лапы Перехватчика"
 description = "Сбалансированное шасси патрульного дроида."
 slot = 2
+weight = 13
 base_speed = 13
 texture_path = "res://assets/sprites/cats/hound_legs.png"

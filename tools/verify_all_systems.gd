@@ -140,6 +140,10 @@ func _ready() -> void:
 			assert(garage._preview_body != null and garage._preview_body.has_node("ArmsJoint") and garage._preview_body.has_node("LegsJoint"), "Garage preview body must have ArmsJoint and LegsJoint Marker2D nodes")
 			assert(garage._preview_arms.get_parent() == garage._preview_body.get_node("ArmsJoint"), "Preview arms must be child of ArmsJoint")
 			assert(garage._preview_legs.get_parent() == garage._preview_body.get_node("LegsJoint"), "Preview legs must be child of LegsJoint")
+			# Verify Weight indicator and Progress bar (Issue #8)
+			assert(garage.find_child("WeightIndicatorBox", true, false) != null, "Garage must display WeightIndicatorBox")
+			assert(garage.find_child("WeightSummaryLabel", true, false) != null, "Garage must display WeightSummaryLabel")
+			assert(garage.find_child("WeightProgressBar", true, false) != null, "Garage must display WeightProgressBar")
 		node.queue_free()
 		await get_tree().process_frame
 		await get_tree().process_frame
@@ -705,6 +709,69 @@ func _ready() -> void:
 	test_dodge.queue_free()
 	await get_tree().process_frame
 	print("[12] Unique Boss Bullet Patterns, Telegraph Markers & Multi-Wave Sequences (Issue #10) verified OK")
+
+	# 13. Front Mission Weight & Power Output System (Issue #8)
+	var felix_test: CatMechInstance = SaveManager.party[0]
+	assert(felix_test.body_part.data.power_output == 35, "Felix Body power_output must be 35")
+	assert(felix_test.body_part.data.max_weight_capacity == 35, "max_weight_capacity alias must match power_output")
+	var f_tot_w: int = felix_test.get_total_weight()
+	assert(f_tot_w == 10 + 12 + 11, "Felix total weight must be 33 tons (10 body + 12 arms + 11 legs)")
+	assert(felix_test.get_power_capacity() == 35, "Felix power capacity must be 35 tons")
+	assert(not felix_test.is_overweight(), "Default Felix assembly must not be overweight")
+	assert(felix_test.get_overweight() == 0, "Default overweight must be 0")
+	assert(is_equal_approx(felix_test.get_overweight_penalty_multiplier(), 1.0), "No overweight penalty multiplier for normal weight")
+
+	# Overweight simulation: equip heavy Titan Arms (22 tons) and Titan Legs (20 tons) on Felix Body (capacity 35)
+	var titan_arms_data: PartData = DataCatalog.get_part("titan_arms")
+	var titan_legs_data: PartData = DataCatalog.get_part("titan_legs")
+	assert(titan_arms_data != null and titan_legs_data != null, "Titan parts must be loaded in catalog")
+
+	var old_arms: PartInstance = felix_test.set_part(PartData.PartSlot.ARMS, PartInstance.new(titan_arms_data))
+	# Weight is now 10 (body) + 22 (arms) + 11 (legs) = 43 tons. Overweight by 8 tons.
+	assert(felix_test.get_total_weight() == 43, "Projected weight with Titan arms must be 43 tons")
+	assert(felix_test.is_overweight(), "Felix must be overweight with Titan arms")
+	assert(felix_test.get_overweight() == 8, "Overweight must be 8 tons")
+	# 8 * 0.3 = 2.4 penalty -> clamped to 0.15 floor
+	assert(is_equal_approx(felix_test.get_overweight_penalty_multiplier(), 0.15), "Heavy overweight must clamp to 0.15 floor")
+	assert(is_equal_approx(felix_test.get_dodge_speed_multiplier(), 0.15), "Dodge speed multiplier must clamp to 0.15")
+
+	# Single unit overweight test: custom part with 1 ton overweight
+	var p_1ton_over: PartData = PartData.new()
+	p_1ton_over.slot = PartData.PartSlot.ARMS
+	p_1ton_over.weight = 15 # 10 (body) + 15 (arms) + 11 (legs) = 36 vs 35 capacity -> 1 ton overweight!
+	p_1ton_over.base_speed = 16
+	felix_test.set_part(PartData.PartSlot.ARMS, PartInstance.new(p_1ton_over))
+	assert(felix_test.get_total_weight() == 36, "Total weight must be 36 tons")
+	assert(felix_test.get_overweight() == 1, "Overweight must be exactly 1 ton")
+	assert(is_equal_approx(felix_test.get_overweight_penalty_multiplier(), 0.7), "1 ton overweight must apply 30% penalty (0.7x mult)")
+	assert(is_equal_approx(felix_test.get_dodge_speed_multiplier(), 0.7), "Dodge speed multiplier must be 0.7")
+	var normal_init: int = felix_test.legs_part.get_base_speed()
+	assert(felix_test.get_initiative_score() == int(float(normal_init) * 0.7), "Initiative must be reduced by 30% when 1 ton overweight")
+
+	# Both broken legs AND overweight
+	felix_test.legs_part.current_hp = 0
+	var broken_and_over_init: int = felix_test.get_initiative_score()
+	var broken_and_over_dodge: float = felix_test.get_dodge_speed_multiplier()
+	assert(broken_and_over_init == int(float(int(float(normal_init) * 0.3)) * 0.7), "Both broken legs and overweight penalties must stack")
+	assert(is_equal_approx(broken_and_over_dodge, 0.6 * 0.7), "Both dodge penalties must stack multiplicatively")
+
+	# Restore Felix
+	felix_test.legs_part.repair_full()
+	felix_test.set_part(PartData.PartSlot.ARMS, old_arms)
+	assert(not felix_test.is_overweight(), "Felix must be normal after restoring arms")
+
+	# Test strict_weight_limit setting
+	SaveManager.settings.strict_weight_limit = true
+	assert(SaveManager.settings.strict_weight_limit, "Strict weight limit setting must be enabled")
+	SaveManager.settings.strict_weight_limit = false
+
+	# Persist/export all .tres parts with power_output and weight
+	for pid: Variant in DataCatalog._parts.keys():
+		var pt: PartData = DataCatalog._parts[pid] as PartData
+		if pt != null:
+			ResourceSaver.save(pt, "res://data/resources/parts/" + String(pid) + ".tres")
+
+	print("[13] Front Mission Weight & Power Output System (Issue #8) verified OK")
 
 	AudioManager.stop_music()
 	await get_tree().process_frame
