@@ -62,6 +62,7 @@ func _ready() -> void:
 func _build_ui() -> void:
 	var bg: TextureRect = TextureRect.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	bg.stretch_mode = TextureRect.STRETCH_SCALE
 	bg.modulate = Color(0.45, 0.5, 0.65, 1.0)
 	var sec: int = clampi(SaveManager.current_sector, 1, 3)
@@ -109,7 +110,8 @@ func _build_ui() -> void:
 	root_vbox.add_child(_illustration_panel)
 
 	_illustration_rect = TextureRect.new()
-	_illustration_rect.custom_minimum_size = Vector2(312, 92)
+	_illustration_rect.custom_minimum_size = Vector2(280, 100)
+	_illustration_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_illustration_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_illustration_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_illustration_panel.add_child(_illustration_rect)
@@ -121,6 +123,7 @@ func _build_ui() -> void:
 
 	_portrait_rect = TextureRect.new()
 	_portrait_rect.custom_minimum_size = Vector2(60, 60)
+	_portrait_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_portrait_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_portrait_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	speaker_hbox.add_child(_portrait_rect)
@@ -158,6 +161,25 @@ func _build_ui() -> void:
 	_continue_btn.add_theme_font_size_override("font_size", 10)
 	_continue_btn.pressed.connect(_on_continue_pressed)
 	root_vbox.add_child(_continue_btn)
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_accept") or (event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_SPACE or event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER)):
+		if _advance_dialogue_or_continue():
+			get_viewport().set_input_as_handled()
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if _advance_dialogue_or_continue():
+			get_viewport().set_input_as_handled()
+
+func _advance_dialogue_or_continue() -> bool:
+	if _continue_btn != null and _continue_btn.visible:
+		_on_continue_pressed()
+		return true
+	elif _choices_box != null and _choices_box.get_child_count() == 1:
+		var btn: Button = _choices_box.get_child(0) as Button
+		if btn != null and btn.visible:
+			btn.emit_signal("pressed")
+			return true
+	return false
 
 func _on_continue_pressed() -> void:
 	AudioManager.play_sfx("ui_click")
