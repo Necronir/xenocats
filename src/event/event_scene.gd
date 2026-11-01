@@ -348,7 +348,7 @@ func _on_eventbus_dialogic_reward(event_code: String, _amount: int) -> void:
 			var c: CatMechInstance = SaveManager.party[0]
 			c.apply_part_damage(PartData.PartSlot.ARMS, 15, true)
 			SaveManager.add_run_scrap(35)
-			SaveManager.spare_parts_inventory.append("titan_arms")
+			SaveManager.spare_parts_inventory.append({"part_id": "titan_arms", "current_hp": 70})
 			AudioManager.play_sfx("part_break")
 			summary = "Взрыв конденсатора задел манипуляторы (-15 HP Рукам), но внутри найден [Рельсотрон «Авангард»] и +35 Лома!"
 		"safe_scrap":
@@ -382,7 +382,7 @@ func _on_eventbus_dialogic_reward(event_code: String, _amount: int) -> void:
 			var target_cat: CatMechInstance = SaveManager.party[SaveManager.party.size() - 1]
 			target_cat.apply_part_damage(PartData.PartSlot.BODY, 12, true)
 			SaveManager.add_run_scrap(25)
-			SaveManager.spare_parts_inventory.append("titan_legs")
+			SaveManager.spare_parts_inventory.append({"part_id": "titan_legs", "current_hp": 85})
 			AudioManager.play_sfx("qte_perfect")
 			summary = "Щит M.U.L.E. принял тепловой удар (-12 HP Корпусу) и достал из горна [Турбо-траки «Бастион»] + 25 Лома!"
 		"plasma_charge":

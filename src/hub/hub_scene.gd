@@ -264,10 +264,12 @@ func _build_ui() -> void:
 	add_child(_settings_panel)
 
 func _refresh_hub() -> void:
+	var ng_str: String = (" | ЦИКЛ NG+: " + str(SaveManager.ng_cycle)) if SaveManager.ng_cycle > 0 else ""
 	_res_label.text = (
 		"Титановый сплав: " + str(SaveManager.titanium_scrap)
 		+ " | Ядра ИИ (Cores): " + str(SaveManager.ai_cores)
 		+ " | Эвакуаций: " + str(SaveManager.successful_evacuations)
+		+ ng_str
 	)
 
 	# 1. Модули шаттла
@@ -282,7 +284,7 @@ func _refresh_hub() -> void:
 	for mod: Dictionary in SHUTTLE_MODULES:
 		var mkey: String = String(mod["key"])
 		var lvl: int = int(SaveManager.shuttle_upgrades.get(mkey, 0))
-		var cost: int = int(mod["cost"])
+		var cost: int = SaveManager.get_shuttle_upgrade_cost(mkey)
 		var m_lbl: Label = Label.new()
 		m_lbl.text = String(mod["title"]) + " [Ур." + str(lvl) + "/3]\n" + String(mod["desc"])
 		m_lbl.add_theme_font_size_override("font_size", 8)
@@ -353,8 +355,7 @@ func _refresh_hub() -> void:
 		t_btn.text = "♪ ИГРАЕТ СЕЙЧАС ♪" if is_eq else "Вставить кассету"
 		t_btn.disabled = is_eq
 		t_btn.pressed.connect(func() -> void:
-			SaveManager.equipped_tape_id = tape.tape_id
-			SaveManager.save_meta()
+			SaveManager.equip_tape(tape.tape_id)
 			AudioManager.play_tape(tape.tape_id)
 			_refresh_hub()
 		)

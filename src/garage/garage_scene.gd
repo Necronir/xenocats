@@ -385,22 +385,34 @@ func _refresh_view() -> void:
 		return
 
 	for inv_idx: int in range(SaveManager.spare_parts_inventory.size()):
-		var pid: String = SaveManager.spare_parts_inventory[inv_idx]
+		var item_entry: Variant = SaveManager.spare_parts_inventory[inv_idx]
+		var pid: String = ""
+		var saved_hp: int = -1
+		if item_entry is Dictionary:
+			pid = String((item_entry as Dictionary).get("part_id", ""))
+			saved_hp = int((item_entry as Dictionary).get("current_hp", -1))
+		else:
+			pid = String(item_entry)
+
 		var pdata: PartData = DataCatalog.get_part(pid)
 		if pdata == null:
 			continue
+		var display_hp: int = pdata.max_hp if saved_hp < 0 else clampi(saved_hp, 0, pdata.max_hp)
 
 		var item_box: VBoxContainer = VBoxContainer.new()
 		_inventory_box.add_child(item_box)
 
 		var ilbl: Label = Label.new()
 		ilbl.add_theme_font_size_override("font_size", 8)
+		var hp_str: String = "HP: " + str(display_hp) + "/" + str(pdata.max_hp)
 		ilbl.text = (
 			"[" + PartData.slot_to_russian(pdata.slot) + "] " + pdata.part_name
-			+ "\nHP:" + str(pdata.max_hp) + " Бр:" + str(pdata.armor) + " Скор:" + str(pdata.base_speed)
-			+ " Вес:" + str(pdata.weight) + " т"
-			+ (" Мощн:" + str(pdata.power_output) + " т" if pdata.slot == PartData.PartSlot.BODY else "")
+			+ "\n" + hp_str + " | Бр:" + str(pdata.armor) + " | Скор:" + str(pdata.base_speed)
+			+ " | Вес:" + str(pdata.weight) + " т"
+			+ (" | Мощн:" + str(pdata.power_output) + " т" if pdata.slot == PartData.PartSlot.BODY else "")
 		)
+		if display_hp <= 0:
+			ilbl.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
 		item_box.add_child(ilbl)
 
 		var eq_btn: Button = Button.new()
@@ -424,18 +436,27 @@ func _refresh_view() -> void:
 			eq_btn.text = "Установить на " + cat.display_name + " (" + str(proj_w) + "/" + str(proj_cap) + " т)"
 		eq_btn.add_theme_font_size_override("font_size", 8)
 		eq_btn.pressed.connect(func() -> void:
-			_equip_inventory_part(inv_idx, pdata)
+			_equip_inventory_part(inv_idx, pdata, display_hp)
 		)
 		item_box.add_child(eq_btn)
 
-func _equip_inventory_part(inv_index: int, new_pdata: PartData) -> void:
+func _equip_inventory_part(inv_index: int, new_pdata: PartData, saved_hp: int = -1) -> void:
 	var cat: CatMechInstance = SaveManager.party[_selected_cat_idx]
-	var new_inst: PartInstance = PartInstance.new(new_pdata)
+	var initial_hp: int = new_pdata.max_hp if saved_hp < 0 else saved_hp
+	var new_inst: PartInstance = PartInstance.new(new_pdata, initial_hp)
+	# Применяем бонусы меты, перков и кассеты к новой детали:
+	SaveManager.apply_meta_and_tape_bonuses_to_part(new_inst, cat.cat_id)
+	new_inst.current_hp = clampi(initial_hp, 0, new_inst.get_max_hp())
+
 	var old_inst: PartInstance = cat.set_part(new_pdata.slot, new_inst)
 
 	SaveManager.spare_parts_inventory.remove_at(inv_index)
 	if old_inst != null and old_inst.data != null:
-		SaveManager.spare_parts_inventory.append(String(old_inst.data.part_id))
+		# Сохраняем на склад с РЕАЛЬНЫМ HP детали (устраняем бесплатный ремонт)
+		SaveManager.spare_parts_inventory.append({
+			"part_id": String(old_inst.data.part_id),
+			"current_hp": old_inst.current_hp
+		})
 
 	AudioManager.play_sfx("heal")
 	SaveManager.save_run()

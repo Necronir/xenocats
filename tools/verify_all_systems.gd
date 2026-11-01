@@ -834,6 +834,76 @@ func _ready() -> void:
 
 	print("[13] Front Mission Weight & Power Output System (Issue #8) verified OK")
 
+	# 14. Verify Issue #26: Game Balance, Trump Card Pyramid, Partial Carryover, Inventory HP & NG+
+	SaveManager.start_new_run(123999)
+	# 14.1 Start without free titan body
+	assert(SaveManager.spare_parts_inventory.size() == 1, "Starter inventory must only have scrap_arms")
+	var starter_part: Dictionary = SaveManager.spare_parts_inventory[0] as Dictionary
+	assert(starter_part["part_id"] == "scrap_arms", "Starter part must be scrap_arms")
+
+	# 14.2 Partial sync carryover
+	SaveManager.sync_gauge = 100
+	SaveManager.prepare_battle_sync()
+	assert(SaveManager.sync_gauge <= 25 + int(SaveManager.shuttle_upgrades.get("harmonic_battery", 0)) * 12, "Battle sync carryover must be capped at 25% + battery bonus")
+
+	# 14.3 Overheat & Pyramid Trump Card
+	var pyr_check_arena: CombatArena = pyr_arena_packed.instantiate() as CombatArena
+	pyr_check_arena.setup_battle({"node_id": 1, "node_type": "COMBAT"})
+	add_child(pyr_check_arena)
+	await get_tree().process_frame
+	SaveManager.sync_gauge = 100
+	pyr_check_arena._activate_bremen_pyramid()
+	assert(pyr_check_arena._pyramid_active, "Pyramid must be active after activation")
+	pyr_check_arena._selected_skill = DataCatalog.get_skill("pyramid_2_acoustic_storm")
+	pyr_check_arena._on_qte_completed(1.5, "КРИТ-СИНХРО", 12)
+	assert(SaveManager.sync_gauge == 0, "No sync must be gained during active Pyramid or overheat")
+	assert(not pyr_check_arena._pyramid_active, "Pyramid must undock after 1 ultimate action")
+	assert(pyr_check_arena._pyramid_overheat_rounds == 1, "Pyramid must trigger 1 round of overheat")
+	pyr_check_arena.queue_free()
+	await get_tree().process_frame
+
+	# 14.4 Inventory HP preservation & Modifiers application
+	var test_cat: CatMechInstance = SaveManager.party[0]
+	test_cat.arms_part.current_hp = 15
+	var damaged_hp: int = test_cat.arms_part.current_hp
+	var garage_inst: GarageScene = load("res://src/garage/garage_scene.tscn").instantiate() as GarageScene
+	add_child(garage_inst)
+	await get_tree().process_frame
+	var scrap_pdata: PartData = DataCatalog.get_part("scrap_arms")
+	garage_inst._selected_cat_idx = 0
+	garage_inst._equip_inventory_part(0, scrap_pdata, 40)
+	var stored_entry: Dictionary = SaveManager.spare_parts_inventory[0] as Dictionary
+	assert(stored_entry["current_hp"] == damaged_hp, "Unequipped part must retain its damaged HP in inventory")
+	assert(test_cat.arms_part.data.part_id == &"scrap_arms", "Scrap arms must be equipped")
+	garage_inst.queue_free()
+	await get_tree().process_frame
+
+	# 14.5 NG+ Cycle Scaling
+	assert(SaveManager.ng_cycle == 0, "Default ng_cycle must be 0")
+	SaveManager.advance_to_ng_plus_cycle()
+	assert(SaveManager.ng_cycle == 1, "ng_cycle must be 1 after advancing")
+	assert(SaveManager.highest_ng_cycle == 1, "highest_ng_cycle must track 1")
+	assert(SaveManager.get_enemy_hp_mult() > 1.0, "Enemy HP mult must scale above 1.0 in NG+")
+	assert(SaveManager.get_enemy_damage_mult() > 1.0, "Enemy damage mult must scale above 1.0 in NG+")
+
+	# 14.6 Progressive Shuttle Upgrade Costs
+	SaveManager.shuttle_upgrades["hull_reinforce"] = 0
+	assert(SaveManager.get_shuttle_upgrade_cost("hull_reinforce") == 40, "Level 0 hull upgrade must cost 40")
+	SaveManager.shuttle_upgrades["hull_reinforce"] = 1
+	assert(SaveManager.get_shuttle_upgrade_cost("hull_reinforce") == 80, "Level 1 hull upgrade must cost 80")
+	SaveManager.shuttle_upgrades["hull_reinforce"] = 2
+	assert(SaveManager.get_shuttle_upgrade_cost("hull_reinforce") == 140, "Level 2 hull upgrade must cost 140")
+
+	# 14.7 Hard Reset / Reset Progress
+	SaveManager.titanium_scrap = 500
+	SaveManager.ai_cores = 10
+	SaveManager.hard_reset_all_progress()
+	assert(SaveManager.titanium_scrap == 0 and SaveManager.ai_cores == 0, "Hard reset must clear scrap and cores")
+	assert(SaveManager.ng_cycle == 0 and SaveManager.highest_ng_cycle == 0, "Hard reset must clear NG+ cycles")
+	assert(SaveManager.unlocked_perks.is_empty(), "Hard reset must clear unlocked perks")
+	assert(not SaveManager.has_active_run, "Hard reset must delete active run")
+	print("[14] Issue #26: Game Balance, Trump Card Pyramid, Partial Carryover, Inventory HP Preservation, Hard Reset & NG+ Cycle verified OK")
+
 	AudioManager.stop_music()
 	await get_tree().process_frame
 	SaveManager.delete_run_save()

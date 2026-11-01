@@ -14,17 +14,19 @@ var settings: GameSettings = null
 var titanium_scrap: int = 80
 var ai_cores: int = 3
 var successful_evacuations: int = 0
+var highest_ng_cycle: int = 0
 var unlocked_perks: Array[String] = []
 var shuttle_upgrades: Dictionary = {
-	"hull_reinforce": 0,   # +10 к макс. HP всех корпусов за уровень
+	"hull_reinforce": 0,   # +12 к макс. HP всех корпусов за уровень
 	"scrap_recycler": 0,   # +35 стартового лома в забеге за уровень
-	"harmonic_battery": 0  # +20% стартового заряда шкалы Гармонии за уровень
+	"harmonic_battery": 0  # +12% стартовой Гармонии за уровень
 }
 var unlocked_tapes: Array[String] = ["tape_hardbass", "tape_blues", "tape_synth"]
 var equipped_tape_id: StringName = &"tape_hardbass"
 
 # --- Состояние активного забега (RunState) ---
 var has_active_run: bool = false
+var ng_cycle: int = 0
 var run_seed: int = 0
 var current_sector: int = 1
 var current_floor: int = 0
@@ -34,7 +36,7 @@ var map_graph: Array[Dictionary] = []
 var run_scrap: int = 50
 var sync_gauge: int = 0
 var party: Array[CatMechInstance] = []
-var spare_parts_inventory: Array[String] = []
+var spare_parts_inventory: Array = []
 var pending_battle: Dictionary = {}
 
 # --- Статистика забега (Issue #6) ---
@@ -72,21 +74,73 @@ func unlock_perk(perk_id: String, cost_cores: int) -> bool:
 	ai_cores -= cost_cores
 	unlocked_perks.append(perk_id)
 	save_meta()
+	reapply_party_bonuses()
 	EventBus.meta_resources_changed.emit(titanium_scrap, ai_cores)
 	return true
 
-func upgrade_shuttle_module(module_key: String, cost_scrap: int) -> bool:
+func get_shuttle_upgrade_cost(module_key: String) -> int:
 	var current_lvl: int = int(shuttle_upgrades.get(module_key, 0))
-	if current_lvl >= 3 or titanium_scrap < cost_scrap:
+	match current_lvl:
+		0:
+			return 40
+		1:
+			return 80
+		2:
+			return 140
+		_:
+			return 999999
+
+func upgrade_shuttle_module(module_key: String, cost_scrap: int = -1) -> bool:
+	var current_lvl: int = int(shuttle_upgrades.get(module_key, 0))
+	var required_cost: int = cost_scrap if cost_scrap > 0 else get_shuttle_upgrade_cost(module_key)
+	if current_lvl >= 3 or titanium_scrap < required_cost:
 		return false
-	titanium_scrap -= cost_scrap
+	titanium_scrap -= required_cost
 	shuttle_upgrades[module_key] = current_lvl + 1
 	save_meta()
+	reapply_party_bonuses()
 	EventBus.meta_resources_changed.emit(titanium_scrap, ai_cores)
 	return true
 
 func get_active_tape() -> MusicTapeData:
 	return DataCatalog.get_tape(String(equipped_tape_id))
+
+func equip_tape(tape_id: StringName) -> void:
+	equipped_tape_id = tape_id
+	save_meta()
+	reapply_party_bonuses()
+
+# --- NG+ Масштабирование сложности ---
+
+func get_enemy_hp_mult() -> float:
+	return 1.0 + float(ng_cycle) * 0.25
+
+func get_enemy_damage_mult() -> float:
+	return 1.0 + float(ng_cycle) * 0.15
+
+func get_enemy_speed_mult() -> float:
+	return 1.0 + float(ng_cycle) * 0.05
+
+func get_meta_reward_mult() -> float:
+	return 1.0 + float(ng_cycle) * 0.30
+
+func advance_to_ng_plus_cycle() -> void:
+	ng_cycle += 1
+	highest_ng_cycle = maxi(highest_ng_cycle, ng_cycle)
+	current_sector = 1
+	current_floor = 0
+	current_node_id = -1
+	completed_node_ids.clear()
+	map_graph.clear()
+	pending_battle.clear()
+	for cat: CatMechInstance in party:
+		cat.reset_combat_statuses()
+		for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
+			var part: PartInstance = cat.get_part(slot)
+			if part != null:
+				part.repair_full()
+	save_meta()
+	save_run()
 
 # --- Управление забегом (Run Lifecycle) ---
 
@@ -99,6 +153,7 @@ func start_new_run(custom_seed: int = -1) -> void:
 		rng.randomize()
 		run_seed = int(rng.randi() % 900000 + 100000)
 
+	ng_cycle = 0
 	current_sector = 1
 	current_floor = 0
 	current_node_id = -1
@@ -114,10 +169,13 @@ func start_new_run(custom_seed: int = -1) -> void:
 	var recycler_lvl: int = int(shuttle_upgrades.get("scrap_recycler", 0))
 	var battery_lvl: int = int(shuttle_upgrades.get("harmonic_battery", 0))
 	run_scrap = 50 + recycler_lvl * 35
-	sync_gauge = clampi(battery_lvl * 25, 0, 100)
+	sync_gauge = clampi(battery_lvl * 12, 0, 100)
 
 	party = DataCatalog.create_starting_party()
-	spare_parts_inventory = ["scrap_arms", "titan_body"]
+	# Базовый склад деталей (без имбового titan_body)
+	spare_parts_inventory = [
+		{"part_id": "scrap_arms", "current_hp": 65}
+	]
 	_apply_meta_and_tape_bonuses_to_party()
 
 	has_active_run = true
@@ -146,14 +204,10 @@ func advance_to_next_sector() -> void:
 	completed_node_ids.clear()
 	map_graph.clear()
 	pending_battle.clear()
-	# По канону «Бременских музыкантов»:
-	# После победы над Хозяином-Мельником (Сектор 1 -> 2) к отряду присоединяется Осёл (M.U.L.E.)
 	if current_sector >= 2:
 		recruit_cat("MULE")
-	# После победы над Хозяйкой-Атаманшей (Сектор 2 -> 3) к отряду присоединяется Петух (C.O.C.K.)
 	if current_sector >= 3:
 		recruit_cat("COCK")
-	# Частичный авто-ремонт между секторами (30% HP всем деталям)
 	for cat: CatMechInstance in party:
 		for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
 			var part: PartInstance = cat.get_part(slot)
@@ -170,7 +224,6 @@ func jump_to_boss_battle(target_sector: int = -1) -> Dictionary:
 	var sec: int = clampi(target_sector if target_sector > 0 else current_sector, 1, 3)
 	current_sector = sec
 
-	# Обеспечиваем канонический состав отряда для выбранного сектора (Сектор 1: 2, Сектор 2: 3, Сектор 3: 4)
 	if target_sector == 1 and party.size() > 2:
 		party = DataCatalog.create_starting_party()
 		_apply_meta_and_tape_bonuses_to_party()
@@ -186,7 +239,6 @@ func jump_to_boss_battle(target_sector: int = -1) -> Dictionary:
 	if current_sector >= 3:
 		recruit_cat("COCK")
 
-	# Полный ремонт деталей и сброс боевых статусов перед быстрым переходом к боссу
 	for cat: CatMechInstance in party:
 		cat.reset_combat_statuses()
 		for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
@@ -236,11 +288,11 @@ func jump_to_boss_battle(target_sector: int = -1) -> Dictionary:
 	EventBus.request_scene_change.emit(&"EVENT", payload)
 	return payload
 
-func _apply_meta_and_tape_bonuses_to_party() -> void:
-	for cat: CatMechInstance in party:
-		_apply_meta_and_tape_bonuses_to_cat(cat)
+# --- Модульная система бонусов к деталям ---
 
-func _apply_meta_and_tape_bonuses_to_cat(cat: CatMechInstance) -> void:
+func apply_meta_and_tape_bonuses_to_part(part: PartInstance, cat_id: StringName) -> void:
+	if part == null or part.data == null:
+		return
 	var hull_lvl: int = int(shuttle_upgrades.get("hull_reinforce", 0))
 	var tape: MusicTapeData = get_active_tape()
 	var armor_aura: int = 0
@@ -251,24 +303,56 @@ func _apply_meta_and_tape_bonuses_to_cat(cat: CatMechInstance) -> void:
 		elif tape.passive_aura_type == &"SPEED_AURA":
 			speed_aura = tape.passive_aura_value
 
-	var cid: String = String(cat.cat_id)
+	var cid: String = String(cat_id)
 	var perk_hp: int = 15 if has_perk(cid + "_CORE_HP") else 0
 	var perk_arm: int = 1 if has_perk(cid + "_ARMOR") else 0
 	var perk_spd: int = 3 if has_perk(cid + "_SPEED") else 0
 
-	if cat.body_part != null:
-		cat.body_part.max_hp_bonus = hull_lvl * 12 + perk_hp
-		cat.body_part.armor_bonus = armor_aura + perk_arm
-		cat.body_part.repair_full()
-	if cat.arms_part != null:
-		cat.arms_part.max_hp_bonus = perk_hp / 2
-		cat.arms_part.armor_bonus = armor_aura + perk_arm
-		cat.arms_part.repair_full()
-	if cat.legs_part != null:
-		cat.legs_part.max_hp_bonus = perk_hp / 2
-		cat.legs_part.armor_bonus = armor_aura + perk_arm
-		cat.legs_part.speed_bonus = speed_aura + perk_spd
-		cat.legs_part.repair_full()
+	match part.data.slot:
+		PartData.PartSlot.BODY:
+			part.max_hp_bonus = hull_lvl * 12 + perk_hp
+			part.armor_bonus = armor_aura + perk_arm
+		PartData.PartSlot.ARMS:
+			part.max_hp_bonus = perk_hp / 2
+			part.armor_bonus = armor_aura + perk_arm
+		PartData.PartSlot.LEGS:
+			part.max_hp_bonus = perk_hp / 2
+			part.armor_bonus = armor_aura + perk_arm
+			part.speed_bonus = speed_aura + perk_spd
+	part.current_hp = clampi(part.current_hp, 0, part.get_max_hp())
+
+func reapply_party_bonuses() -> void:
+	for cat: CatMechInstance in party:
+		for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
+			var part: PartInstance = cat.get_part(slot)
+			if part != null:
+				apply_meta_and_tape_bonuses_to_part(part, cat.cat_id)
+
+func _apply_meta_and_tape_bonuses_to_party() -> void:
+	reapply_party_bonuses()
+	for cat: CatMechInstance in party:
+		for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
+			var part: PartInstance = cat.get_part(slot)
+			if part != null:
+				part.repair_full()
+
+func _apply_meta_and_tape_bonuses_to_cat(cat: CatMechInstance) -> void:
+	if cat == null:
+		return
+	for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
+		var part: PartInstance = cat.get_part(slot)
+		if part != null:
+			apply_meta_and_tape_bonuses_to_part(part, cat.cat_id)
+			part.repair_full()
+
+# --- Управление Гармонией (Синхрой) и Ресурсами ---
+
+func prepare_battle_sync() -> void:
+	var carry: int = mini(25, int(float(sync_gauge) * 0.25))
+	var battery_lvl: int = int(shuttle_upgrades.get("harmonic_battery", 0))
+	var battery_bonus: int = battery_lvl * 12
+	sync_gauge = clampi(carry + battery_bonus, 0, 100)
+	EventBus.sync_gauge_changed.emit(sync_gauge, 100)
 
 func add_sync(amount: int) -> void:
 	var tape: MusicTapeData = get_active_tape()
@@ -288,10 +372,13 @@ func add_run_scrap(amount: int) -> void:
 	EventBus.run_resources_changed.emit(run_scrap, sync_gauge)
 
 func add_meta_rewards(scrap_delta: int, cores_delta: int) -> void:
-	if has_active_run and cores_delta > 0:
-		run_cores_earned += cores_delta
-	titanium_scrap = maxi(0, titanium_scrap + scrap_delta)
-	ai_cores = maxi(0, ai_cores + cores_delta)
+	var r_mult: float = get_meta_reward_mult()
+	var scaled_scrap: int = int(round(float(scrap_delta) * r_mult)) if scrap_delta > 0 else scrap_delta
+	var scaled_cores: int = cores_delta
+	if has_active_run and scaled_cores > 0:
+		run_cores_earned += scaled_cores
+	titanium_scrap = maxi(0, titanium_scrap + scaled_scrap)
+	ai_cores = maxi(0, ai_cores + scaled_cores)
 	save_meta()
 	EventBus.meta_resources_changed.emit(titanium_scrap, ai_cores)
 
@@ -337,7 +424,8 @@ func complete_run_victory() -> Dictionary:
 		"run_cores_earned": run_cores_earned,
 		"bonus_titanium_scrap": VICTORY_BONUS_SCRAP,
 		"bonus_ai_cores": VICTORY_BONUS_CORES,
-		"successful_evacuations": successful_evacuations
+		"successful_evacuations": successful_evacuations,
+		"ng_cycle": ng_cycle
 	}
 
 # --- Сериализация MetaState (user://meta_save.json) ---
@@ -347,6 +435,7 @@ func save_meta() -> void:
 		"titanium_scrap": titanium_scrap,
 		"ai_cores": ai_cores,
 		"successful_evacuations": successful_evacuations,
+		"highest_ng_cycle": highest_ng_cycle,
 		"unlocked_perks": unlocked_perks,
 		"shuttle_upgrades": shuttle_upgrades,
 		"unlocked_tapes": unlocked_tapes,
@@ -354,7 +443,7 @@ func save_meta() -> void:
 	}
 	var file: FileAccess = FileAccess.open(META_SAVE_PATH, FileAccess.WRITE)
 	if file != null:
-		file.store_string(JSON.stringify(data, "\t"))
+		file.store_string(JSON.stringify(data, "	"))
 		file.close()
 
 func load_meta() -> void:
@@ -371,6 +460,7 @@ func load_meta() -> void:
 		titanium_scrap = int(d.get("titanium_scrap", 80))
 		ai_cores = int(d.get("ai_cores", 3))
 		successful_evacuations = int(d.get("successful_evacuations", 0))
+		highest_ng_cycle = int(d.get("highest_ng_cycle", 0))
 		unlocked_perks.clear()
 		if d.has("unlocked_perks") and d["unlocked_perks"] is Array:
 			for p: Variant in d["unlocked_perks"]:
@@ -379,7 +469,46 @@ func load_meta() -> void:
 			var upg: Dictionary = d["shuttle_upgrades"] as Dictionary
 			for k: Variant in upg.keys():
 				shuttle_upgrades[String(k)] = int(upg[k])
+		if d.has("unlocked_tapes") and d["unlocked_tapes"] is Array:
+			unlocked_tapes.clear()
+			for t: Variant in d["unlocked_tapes"]:
+				unlocked_tapes.append(String(t))
 		equipped_tape_id = StringName(String(d.get("equipped_tape_id", "tape_hardbass")))
+
+# --- Сброс всего прогресса (Hard Reset / New Game) ---
+
+func hard_reset_all_progress() -> void:
+	delete_run_save()
+	if FileAccess.file_exists(META_SAVE_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(META_SAVE_PATH))
+
+	titanium_scrap = 0
+	ai_cores = 0
+	successful_evacuations = 0
+	highest_ng_cycle = 0
+	ng_cycle = 0
+	unlocked_perks.clear()
+	shuttle_upgrades = {
+		"hull_reinforce": 0,
+		"scrap_recycler": 0,
+		"harmonic_battery": 0
+	}
+	unlocked_tapes = ["tape_hardbass", "tape_blues", "tape_synth"]
+	equipped_tape_id = &"tape_hardbass"
+
+	has_active_run = false
+	party.clear()
+	spare_parts_inventory.clear()
+	sync_gauge = 0
+	run_elapsed_sec = 0.0
+	run_enemies_defeated = 0
+	run_scrap_earned = 0
+	run_cores_earned = 0
+	pending_battle.clear()
+
+	save_meta()
+	EventBus.meta_resources_changed.emit(titanium_scrap, ai_cores)
+	EventBus.run_resources_changed.emit(run_scrap, sync_gauge)
 
 # --- Чекпоинт боя для переигровки и выхода в Лагерь через паузу (Issue #12) ---
 
@@ -397,15 +526,22 @@ func clear_battle_checkpoint() -> void:
 	pending_battle.clear()
 
 # --- Сериализация RunState (user://current_run.json) ---
-# Вызывается между нодами карты и на входе в бой (ADR-001 Section 2.8)
 
 func save_run() -> void:
 	var party_arr: Array[Dictionary] = []
 	for cat: CatMechInstance in party:
 		party_arr.append(cat.to_dict())
 
+	var serialized_parts: Array = []
+	for p_item: Variant in spare_parts_inventory:
+		if p_item is Dictionary:
+			serialized_parts.append((p_item as Dictionary).duplicate())
+		elif p_item is String:
+			serialized_parts.append({"part_id": String(p_item), "current_hp": -1})
+
 	var data: Dictionary = {
 		"run_seed": run_seed,
+		"ng_cycle": ng_cycle,
 		"current_sector": current_sector,
 		"current_floor": current_floor,
 		"current_node_id": current_node_id,
@@ -414,7 +550,7 @@ func save_run() -> void:
 		"run_scrap": run_scrap,
 		"sync_gauge": sync_gauge,
 		"party": party_arr,
-		"spare_parts_inventory": spare_parts_inventory,
+		"spare_parts_inventory": serialized_parts,
 		"pending_battle": pending_battle,
 		"run_elapsed_sec": run_elapsed_sec,
 		"run_enemies_defeated": run_enemies_defeated,
@@ -423,7 +559,7 @@ func save_run() -> void:
 	}
 	var file: FileAccess = FileAccess.open(RUN_SAVE_PATH, FileAccess.WRITE)
 	if file != null:
-		file.store_string(JSON.stringify(data, "\t"))
+		file.store_string(JSON.stringify(data, "	"))
 		file.close()
 	has_active_run = true
 
@@ -443,6 +579,7 @@ func load_run() -> bool:
 
 	var d: Dictionary = parsed as Dictionary
 	run_seed = int(d.get("run_seed", 123456))
+	ng_cycle = int(d.get("ng_cycle", 0))
 	current_sector = int(d.get("current_sector", 1))
 	current_floor = int(d.get("current_floor", 0))
 	current_node_id = int(d.get("current_node_id", -1))
@@ -476,8 +613,11 @@ func load_run() -> bool:
 
 	spare_parts_inventory.clear()
 	if d.has("spare_parts_inventory") and d["spare_parts_inventory"] is Array:
-		for pid: Variant in d["spare_parts_inventory"]:
-			spare_parts_inventory.append(String(pid))
+		for item: Variant in d["spare_parts_inventory"]:
+			if item is Dictionary:
+				spare_parts_inventory.append((item as Dictionary).duplicate())
+			elif item is String:
+				spare_parts_inventory.append({"part_id": String(item), "current_hp": -1})
 
 	pending_battle.clear()
 	if d.has("pending_battle") and d["pending_battle"] is Dictionary:
