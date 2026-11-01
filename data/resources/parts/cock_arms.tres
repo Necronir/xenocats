@@ -21,6 +21,7 @@ description = "Генератор направленных звуковых уд
 slot = 1
 max_hp = 50
 armor = 1
+weight = 11
 base_speed = 15
 skills = Array[ExtResource("2_n4ld0")]([SubResource("Resource_60frm")])
 texture_path = "res://assets/sprites/cats/cock_arms.png"

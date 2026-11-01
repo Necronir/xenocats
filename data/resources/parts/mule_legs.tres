@@ -11,5 +11,6 @@ description = "Медленные, но почти неуязвимые гусе
 slot = 2
 max_hp = 80
 armor = 4
+weight = 18
 base_speed = 9
 texture_path = "res://assets/sprites/cats/mule_legs.png"

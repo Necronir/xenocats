@@ -20,5 +20,6 @@ description = "Экспериментальное орудие дальней п
 slot = 1
 max_hp = 70
 armor = 3
+weight = 22
 skills = Array[ExtResource("2_okoal")]([SubResource("Resource_eks6l")])
 texture_path = "res://assets/sprites/cats/titan_arms.png"

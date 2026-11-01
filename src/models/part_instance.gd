@@ -30,6 +30,16 @@ func get_base_speed() -> int:
 		return 1
 	return maxi(1, data.base_speed + speed_bonus)
 
+func get_weight() -> int:
+	if data == null:
+		return 0
+	return maxi(1, data.weight)
+
+func get_power_output() -> int:
+	if data == null:
+		return 0
+	return maxi(0, data.power_output)
+
 func is_broken() -> bool:
 	return current_hp <= 0
 

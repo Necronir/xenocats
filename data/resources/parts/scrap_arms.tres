@@ -21,5 +21,6 @@ part_name = "Шлаковый Огнемёт"
 description = "Кустарный распылитель перегретого металла."
 slot = 1
 max_hp = 65
+weight = 15
 skills = Array[ExtResource("2_raqv5")]([SubResource("Resource_jdl8f")])
 texture_path = "res://assets/sprites/cats/scrap_arms.png"

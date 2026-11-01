@@ -22,6 +22,7 @@ description = "Привлекает огонь врагов на себя и д�
 slot = 1
 max_hp = 75
 armor = 4
+weight = 17
 base_speed = 9
 skills = Array[ExtResource("2_wgixw")]([SubResource("Resource_shgom")])
 texture_path = "res://assets/sprites/cats/mule_arms.png"

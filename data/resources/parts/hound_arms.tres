@@ -20,6 +20,7 @@ part_name = "Пилообразные челюсти"
 description = "Цепные пилы, оставляющие глубокие пробоины."
 slot = 1
 max_hp = 65
+weight = 14
 base_speed = 13
 skills = Array[ExtResource("2_a6ft2")]([SubResource("Resource_0bnxm")])
 texture_path = "res://assets/sprites/cats/hound_arms.png"

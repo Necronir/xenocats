@@ -183,10 +183,17 @@ static func _make_part(
 	p_armor: int,
 	p_speed: int,
 	p_tex: String,
-	p_skills: Array[SkillData]
+	p_skills: Array[SkillData],
+	p_weight: int = 10,
+	p_power: int = 0
 ) -> PartData:
 	if _parts.has(p_id):
-		return _parts[p_id] as PartData
+		var existing: PartData = _parts[p_id] as PartData
+		if existing != null:
+			existing.weight = p_weight
+			if p_power > 0 or existing.power_output == 0:
+				existing.power_output = p_power
+		return existing
 	var p: PartData = PartData.new()
 	p.part_id = StringName(p_id)
 	p.part_name = p_name
@@ -195,6 +202,8 @@ static func _make_part(
 	p.max_hp = p_hp
 	p.armor = p_armor
 	p.base_speed = p_speed
+	p.weight = p_weight
+	p.power_output = p_power
 	p.texture_path = p_tex
 	p.skills = p_skills
 	_parts[p_id] = p
@@ -287,72 +296,88 @@ static func _build_default_catalog_if_needed() -> void:
 	# Детали 4 котов
 	var felix_body: PartData = _make_part(
 		"felix_body", "Сервисное ядро FELIX", "Лёгкий корпус сервисного кота-лидера.",
-		PartData.PartSlot.BODY, 65, 2, 16, "res://assets/sprites/cats/felix_body.png", [sk_battery_grenade]
+		PartData.PartSlot.BODY, 65, 2, 16, "res://assets/sprites/cats/felix_body.png", [sk_battery_grenade],
+		10, 35
 	)
 	var felix_arms: PartData = _make_part(
 		"felix_arms", "Лазерные когти Мк-1", "Высокочастотные резаки с целеуказателем.",
-		PartData.PartSlot.ARMS, 50, 1, 16, "res://assets/sprites/cats/felix_arms.png", [sk_laser_claws]
+		PartData.PartSlot.ARMS, 50, 1, 16, "res://assets/sprites/cats/felix_arms.png", [sk_laser_claws],
+		12, 0
 	)
 	var felix_legs: PartData = _make_part(
 		"felix_legs", "Пружинные лапы Рысь", "Максимальная инициатива и скорость в боксе уворота.",
-		PartData.PartSlot.LEGS, 50, 1, 18, "res://assets/sprites/cats/felix_legs.png", [sk_overdrive_step]
+		PartData.PartSlot.LEGS, 50, 1, 18, "res://assets/sprites/cats/felix_legs.png", [sk_overdrive_step],
+		11, 0
 	)
 
 	var mule_body: PartData = _make_part(
 		"mule_body", "Каркас Погрузчика M.U.L.E.", "Тяжёлый бронированный корпус с генератором щитов.",
-		PartData.PartSlot.BODY, 95, 4, 9, "res://assets/sprites/cats/mule_body.png", [sk_heat_shield]
+		PartData.PartSlot.BODY, 95, 4, 9, "res://assets/sprites/cats/mule_body.png", [sk_heat_shield],
+		18, 55
 	)
 	var mule_arms: PartData = _make_part(
 		"mule_arms", "Ковш-отвал Титан", "Привлекает огонь врагов на себя и даёт персональный щит.",
-		PartData.PartSlot.ARMS, 75, 4, 9, "res://assets/sprites/cats/mule_arms.png", [sk_bucket_bash]
+		PartData.PartSlot.ARMS, 75, 4, 9, "res://assets/sprites/cats/mule_arms.png", [sk_bucket_bash],
+		17, 0
 	)
 	var mule_legs: PartData = _make_part(
 		"mule_legs", "Гусеничное шасси", "Медленные, но почти неуязвимые гусеницы.",
-		PartData.PartSlot.LEGS, 80, 4, 9, "res://assets/sprites/cats/mule_legs.png", []
+		PartData.PartSlot.LEGS, 80, 4, 9, "res://assets/sprites/cats/mule_legs.png", [],
+		18, 0
 	)
 
 	var hound_body: PartData = _make_part(
 		"hound_body", "Патрульный блок H.O.U.N.D.", "Охранный корпус с форсированным гидравлическим приводом.",
-		PartData.PartSlot.BODY, 80, 3, 13, "res://assets/sprites/cats/hound_body.png", [sk_pack_vengeance]
+		PartData.PartSlot.BODY, 80, 3, 13, "res://assets/sprites/cats/hound_body.png", [sk_pack_vengeance],
+		14, 42
 	)
 	var hound_arms: PartData = _make_part(
 		"hound_arms", "Пилообразные челюсти", "Цепные пилы, оставляющие глубокие пробоины.",
-		PartData.PartSlot.ARMS, 65, 2, 13, "res://assets/sprites/cats/hound_arms.png", [sk_saw_bite]
+		PartData.PartSlot.ARMS, 65, 2, 13, "res://assets/sprites/cats/hound_arms.png", [sk_saw_bite],
+		14, 0
 	)
 	var hound_legs: PartData = _make_part(
 		"hound_legs", "Лапы Перехватчика", "Сбалансированное шасси патрульного дроида.",
-		PartData.PartSlot.LEGS, 60, 2, 13, "res://assets/sprites/cats/hound_legs.png", []
+		PartData.PartSlot.LEGS, 60, 2, 13, "res://assets/sprites/cats/hound_legs.png", [],
+		13, 0
 	)
 
 	var cock_body: PartData = _make_part(
 		"cock_body", "РЭБ-ядро C.O.C.K.", "Модуль радиоэлектронной борьбы и регенерации.",
-		PartData.PartSlot.BODY, 60, 2, 15, "res://assets/sprites/cats/cock_body.png", [sk_dawn_howl]
+		PartData.PartSlot.BODY, 60, 2, 15, "res://assets/sprites/cats/cock_body.png", [sk_dawn_howl],
+		9, 32
 	)
 	var cock_arms: PartData = _make_part(
 		"cock_arms", "Акустический мегафон", "Генератор направленных звуковых ударных волн.",
-		PartData.PartSlot.ARMS, 50, 1, 15, "res://assets/sprites/cats/cock_arms.png", [sk_sonic_wave]
+		PartData.PartSlot.ARMS, 50, 1, 15, "res://assets/sprites/cats/cock_arms.png", [sk_sonic_wave],
+		11, 0
 	)
 	var cock_legs: PartData = _make_part(
 		"cock_legs", "Магнитные катушки", "Левитирующее шасси высокой манёвренности.",
-		PartData.PartSlot.LEGS, 50, 2, 15, "res://assets/sprites/cats/cock_legs.png", []
+		PartData.PartSlot.LEGS, 50, 2, 15, "res://assets/sprites/cats/cock_legs.png", [],
+		10, 0
 	)
 
 	# Редкие лут-детали для дропа и мастерской
 	_make_part(
 		"titan_body", "Корпус «Эгида-Прайм»", "Военный корпус с повышенным запасом прочности.",
-		PartData.PartSlot.BODY, 110, 5, 12, "res://assets/sprites/cats/titan_body.png", [sk_heat_shield]
+		PartData.PartSlot.BODY, 110, 5, 12, "res://assets/sprites/cats/titan_body.png", [sk_heat_shield],
+		22, 65
 	)
 	_make_part(
 		"titan_arms", "Рельсотрон «Авангард»", "Экспериментальное орудие дальней пробивной стрельбы.",
-		PartData.PartSlot.ARMS, 70, 3, 12, "res://assets/sprites/cats/titan_arms.png", [sk_rail_shot]
+		PartData.PartSlot.ARMS, 70, 3, 12, "res://assets/sprites/cats/titan_arms.png", [sk_rail_shot],
+		22, 0
 	)
 	_make_part(
 		"titan_legs", "Турбо-траки «Бастион»", "Укреплённые гусеницы с реактивным ускорителем.",
-		PartData.PartSlot.LEGS, 85, 4, 15, "res://assets/sprites/cats/titan_legs.png", [sk_overdrive_step]
+		PartData.PartSlot.LEGS, 85, 4, 15, "res://assets/sprites/cats/titan_legs.png", [sk_overdrive_step],
+		20, 0
 	)
 	_make_part(
 		"scrap_arms", "Шлаковый Огнемёт", "Кустарный распылитель перегретого металла.",
-		PartData.PartSlot.ARMS, 65, 2, 12, "res://assets/sprites/cats/scrap_arms.png", [sk_scrap_flamer]
+		PartData.PartSlot.ARMS, 65, 2, 12, "res://assets/sprites/cats/scrap_arms.png", [sk_scrap_flamer],
+		15, 0
 	)
 
 	# Профили 4 котов
@@ -572,17 +597,20 @@ static func _register_modular_enemy(
 	var bp: PartData = _make_part(
 		p_id + "_body", "Ядро (" + p_name + ")", "Центральный процессор и реактор.",
 		PartData.PartSlot.BODY, p_bhp, p_armor, p_spd,
-		"res://assets/sprites/enemies/" + p_sprite + "_body.png", p_body_skills
+		"res://assets/sprites/enemies/" + p_sprite + "_body.png", p_body_skills,
+		20, 80
 	)
 	var ap: PartData = _make_part(
 		p_id + "_arms", "Орудия (" + p_name + ")", "Боевой блок вооружения (отстрелите, чтобы ослабить атаки!).",
 		PartData.PartSlot.ARMS, p_ahp, maxi(1, p_armor - 1), p_spd,
-		"res://assets/sprites/enemies/" + p_sprite + "_arms.png", p_arm_skills
+		"res://assets/sprites/enemies/" + p_sprite + "_arms.png", p_arm_skills,
+		20, 0
 	)
 	var lp: PartData = _make_part(
 		p_id + "_legs", "Шасси (" + p_name + ")", "Ходовая часть (отстрелите, чтобы обрушить инициативу врага!).",
 		PartData.PartSlot.LEGS, p_lhp, maxi(1, p_armor - 1), p_spd,
-		"res://assets/sprites/enemies/" + p_sprite + "_legs.png", []
+		"res://assets/sprites/enemies/" + p_sprite + "_legs.png", [],
+		15, 0
 	)
 	var e: EnemyData = EnemyData.new()
 	e.enemy_id = StringName(p_id)

@@ -22,5 +22,7 @@ part_name = "Корпус «Эгида-Прайм»"
 description = "Военный корпус с повышенным запасом прочности."
 max_hp = 110
 armor = 5
+weight = 22
+power_output = 65
 skills = Array[ExtResource("2_b2lco")]([SubResource("Resource_u4ffv")])
 texture_path = "res://assets/sprites/cats/titan_body.png"

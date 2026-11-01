@@ -164,7 +164,10 @@ func start_dodge(
 	_avatar_root.position = _box_origin + Vector2(BOX_W * 0.5, BOX_H * 0.5)
 	_avatar_root.modulate = Color(1, 1, 1, 1)
 
-	var leg_warn: String = " [-40% СКОР]" if _speed_multiplier < 0.9 else ""
+	var leg_warn: String = ""
+	if _speed_multiplier < 0.99:
+		var pct_lost: int = int(round((1.0 - _speed_multiplier) * 100.0))
+		leg_warn = " [-" + str(pct_lost) + "% СКОР]"
 	_defender_title = "ЗАЩИТА: " + defender_name + leg_warn
 	_update_status_text()
 	_active = true
