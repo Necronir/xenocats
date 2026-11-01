@@ -267,14 +267,35 @@ func _on_node_clicked(node_dict: Dictionary) -> void:
 				2: "В БОЙ ЗА СПАСЕНИЕ ПЕТУХА ->",
 				3: "ВЛОМИТЬСЯ В ОКНО (ФИНАЛЬНЫЙ БОЙ) ->"
 			}
+			var boss_photos: Dictionary = {
+				1: "res://assets/photos/3-press-boss-appirance.jpg",
+				2: "res://assets/photos/5-atamansha-boss-apperiance.jpg",
+				3: "res://assets/photos/7-sputnik-boss-apperiance.jpg"
+			}
+			var boss_cutscene_titles: Dictionary = {
+				1: "БОСС 1: ПОЯВЛЕНИЕ ТРЁХГОЛОВОГО ПРЕССА",
+				2: "БОСС 2: ПОЯВЛЕНИЕ АТАМАНШИ РАЗБОЙНИКОВ",
+				3: "ФИНАЛЬНЫЙ БОСС: СПЯЩИЙ СПУТНИК ВЫШКИ БРЕМЕН-4"
+			}
 			SaveManager.save_run()
-			EventBus.request_scene_change.emit(&"EVENT", {
+			var event_payload: Dictionary = {
 				"timeline": prelude_path,
 				"next_scene": &"BATTLE",
 				"next_payload": {"node_id": nid, "node_type": "BOSS"},
 				"title": String(boss_titles.get(sec, "БОЕВАЯ ТРЕВОГА")),
 				"continue_text": String(boss_btns.get(sec, "В БОЙ ->"))
-			})
+			}
+			var p_path: String = String(boss_photos.get(sec, ""))
+			if p_path != "" and ResourceLoader.exists(p_path):
+				EventBus.request_scene_change.emit(&"VIDEO", {
+					"image_path": p_path,
+					"title": String(boss_cutscene_titles.get(sec, "БОСС")),
+					"boss_theme": sec,
+					"next_scene": &"EVENT",
+					"next_payload": event_payload
+				})
+			else:
+				EventBus.request_scene_change.emit(&"EVENT", event_payload)
 		"WORKSHOP":
 			SaveManager.save_run()
 			EventBus.request_scene_change.emit(&"GARAGE", {"node_id": nid, "free_tuneup": true})

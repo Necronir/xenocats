@@ -111,7 +111,7 @@ func _build_ui() -> void:
 	_illustration_rect = TextureRect.new()
 	_illustration_rect.custom_minimum_size = Vector2(312, 92)
 	_illustration_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_illustration_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_illustration_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_illustration_panel.add_child(_illustration_rect)
 
 	# Портрет говорящего персонажа + Диалоговое окно
@@ -258,21 +258,26 @@ func _render_dialogue_state() -> void:
 		if (
 			img_path.ends_with("story_cat_exile.png")
 			or img_path.ends_with("story_cat_alone_road.png")
+			or img_path.ends_with("1-cat-start.jpg")
 		):
 			AudioManager.play_story_stage(1)
-		elif img_path.ends_with("story_meet_hound.png"):
+		elif img_path.ends_with("story_meet_hound.png") or img_path.ends_with("2-cat-and-hound-together.jpg"):
 			AudioManager.play_story_stage(2)
-		elif img_path.ends_with("story_mill_mule_captive.png"):
+		elif img_path.ends_with("story_mill_mule_captive.png") or img_path.ends_with("3-press-boss-appirance.jpg"):
 			AudioManager.play_boss_theme(1)
-		elif img_path.ends_with("story_mule_joins.png"):
+		elif img_path.ends_with("story_mule_joins.png") or img_path.ends_with("4a-press-boss-win.jpg"):
 			AudioManager.play_story_stage(3)
-		elif img_path.ends_with("story_tavern_cock_soup.png"):
+		elif img_path.ends_with("story_tavern_cock_soup.png") or img_path.ends_with("5-atamansha-boss-apperiance.jpg"):
 			AudioManager.play_boss_theme(2)
-		elif img_path.ends_with("story_cock_joins_quartet.png"):
+		elif img_path.ends_with("story_cock_joins_quartet.png") or img_path.ends_with("6a-atamansha-boss-win.jpg"):
 			AudioManager.play_story_stage(4)
-		elif img_path.ends_with("story_bremen_window_pyramid.png"):
+		elif img_path.ends_with("story_bremen_window_pyramid.png") or img_path.ends_with("7-sputnik-boss-apperiance.jpg"):
 			AudioManager.play_boss_theme(3)
-		elif img_path.ends_with("story_bremen_victory_concert.png"):
+		elif (
+			img_path.ends_with("story_bremen_victory_concert.png")
+			or img_path.ends_with("8a-sputnik-boss-win.jpg")
+			or img_path.ends_with("9-final.jpg")
+		):
 			AudioManager.play_pyramid_theme(4)
 		else:
 			AudioManager.sync_music_to_party(SaveManager.party)

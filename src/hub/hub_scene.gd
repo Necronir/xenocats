@@ -172,13 +172,67 @@ func _build_ui() -> void:
 	new_run_btn.pressed.connect(func() -> void:
 		AudioManager.play_sfx("ui_click")
 		SaveManager.start_new_run()
-		EventBus.request_scene_change.emit(&"EVENT", {
-			"timeline": "res://data/dialogues/story_intro_crash.dtl",
+
+		var hound_dtl_payload: Dictionary = {
+			"timeline": "res://data/dialogues/story_intro_hound.dtl",
 			"next_scene": &"MAP",
 			"next_payload": {},
-			"title": "ПРОЛОГ: ИЗГНАНИЕ КОТА И ВСТРЕЧА С ПСОМ",
+			"title": "ПРОЛОГ: ВСТРЕЧА С ПСОМ (ЧАСТЬ 2)",
 			"continue_text": "В ПУТЬ ВДВОЁМ С ПСОМ (СЕКТОР 1) ->"
-		})
+		}
+
+		var after_cat_event: Dictionary = {}
+		if ResourceLoader.exists("res://assets/photos/2-cat-and-hound-together.jpg"):
+			after_cat_event = {
+				"next_scene": &"VIDEO",
+				"next_payload": {
+					"image_path": "res://assets/photos/2-cat-and-hound-together.jpg",
+					"title": "ПРОЛОГ: ВСТРЕЧА С ПСОМ H.O.U.N.D.",
+					"story_stage": 2,
+					"next_scene": &"EVENT",
+					"next_payload": hound_dtl_payload
+				}
+			}
+		elif ResourceLoader.exists("res://assets/videos/2-hound.ogv"):
+			after_cat_event = {
+				"next_scene": &"VIDEO",
+				"next_payload": {
+					"video_path": "res://assets/videos/2-hound.ogv",
+					"title": "H.O.U.N.D. — ОХРАННЫЙ ПАТРУЛЬНЫЙ ДРОИД",
+					"next_scene": &"EVENT",
+					"next_payload": hound_dtl_payload
+				}
+			}
+		else:
+			after_cat_event = {
+				"next_scene": &"EVENT",
+				"next_payload": hound_dtl_payload
+			}
+
+		var cat_dtl_payload: Dictionary = {
+			"timeline": "res://data/dialogues/story_intro_cat.dtl",
+			"title": "ПРОЛОГ: ИЗГНАНИЕ КОТА (ЧАСТЬ 1)",
+			"continue_text": "ДАЛЕЕ (ВСТРЕЧА С ПСОМ) ->"
+		}
+		cat_dtl_payload.merge(after_cat_event)
+
+		if ResourceLoader.exists("res://assets/photos/1-cat-start.jpg"):
+			EventBus.request_scene_change.emit(&"VIDEO", {
+				"image_path": "res://assets/photos/1-cat-start.jpg",
+				"title": "ПРОЛОГ: ИЗГНАНИЕ КОТА ФЕЛИКСА",
+				"story_stage": 1,
+				"next_scene": &"EVENT",
+				"next_payload": cat_dtl_payload
+			})
+		elif ResourceLoader.exists("res://assets/videos/1-cat.ogv"):
+			EventBus.request_scene_change.emit(&"VIDEO", {
+				"video_path": "res://assets/videos/1-cat.ogv",
+				"title": "FELIX — СЕРВИСНЫЙ ЮНИТ-МУЗЫКАНТ",
+				"next_scene": &"EVENT",
+				"next_payload": cat_dtl_payload
+			})
+		else:
+			EventBus.request_scene_change.emit(&"EVENT", cat_dtl_payload)
 	)
 	bot_hbox.add_child(new_run_btn)
 

@@ -16,7 +16,8 @@ const SCENE_PATHS: Dictionary = {
 	"MAP": "res://src/map/map_scene.tscn",
 	"BATTLE": "res://src/combat/combat_arena.tscn",
 	"GARAGE": "res://src/garage/garage_scene.tscn",
-	"EVENT": "res://src/event/event_scene.tscn"
+	"EVENT": "res://src/event/event_scene.tscn",
+	"VIDEO": "res://src/core/video_player_scene.tscn"
 }
 
 func _ready() -> void:
@@ -70,6 +71,8 @@ func change_scene(scene_name: StringName, payload: Dictionary = {}) -> void:
 		inst.call("setup_garage", payload)
 	elif inst.has_method("setup_event") and key == "EVENT":
 		inst.call("setup_event", payload)
+	elif inst.has_method("setup_video") and key == "VIDEO":
+		inst.call("setup_video", payload)
 
 	_screen_container.add_child(inst)
 	_current_scene = inst
@@ -78,4 +81,3 @@ func change_scene(scene_name: StringName, payload: Dictionary = {}) -> void:
 		_pause_menu.mode = current_scene_key
 		_pause_menu.allowed = PAUSABLE_SCENES.has(current_scene_key)
 		_pause_menu.current_scene_ref = _current_scene
-
