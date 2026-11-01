@@ -14,14 +14,16 @@ var _music_val_label: Label = null
 var _fullscreen_check: CheckButton = null
 var _tutorials_check: CheckButton = null
 var _reset_tutorials_btn: Button = null
+var _reset_progress_btn: Button = null
+var _reset_progress_armed: bool = false
 var _close_btn: Button = null
 var _status_hint_label: Label = null
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	custom_minimum_size = Vector2(360, 232)
-	size = Vector2(360, 232)
-	position = Vector2((640.0 - 360.0) * 0.5, (360.0 - 232.0) * 0.5)
+	custom_minimum_size = Vector2(360, 260)
+	size = Vector2(360, 260)
+	position = Vector2((640.0 - 360.0) * 0.5, (360.0 - 260.0) * 0.5)
 
 	var st: StyleBoxFlat = StyleBoxFlat.new()
 	st.bg_color = Color(0.06, 0.08, 0.14, 0.98)
@@ -102,6 +104,30 @@ func _ready() -> void:
 			_status_hint_label.text = "✓ Все подсказки обучения сброшены!"
 	)
 	tut_row.add_child(_reset_tutorials_btn)
+
+	_reset_progress_btn = Button.new()
+	_reset_progress_btn.text = "⚠ СБРОСИТЬ ВЕСЬ ПРОГРЕСС (NEW GAME)"
+	_reset_progress_btn.add_theme_font_size_override("font_size", 9)
+	_reset_progress_btn.add_theme_color_override("font_color", Color(1.0, 0.45, 0.45))
+	_reset_progress_btn.pressed.connect(func() -> void:
+		if not _reset_progress_armed:
+			_reset_progress_armed = true
+			AudioManager.play_sfx("ui_click")
+			_reset_progress_btn.text = "ПОДТВЕРДИТЬ СБРОС (УДАЛИТЬ ВСЕ СЕЙВЫ!)"
+			if _status_hint_label != null:
+				_status_hint_label.text = "Нажмите повторно для полной очистки сейвов и меты!"
+				_status_hint_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
+		else:
+			_reset_progress_armed = false
+			AudioManager.play_sfx("part_break")
+			SaveManager.hard_reset_all_progress()
+			if _status_hint_label != null:
+				_status_hint_label.text = "✓ Прогресс полностью сброшен! Запущен чистый профиль."
+				_status_hint_label.add_theme_color_override("font_color", Color(0.4, 1.0, 0.6))
+			close_panel()
+			EventBus.request_scene_change.emit(&"HUB", {})
+	)
+	vbox.add_child(_reset_progress_btn)
 
 	_status_hint_label = Label.new()
 	_status_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -188,6 +214,9 @@ func refresh_from_settings() -> void:
 		_status_hint_label.text = ""
 
 func open_panel() -> void:
+	_reset_progress_armed = false
+	if _reset_progress_btn != null:
+		_reset_progress_btn.text = "⚠ СБРОСИТЬ ВЕСЬ ПРОГРЕСС (NEW GAME)"
 	refresh_from_settings()
 	visible = true
 	if _close_btn != null:

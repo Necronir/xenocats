@@ -28,7 +28,7 @@ var _active_enemy_index: int = 0
 var _enemy_skill: SkillData = null
 var _defending_cat_index: int = 0
 
-# Состояние режима «Пирамида Бремена» (Issue #9)
+# Состояние режима «Пирамида Бремена» (Issue #9 & #26)
 var _pyramid_active: bool = false
 var _pyramid_tier: int = 4
 var _pyramid_turns_left: int = 0
@@ -36,6 +36,8 @@ var _pyramid_current_hp: int = 0
 var _pyramid_max_hp: int = 0
 var _pyramid_initial_hp: int = 0
 var _pyramid_damage_taken: int = 0
+var _pyramid_overheat_rounds: int = 0
+var _pyramid_action_used: bool = false
 var _pyramid_hp_bar: ProgressBar = null
 var _pyramid_hp_label: Label = null
 
@@ -281,6 +283,11 @@ func _init_combat_entities() -> void:
 	for cat: CatMechInstance in _party:
 		cat.reset_combat_statuses()
 
+	# Частичный перенос синхры и сброс боевых кулдаунов ульты (Issue #26)
+	SaveManager.prepare_battle_sync()
+	_pyramid_overheat_rounds = 0
+	_pyramid_action_used = false
+
 	# Определяем состав врагов по типу ноды
 	_enemies.clear()
 	var node_type: String = String(_battle_payload.get("node_type", "COMBAT"))
@@ -305,6 +312,24 @@ func _init_combat_entities() -> void:
 			if not regular_pool.is_empty():
 				var ed: EnemyData = regular_pool[_rng.randi_range(0, regular_pool.size() - 1)]
 				_enemies.append(EnemyInstance.new(ed))
+
+	# Масштабирование статов врагов при активном цикле NG+ (Issue #26)
+	if SaveManager.ng_cycle > 0:
+		var hp_mult: float = SaveManager.get_enemy_hp_mult()
+		for en: EnemyInstance in _enemies:
+			if en.is_modular():
+				if en.body_part != null:
+					en.body_part.max_hp_bonus += int(float(en.body_part.data.max_hp) * (hp_mult - 1.0))
+					en.body_part.repair_full()
+				if en.arms_part != null:
+					en.arms_part.max_hp_bonus += int(float(en.arms_part.data.max_hp) * (hp_mult - 1.0))
+					en.arms_part.repair_full()
+				if en.legs_part != null:
+					en.legs_part.max_hp_bonus += int(float(en.legs_part.data.max_hp) * (hp_mult - 1.0))
+					en.legs_part.repair_full()
+				en.current_hp = en.body_part.current_hp if en.body_part != null else en.current_hp
+			else:
+				en.current_hp = int(float(en.data.max_hp) * hp_mult)
 
 	_spawn_cat_rigs()
 	_spawn_enemy_rigs()
@@ -989,6 +1014,9 @@ func _start_new_round() -> void:
 		if _pyramid_turns_left <= 0:
 			_deactivate_bremen_pyramid()
 
+	if _pyramid_overheat_rounds > 0:
+		_pyramid_overheat_rounds -= 1
+
 	for i: int in range(_party.size()):
 		var cat: CatMechInstance = _party[i]
 		if cat.is_alive():
@@ -1031,7 +1059,8 @@ func _update_turn_order_header() -> void:
 			var e: EnemyInstance = _enemies[int(item["index"])]
 			if e.is_alive():
 				names.append(e.data.enemy_name + "(" + str(item["score"]) + ")")
-	_top_bar_label.text = "РАУНД " + str(_round_number) + " | Очередь: " + " -> ".join(names)
+	var ng_prefix: String = (" [NG+ " + str(SaveManager.ng_cycle) + "]" if SaveManager.ng_cycle > 0 else "")
+	_top_bar_label.text = "РАУНД " + str(_round_number) + ng_prefix + " | Очередь: " + " -> ".join(names)
 
 func _advance_turn() -> void:
 	if _check_battle_end():
@@ -1135,7 +1164,7 @@ func _begin_player_turn(cat_index: int) -> void:
 	_action_box.add_child(header)
 
 	# Кнопка активации Башни / Пирамиды Бремена при 100% Синхронизации (2, 3 или 4 яруса по числу живых участников)
-	if SaveManager.sync_gauge >= 100 and not _pyramid_active:
+	if SaveManager.sync_gauge >= 100 and not _pyramid_active and _pyramid_overheat_rounds <= 0:
 		var avail_tier: int = get_available_pyramid_tier()
 		var pyr_btn: Button = Button.new()
 		pyr_btn.text = "★ СТЫКОВКА: " + get_pyramid_title(avail_tier) + "! ★"
@@ -1146,6 +1175,12 @@ func _begin_player_turn(cat_index: int) -> void:
 		pyr_btn.pressed.connect(_activate_bremen_pyramid)
 		_action_box.add_child(pyr_btn)
 		TutorialToast.show_if_needed(self, &"pyramid_ready")
+	elif _pyramid_overheat_rounds > 0 and not _pyramid_active:
+		var cool_lbl: Label = Label.new()
+		cool_lbl.text = "⚡ Резонатор «Бремен» остывает (перегрев)..."
+		cool_lbl.add_theme_font_size_override("font_size", 8)
+		cool_lbl.add_theme_color_override("font_color", Color(0.85, 0.65, 0.35))
+		_action_box.add_child(cool_lbl)
 
 	var skills: Array[SkillData] = []
 	if _pyramid_active:
@@ -1202,6 +1237,7 @@ func get_pyramid_max_hp() -> int:
 func _activate_bremen_pyramid() -> void:
 	SaveManager.sync_gauge = 0
 	_pyramid_active = true
+	_pyramid_action_used = false
 	_pyramid_tier = get_available_pyramid_tier()
 	_pyramid_turns_left = 1
 	_pyramid_initial_hp = 0
@@ -1525,7 +1561,8 @@ func _on_qte_completed(multiplier: float, rating_label: String, bonus_sync: int)
 
 	var cat: CatMechInstance = _party[_active_cat_index]
 	var sk: SkillData = _selected_skill
-	SaveManager.add_sync(sk.sync_gain + bonus_sync)
+	if not _pyramid_active and _pyramid_overheat_rounds <= 0:
+		SaveManager.add_sync(sk.sync_gain + bonus_sync)
 
 	var scaled_dmg: int = int(round(float(sk.base_damage) * multiplier))
 	var log_parts: PackedStringArray = PackedStringArray()
@@ -1610,7 +1647,8 @@ func _on_qte_completed(multiplier: float, rating_label: String, bonus_sync: int)
 				_emit_spark_burst(epos, 16 if is_crit_hit else 9)
 
 			if bool(hit_res["triggered_mark"]):
-				SaveManager.add_sync(15)
+				if not _pyramid_active and _pyramid_overheat_rounds <= 0:
+					SaveManager.add_sync(15)
 				log_parts.append("КОМБО ПО МЕТКЕ!")
 			if bool(hit_res["just_broken"]) and target_en.is_modular():
 				AudioManager.play_sfx("part_break")
@@ -1630,6 +1668,13 @@ func _on_qte_completed(multiplier: float, rating_label: String, bonus_sync: int)
 
 	_log_label.text = " | ".join(log_parts)
 	_refresh_hud()
+
+	# Одно действие на Пирамиду: после ультимативного удара происходит расстыковка и перегрев (Issue #26)
+	if _pyramid_active:
+		_deactivate_bremen_pyramid()
+		_pyramid_overheat_rounds = 1
+		_pyramid_action_used = false
+
 	await get_tree().create_timer(0.65, false).timeout
 	if not is_inside_tree():
 		return
@@ -1688,10 +1733,12 @@ func _begin_enemy_turn(enemy_index: int) -> void:
 	elif not en.data.dodge_patterns.is_empty():
 		chosen_pattern = en.data.dodge_patterns
 
+	var raw_skill_dmg: int = _enemy_skill.base_damage if _enemy_skill != null else 12
+	var final_enemy_dmg: int = int(round(float(raw_skill_dmg) * SaveManager.get_enemy_damage_mult()))
 	_dodge_arena.start_dodge(
 		target_title,
 		chosen_pattern,
-		_enemy_skill.base_damage,
+		final_enemy_dmg,
 		1.0 if _pyramid_active else defender.get_dodge_speed_multiplier(),
 		3.5
 	)
@@ -1771,8 +1818,11 @@ func _on_dodge_part_hit(slot: PartData.PartSlot, raw_damage: int) -> void:
 func _on_dodge_finished(total_hits: int) -> void:
 	_fsm.transition_to(CombatFSM.State.RESOLVE_PART_DAMAGE)
 	if total_hits == 0:
-		SaveManager.add_sync(10)
-		_log_label.text = "ИДЕАЛЬНОЕ УКЛОНЕНИЕ! Ни один снаряд не задел кота (+10 Гармонии)!"
+		if not _pyramid_active and _pyramid_overheat_rounds <= 0:
+			SaveManager.add_sync(10)
+			_log_label.text = "ИДЕАЛЬНОЕ УКЛОНЕНИЕ! Ни один снаряд не задел кота (+10 Гармонии)!"
+		else:
+			_log_label.text = "ИДЕАЛЬНОЕ УКЛОНЕНИЕ! Ни один снаряд не задел кота!"
 	_refresh_hud()
 	await get_tree().create_timer(0.45, false).timeout
 	if not is_inside_tree():
@@ -1845,7 +1895,10 @@ func _handle_victory() -> void:
 		]
 		var picked: PartData = loot_pool[_rng.randi_range(0, loot_pool.size() - 1)]
 		if picked != null:
-			SaveManager.spare_parts_inventory.append(String(picked.part_id))
+			SaveManager.spare_parts_inventory.append({
+				"part_id": String(picked.part_id),
+				"current_hp": picked.max_hp
+			})
 			dropped_part_name = picked.part_name
 
 	EventBus.battle_finished.emit(true, total_scrap, total_cores, dropped_part_name)
@@ -1880,7 +1933,8 @@ func _handle_victory() -> void:
 				+ str(victory_stats["run_cores_earned"]) + " Ядер ИИ\n"
 				+ "• Мета-бонус эвакуации: +" + str(victory_stats["bonus_titanium_scrap"]) + " Титанового сплава, +"
 				+ str(victory_stats["bonus_ai_cores"]) + " Ядер ИИ\n"
-				+ "• Успешных эвакуаций: " + str(victory_stats["successful_evacuations"])
+				+ "• Успешных эвакуаций: " + str(victory_stats["successful_evacuations"]) + "\n"
+				+ "• Текущий цикл сложности: " + ("Обычный (Цикл 0)" if SaveManager.ng_cycle == 0 else ("NG+ Цикл " + str(SaveManager.ng_cycle)))
 			)
 			_epilogue_btn.visible = true
 			_epilogue_btn.text = "СЮЖЕТНЫЙ ЭПИЛОГ: КОНЦЕРТ БРЕМЕНСКИХ МУЗЫКАНТОВ ->"
