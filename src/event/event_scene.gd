@@ -62,6 +62,7 @@ func _ready() -> void:
 func _build_ui() -> void:
 	var bg: TextureRect = TextureRect.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	bg.stretch_mode = TextureRect.STRETCH_SCALE
 	bg.modulate = Color(0.45, 0.5, 0.65, 1.0)
 	var sec: int = clampi(SaveManager.current_sector, 1, 3)
@@ -109,9 +110,10 @@ func _build_ui() -> void:
 	root_vbox.add_child(_illustration_panel)
 
 	_illustration_rect = TextureRect.new()
-	_illustration_rect.custom_minimum_size = Vector2(312, 92)
+	_illustration_rect.custom_minimum_size = Vector2(280, 100)
+	_illustration_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_illustration_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_illustration_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_illustration_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_illustration_panel.add_child(_illustration_rect)
 
 	# Портрет говорящего персонажа + Диалоговое окно
@@ -121,6 +123,7 @@ func _build_ui() -> void:
 
 	_portrait_rect = TextureRect.new()
 	_portrait_rect.custom_minimum_size = Vector2(60, 60)
+	_portrait_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_portrait_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_portrait_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	speaker_hbox.add_child(_portrait_rect)
@@ -158,6 +161,25 @@ func _build_ui() -> void:
 	_continue_btn.add_theme_font_size_override("font_size", 10)
 	_continue_btn.pressed.connect(_on_continue_pressed)
 	root_vbox.add_child(_continue_btn)
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_accept") or (event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_SPACE or event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER)):
+		if _advance_dialogue_or_continue():
+			get_viewport().set_input_as_handled()
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if _advance_dialogue_or_continue():
+			get_viewport().set_input_as_handled()
+
+func _advance_dialogue_or_continue() -> bool:
+	if _continue_btn != null and _continue_btn.visible:
+		_on_continue_pressed()
+		return true
+	elif _choices_box != null and _choices_box.get_child_count() == 1:
+		var btn: Button = _choices_box.get_child(0) as Button
+		if btn != null and btn.visible:
+			btn.emit_signal("pressed")
+			return true
+	return false
 
 func _on_continue_pressed() -> void:
 	AudioManager.play_sfx("ui_click")
@@ -258,21 +280,26 @@ func _render_dialogue_state() -> void:
 		if (
 			img_path.ends_with("story_cat_exile.png")
 			or img_path.ends_with("story_cat_alone_road.png")
+			or img_path.ends_with("1-cat-start.jpg")
 		):
 			AudioManager.play_story_stage(1)
-		elif img_path.ends_with("story_meet_hound.png"):
+		elif img_path.ends_with("story_meet_hound.png") or img_path.ends_with("2-cat-and-hound-together.jpg"):
 			AudioManager.play_story_stage(2)
-		elif img_path.ends_with("story_mill_mule_captive.png"):
+		elif img_path.ends_with("story_mill_mule_captive.png") or img_path.ends_with("3-press-boss-appirance.jpg"):
 			AudioManager.play_boss_theme(1)
-		elif img_path.ends_with("story_mule_joins.png"):
+		elif img_path.ends_with("story_mule_joins.png") or img_path.ends_with("4a-press-boss-win.jpg"):
 			AudioManager.play_story_stage(3)
-		elif img_path.ends_with("story_tavern_cock_soup.png"):
+		elif img_path.ends_with("story_tavern_cock_soup.png") or img_path.ends_with("5-atamansha-boss-apperiance.jpg"):
 			AudioManager.play_boss_theme(2)
-		elif img_path.ends_with("story_cock_joins_quartet.png"):
+		elif img_path.ends_with("story_cock_joins_quartet.png") or img_path.ends_with("6a-atamansha-boss-win.jpg"):
 			AudioManager.play_story_stage(4)
-		elif img_path.ends_with("story_bremen_window_pyramid.png"):
+		elif img_path.ends_with("story_bremen_window_pyramid.png") or img_path.ends_with("7-sputnik-boss-apperiance.jpg"):
 			AudioManager.play_boss_theme(3)
-		elif img_path.ends_with("story_bremen_victory_concert.png"):
+		elif (
+			img_path.ends_with("story_bremen_victory_concert.png")
+			or img_path.ends_with("8a-sputnik-boss-win.jpg")
+			or img_path.ends_with("9-final.jpg")
+		):
 			AudioManager.play_pyramid_theme(4)
 		else:
 			AudioManager.sync_music_to_party(SaveManager.party)

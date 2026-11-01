@@ -63,7 +63,8 @@ func _ready() -> void:
 		"res://src/map/map_scene.tscn",
 		"res://src/combat/combat_arena.tscn",
 		"res://src/garage/garage_scene.tscn",
-		"res://src/event/event_scene.tscn"
+		"res://src/event/event_scene.tscn",
+		"res://src/core/video_player_scene.tscn"
 	]
 	for spath: String in scenes_to_test:
 		var packed: PackedScene = load(spath) as PackedScene
@@ -152,6 +153,8 @@ func _ready() -> void:
 	# 7. Verify Story & Cutscene Timelines (.dtl) and Boss Portraits (Issue #7)
 	var story_timelines: Array[String] = [
 		"res://data/dialogues/story_intro_crash.dtl",
+		"res://data/dialogues/story_intro_cat.dtl",
+		"res://data/dialogues/story_intro_hound.dtl",
 		"res://data/dialogues/boss_prelude_sector1.dtl",
 		"res://data/dialogues/boss_prelude_sector2.dtl",
 		"res://data/dialogues/boss_prelude_sector3.dtl",
@@ -221,6 +224,64 @@ func _ready() -> void:
 	ev_node.queue_free()
 	await get_tree().process_frame
 	print("[7] Bremen Musicians story cutscenes, 9 illustrations, party recruitment (2->3->4) verified OK")
+
+	# 7.1 Verify Issue #24 Plot Photos, Video assets and VideoPlayerScene
+	var plot_photos: Array[String] = [
+		"res://assets/photos/0-battle-fail.jpg",
+		"res://assets/photos/1-cat-start.jpg",
+		"res://assets/photos/2-cat-and-hound-together.jpg",
+		"res://assets/photos/3-press-boss-appirance.jpg",
+		"res://assets/photos/4a-press-boss-win.jpg",
+		"res://assets/photos/4b-press-boss-fail.jpg",
+		"res://assets/photos/5-atamansha-boss-apperiance.jpg",
+		"res://assets/photos/6a-atamansha-boss-win.jpg",
+		"res://assets/photos/6b-atamansha-boss-fail.jpg",
+		"res://assets/photos/7-sputnik-boss-apperiance.jpg",
+		"res://assets/photos/8a-sputnik-boss-win.jpg",
+		"res://assets/photos/8b-sputnik-boss-fail.jpg",
+		"res://assets/photos/9-final.jpg"
+	]
+	for ppath: String in plot_photos:
+		assert(ResourceLoader.exists(ppath), "Plot photo missing: " + ppath)
+		var p_tex: Texture2D = ResourceLoader.load(ppath) as Texture2D
+		assert(p_tex != null, "Failed to load plot photo texture: " + ppath)
+
+	var vid_packed: PackedScene = load("res://src/core/video_player_scene.tscn") as PackedScene
+	assert(vid_packed != null, "video_player_scene.tscn must be loadable")
+
+	# Test VideoPlayerScene with Photo Slide
+	var photo_scene: VideoPlayerScene = vid_packed.instantiate() as VideoPlayerScene
+	photo_scene.setup_video({
+		"image_path": "res://assets/photos/1-cat-start.jpg",
+		"title": "ТЕСТОВОЕ ФОТО",
+		"next_scene": &"HUB",
+		"next_payload": {}
+	})
+	add_child(photo_scene)
+	await get_tree().process_frame
+	assert(photo_scene._photo_rect != null, "Photo rect must exist")
+	assert(photo_scene._skip_btn != null, "Skip/Continue button must exist")
+	photo_scene._on_skip_pressed()
+	assert(photo_scene._is_finishing, "Skip button must trigger finish")
+	photo_scene.queue_free()
+	await get_tree().process_frame
+
+	# Test VideoPlayerScene with Video Stream
+	var vid_scene: VideoPlayerScene = vid_packed.instantiate() as VideoPlayerScene
+	vid_scene.setup_video({
+		"video_path": "res://assets/videos/1-cat.ogv",
+		"title": "ТЕСТОВОЕ ВИДЕО",
+		"next_scene": &"HUB",
+		"next_payload": {}
+	})
+	add_child(vid_scene)
+	await get_tree().process_frame
+	assert(vid_scene._video_player != null, "Video player node must exist")
+	vid_scene._on_skip_pressed()
+	assert(vid_scene._is_finishing, "Skip button must trigger finish")
+	vid_scene.queue_free()
+	await get_tree().process_frame
+	print("[7.1] All 13 Plot photos, video assets, and cutscene player modes verified OK")
 
 	# 8. Verify Sector 3 Boss Victory Screen, Run Statistics, Meta-Rewards & Save Lifecycle (Issue #6)
 	SaveManager.start_new_run(888999)

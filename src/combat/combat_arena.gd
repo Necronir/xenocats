@@ -58,6 +58,7 @@ var _party_status_box: HBoxContainer = null
 var _action_box: VBoxContainer = null
 var _target_box: VBoxContainer = null
 var _end_overlay: PanelContainer = null
+var _end_art_rect: TextureRect = null
 var _end_title: Label = null
 var _end_desc: Label = null
 var _epilogue_btn: Button = null
@@ -228,6 +229,14 @@ func _build_visual_hierarchy() -> void:
 	end_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	end_vbox.add_theme_constant_override("separation", 8)
 	_end_overlay.add_child(end_vbox)
+
+	_end_art_rect = TextureRect.new()
+	_end_art_rect.custom_minimum_size = Vector2(280, 110)
+	_end_art_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_end_art_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_end_art_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_end_art_rect.visible = false
+	end_vbox.add_child(_end_art_rect)
 
 	_end_title = Label.new()
 	_end_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1876,14 +1885,32 @@ func _handle_victory() -> void:
 			_epilogue_btn.visible = true
 			_epilogue_btn.text = "СЮЖЕТНЫЙ ЭПИЛОГ: КОНЦЕРТ БРЕМЕНСКИХ МУЗЫКАНТОВ ->"
 			_epilogue_btn.pressed.connect(func() -> void:
-				EventBus.request_scene_change.emit(&"EVENT", {
-					"timeline": postlude_path,
+				var final_concert_payload: Dictionary = {
+					"image_path": "res://assets/photos/9-final.jpg",
+					"title": "ФИНАЛ: ВЕЛИКИЙ КОНЦЕРТ БРЕМЕНСКИХ МУЗЫКАНТОВ",
+					"story_stage": 4,
 					"next_scene": &"HUB",
 					"next_payload": {},
-					"title": "ФИНАЛ: КОНЦЕРТ БРЕМЕНСКИХ МУЗЫКАНТОВ",
-					"continue_text": "В ЛАГЕРЬ БРОДЯГ (ХАБ) ->",
 					"action_on_complete": "finish_run"
-				})
+				}
+				var postlude_payload: Dictionary = {
+					"timeline": postlude_path,
+					"next_scene": &"VIDEO",
+					"next_payload": final_concert_payload,
+					"title": "ФИНАЛ: КОНЦЕРТ БРЕМЕНСКИХ МУЗЫКАНТОВ",
+					"continue_text": "К ФИНАЛЬНОМУ ТРИУМФУ ->",
+					"action_on_complete": "finish_run"
+				}
+				if ResourceLoader.exists("res://assets/photos/8a-sputnik-boss-win.jpg"):
+					EventBus.request_scene_change.emit(&"VIDEO", {
+						"image_path": "res://assets/photos/8a-sputnik-boss-win.jpg",
+						"title": "СЕКТОР 3: СИГНАЛ SOS ПЕРЕДАН В КОСМОС // СПУТНИК ПОВЕРЖЕН",
+						"story_stage": 4,
+						"next_scene": &"EVENT",
+						"next_payload": postlude_payload
+					})
+				else:
+					EventBus.request_scene_change.emit(&"EVENT", postlude_payload)
 			)
 			_end_btn.text = "В ЛАГЕРЬ БРОДЯГ (ХАБ)"
 			_end_btn.pressed.connect(func() -> void:
@@ -1916,14 +1943,39 @@ func _handle_victory() -> void:
 			)
 			_end_btn.text = String(win_btns.get(current_sec, "СЮЖЕТ: ИТОГ БОЯ ->"))
 			_end_btn.pressed.connect(func() -> void:
-				EventBus.request_scene_change.emit(&"EVENT", {
+				var postlude_payload: Dictionary = {
 					"timeline": postlude_path,
 					"next_scene": &"MAP",
 					"next_payload": {},
 					"title": String(post_titles.get(current_sec, "СЕКТОР ЗАЧИЩЕН")),
 					"continue_text": String(next_btns.get(current_sec, "ПЕРЕЙТИ В СЛЕДУЮЩИЙ СЕКТОР ->")),
 					"action_on_complete": "advance_sector"
-				})
+				}
+				if current_sec == 1 and ResourceLoader.exists("res://assets/photos/4a-press-boss-win.jpg"):
+					EventBus.request_scene_change.emit(&"VIDEO", {
+						"image_path": "res://assets/photos/4a-press-boss-win.jpg",
+						"title": "СЕКТОР 1: ПОБЕДА НАД ПРЕССОМ // СПАСЕНИЕ ОСЛА M.U.L.E.",
+						"story_stage": 3,
+						"next_scene": &"EVENT",
+						"next_payload": postlude_payload
+					})
+				elif current_sec == 1 and ResourceLoader.exists("res://assets/videos/3-mule.ogv"):
+					EventBus.request_scene_change.emit(&"VIDEO", {
+						"video_path": "res://assets/videos/3-mule.ogv",
+						"title": "СЕКТОР 1: ОСВОБОЖДЕНИЕ ОСЛА M.U.L.E.",
+						"next_scene": &"EVENT",
+						"next_payload": postlude_payload
+					})
+				elif current_sec == 2 and ResourceLoader.exists("res://assets/photos/6a-atamansha-boss-win.jpg"):
+					EventBus.request_scene_change.emit(&"VIDEO", {
+						"image_path": "res://assets/photos/6a-atamansha-boss-win.jpg",
+						"title": "СЕКТОР 2: ПОБЕДА НАД АТАМАНШЕЙ // СПАСЕНИЕ ПЕТУХА C.O.C.K.",
+						"story_stage": 4,
+						"next_scene": &"EVENT",
+						"next_payload": postlude_payload
+					})
+				else:
+					EventBus.request_scene_change.emit(&"EVENT", postlude_payload)
 			)
 	else:
 		_end_title.text = "ПОБЕДА В БОЮ!"
@@ -1951,8 +2003,29 @@ func _handle_defeat() -> void:
 	SaveManager.delete_run_save()
 	EventBus.battle_finished.emit(false, 25, 1, "")
 
+	var def_art_path: String = "res://assets/photos/0-battle-fail.jpg"
+	var was_boss: bool = _is_boss_battle()
+	var current_sec: int = clampi(SaveManager.current_sector, 1, 3)
+	var defeat_custom_title: String = "КОРПУСА ВЫБИТЫ — ЭВАКУАЦИЯ ЯДЕР!"
+	if was_boss:
+		match current_sec:
+			1:
+				def_art_path = "res://assets/photos/4b-press-boss-fail.jpg"
+				defeat_custom_title = "ХОЗЯИН МЕЛЬНИЦЫ РАЗДАВИЛ ВАШИ КОРПУСА!"
+			2:
+				def_art_path = "res://assets/photos/6b-atamansha-boss-fail.jpg"
+				defeat_custom_title = "АТАМАНША РАЗОБРАЛА ВАШИ КОРПУСА НА МЕТАЛЛОЛОМ!"
+			3:
+				def_art_path = "res://assets/photos/8b-sputnik-boss-fail.jpg"
+				defeat_custom_title = "СПЯЩИЙ СПУТНИК ЗАГЛУШИЛ АВАРИЙНУЮ ЧАСТОТУ!"
+
 	_end_overlay.visible = true
-	_end_title.text = "КОРПУСА ВЫБИТЫ — ЭВАКУАЦИЯ ЯДЕР!"
+	_end_overlay.position = Vector2(80, 24)
+	_end_overlay.size = Vector2(480, 310)
+	if _end_art_rect != null and ResourceLoader.exists(def_art_path):
+		_end_art_rect.texture = ResourceLoader.load(def_art_path) as Texture2D
+		_end_art_rect.visible = true
+	_end_title.text = defeat_custom_title
 	_end_title.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
 	_end_desc.text = (
 		"Все 4 корпуса котов выведены из строя.\n"
