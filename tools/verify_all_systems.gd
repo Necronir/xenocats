@@ -1336,6 +1336,234 @@ func _ready() -> void:
 
 	print("[17] Issue #31: Biome boss defeat triggers and companion rescue pipeline (MULE & COCK) verified OK")
 
+	# -----------------------------------------------------------------------------------------------------------------
+	# [18] VERIFY ISSUE #29: TIERED ROBO-FUSIONS WITH SELECTABLE COST TIERS IN ALL ENCOUNTERS (ADR-002)
+	# -----------------------------------------------------------------------------------------------------------------
+	print("\n--- [18] VERIFYING ISSUE #29: TIERED ROBO-FUSIONS WITH SELECTABLE COST TIERS IN ALL ENCOUNTERS ---")
+
+	# 18.1 CombatFusionController structure and FusionTier enum
+	var fusion_ctrl: CombatFusionController = CombatFusionController.new()
+	assert(CombatFusionController.FusionTier.NONE == 0, "FusionTier.NONE must be 0")
+	assert(CombatFusionController.FusionTier.ROBO_CATDOG == 1, "FusionTier.ROBO_CATDOG must be 1")
+	assert(CombatFusionController.FusionTier.ROBO_CATDOG_DONKEY == 2, "FusionTier.ROBO_CATDOG_DONKEY must be 2")
+	assert(CombatFusionController.FusionTier.ROBO_MEGA_PYRAMID == 3, "FusionTier.ROBO_MEGA_PYRAMID must be 3")
+
+	# Sync costs: 50% / 75% / 100%
+	assert(fusion_ctrl.get_tier_sync_cost(CombatFusionController.FusionTier.ROBO_CATDOG) == 50, "Tier 1 cost must be 50% Sync")
+	assert(fusion_ctrl.get_tier_sync_cost(CombatFusionController.FusionTier.ROBO_CATDOG_DONKEY) == 75, "Tier 2 cost must be 75% Sync")
+	assert(fusion_ctrl.get_tier_sync_cost(CombatFusionController.FusionTier.ROBO_MEGA_PYRAMID) == 100, "Tier 3 cost must be 100% Sync")
+
+	# Durations: 2 turns for T1/T2, 3 turns for T3
+	assert(fusion_ctrl.get_tier_duration(CombatFusionController.FusionTier.ROBO_CATDOG) == 2, "Tier 1 must last 2 turns")
+	assert(fusion_ctrl.get_tier_duration(CombatFusionController.FusionTier.ROBO_CATDOG_DONKEY) == 2, "Tier 2 must last 2 turns")
+	assert(fusion_ctrl.get_tier_duration(CombatFusionController.FusionTier.ROBO_MEGA_PYRAMID) == 3, "Tier 3 must last 3 turns")
+
+	# Constituent members
+	var t1_members: Array[StringName] = CombatFusionController.get_constituent_members(CombatFusionController.FusionTier.ROBO_CATDOG)
+	var t2_members: Array[StringName] = CombatFusionController.get_constituent_members(CombatFusionController.FusionTier.ROBO_CATDOG_DONKEY)
+	var t3_members: Array[StringName] = CombatFusionController.get_constituent_members(CombatFusionController.FusionTier.ROBO_MEGA_PYRAMID)
+	assert(t1_members == [&"FELIX", &"HOUND"], "Tier 1 must consist of Felix + Hound")
+	assert(t2_members == [&"FELIX", &"HOUND", &"MULE"], "Tier 2 must consist of Felix + Hound + Mule")
+	assert(t3_members == [&"FELIX", &"HOUND", &"MULE", &"COCK"], "Tier 3 must consist of Full Quartet")
+
+	# 18.2 Available tiers are filtered by currently alive and unlocked party members
+	SaveManager.start_new_run(777111)
+	SaveManager.story_progression.unlocked_fusion_tiers = [0, 1, 2, 3]
+
+	# All 4 alive -> all 3 tiers available
+	var all_4_alive: Array[StringName] = [&"FELIX", &"HOUND", &"MULE", &"COCK"]
+	var avail_all: Array[CombatFusionController.FusionTier] = fusion_ctrl.get_available_tiers(all_4_alive)
+	assert(avail_all.size() == 3, "All 3 tiers must be available when all 4 cats are alive")
+	assert(avail_all.has(CombatFusionController.FusionTier.ROBO_CATDOG), "T1 must be available")
+	assert(avail_all.has(CombatFusionController.FusionTier.ROBO_CATDOG_DONKEY), "T2 must be available")
+	assert(avail_all.has(CombatFusionController.FusionTier.ROBO_MEGA_PYRAMID), "T3 must be available")
+
+	# Mule dead -> only T1 available (T2 and T3 require Mule)
+	var mule_dead: Array[StringName] = [&"FELIX", &"HOUND", &"COCK"]
+	var avail_no_mule: Array[CombatFusionController.FusionTier] = fusion_ctrl.get_available_tiers(mule_dead)
+	assert(avail_no_mule.size() == 1 and avail_no_mule[0] == CombatFusionController.FusionTier.ROBO_CATDOG, "Only T1 must be available if Mule is dead")
+
+	# Hound dead -> no tiers available (all fusions require Hound)
+	var hound_dead: Array[StringName] = [&"FELIX", &"MULE", &"COCK"]
+	assert(fusion_ctrl.get_available_tiers(hound_dead).is_empty(), "No tiers must be available if Hound is dead")
+
+	# Lock T2 and T3 in progression -> only T1 available even if all 4 are alive
+	SaveManager.story_progression.unlocked_fusion_tiers = [0, 1]
+	var avail_prog_t1: Array[CombatFusionController.FusionTier] = fusion_ctrl.get_available_tiers(all_4_alive)
+	assert(avail_prog_t1.size() == 1 and avail_prog_t1[0] == CombatFusionController.FusionTier.ROBO_CATDOG, "Only unlocked tiers in progression must be available")
+	SaveManager.story_progression.unlocked_fusion_tiers = [0, 1, 2, 3]
+
+	# 18.3 Dynamic combat UI buttons with tooltips and activation thresholds (50% / 75% / 100%)
+	var ui_arena: CombatArena = arena_packed.instantiate() as CombatArena
+	ui_arena.setup_battle({"node_type": "COMBAT"})
+	add_child(ui_arena)
+	await get_tree().process_frame
+
+	# At 40% Sync: all buttons exist but disabled (locked)
+	SaveManager.sync_gauge = 40
+	ui_arena._begin_player_turn(0)
+	var btn_t1: Button = ui_arena._action_box.get_node_or_null("FusionButton_Tier1") as Button
+	var btn_t2: Button = ui_arena._action_box.get_node_or_null("FusionButton_Tier2") as Button
+	var btn_t3: Button = ui_arena._action_box.get_node_or_null("FusionButton_Tier3") as Button
+	assert(btn_t1 != null and btn_t2 != null and btn_t3 != null, "All 3 fusion buttons must exist in action box")
+	assert(btn_t1.disabled and btn_t2.disabled and btn_t3.disabled, "All fusion buttons must be disabled below 50% Sync")
+	assert(btn_t1.tooltip_text.contains("50%"), "T1 button tooltip must specify 50% threshold")
+	assert(btn_t2.tooltip_text.contains("75%"), "T2 button tooltip must specify 75% threshold")
+	assert(btn_t3.tooltip_text.contains("100%"), "T3 button tooltip must specify 100% threshold")
+
+	# At 50% Sync: T1 enabled, T2 and T3 disabled
+	SaveManager.sync_gauge = 50
+	ui_arena._begin_player_turn(0)
+	await get_tree().process_frame
+	btn_t1 = ui_arena._action_box.get_node_or_null("FusionButton_Tier1") as Button
+	btn_t2 = ui_arena._action_box.get_node_or_null("FusionButton_Tier2") as Button
+	btn_t3 = ui_arena._action_box.get_node_or_null("FusionButton_Tier3") as Button
+	assert(not btn_t1.disabled, "T1 button must be enabled at 50% Sync")
+	assert(btn_t2.disabled and btn_t3.disabled, "T2 and T3 buttons must remain disabled at 50% Sync")
+
+	# At 75% Sync: T1 and T2 enabled, T3 disabled
+	SaveManager.sync_gauge = 75
+	ui_arena._begin_player_turn(0)
+	await get_tree().process_frame
+	btn_t1 = ui_arena._action_box.get_node_or_null("FusionButton_Tier1") as Button
+	btn_t2 = ui_arena._action_box.get_node_or_null("FusionButton_Tier2") as Button
+	btn_t3 = ui_arena._action_box.get_node_or_null("FusionButton_Tier3") as Button
+	assert(not btn_t1.disabled and not btn_t2.disabled, "T1 and T2 buttons must be enabled at 75% Sync")
+	assert(btn_t3.disabled, "T3 button must remain disabled at 75% Sync")
+
+	# At 100% Sync: all 3 buttons enabled
+	SaveManager.sync_gauge = 100
+	ui_arena._begin_player_turn(0)
+	await get_tree().process_frame
+	btn_t1 = ui_arena._action_box.get_node_or_null("FusionButton_Tier1") as Button
+	btn_t2 = ui_arena._action_box.get_node_or_null("FusionButton_Tier2") as Button
+	btn_t3 = ui_arena._action_box.get_node_or_null("FusionButton_Tier3") as Button
+	assert(not btn_t1.disabled and not btn_t2.disabled and not btn_t3.disabled, "All 3 fusion buttons must be enabled at 100% Sync")
+	ui_arena.queue_free()
+	await get_tree().process_frame
+
+	# 18.4 Fusions can be activated in regular, elite, and boss combats
+	for node_t: String in ["COMBAT", "ELITE", "BOSS"]:
+		var test_arena: CombatArena = arena_packed.instantiate() as CombatArena
+		test_arena.setup_battle({"node_type": node_t})
+		add_child(test_arena)
+		await get_tree().process_frame
+		SaveManager.sync_gauge = 50
+		test_arena._begin_player_turn(0)
+		var fbtn: Button = test_arena._action_box.get_node_or_null("FusionButton_Tier1") as Button
+		assert(fbtn != null and not fbtn.disabled, "Fusion must be activatable in " + node_t + " encounters")
+		test_arena.queue_free()
+		await get_tree().process_frame
+
+	# 18.5 Stats and HP pool correctly computed as the sum of participating mechs; debuffs cleansed on merge
+	var merge_arena: CombatArena = arena_packed.instantiate() as CombatArena
+	merge_arena.setup_battle({"node_type": "COMBAT"})
+	add_child(merge_arena)
+	await get_tree().process_frame
+
+	# Set debuffs on party
+	SaveManager.party[0].bleed_stacks = 2 # Felix
+	SaveManager.party[1].stunned = true   # Hound
+	SaveManager.party[2].bleed_stacks = 3 # Mule (non-participant in T1)
+	SaveManager.party[3].stunned = true   # Cock (non-participant in T1)
+
+	var felix_hp: int = SaveManager.party[0].get_total_current_hp()
+	var hound_hp: int = SaveManager.party[1].get_total_current_hp()
+	var mule_hp: int = SaveManager.party[2].get_total_current_hp()
+	var cock_hp: int = SaveManager.party[3].get_total_current_hp()
+	var expected_t1_hp: int = felix_hp + hound_hp
+
+	SaveManager.sync_gauge = 100
+	merge_arena._activate_fusion_tier(CombatFusionController.FusionTier.ROBO_CATDOG)
+
+	# Verify Sync deducted by exactly 50 (leaves 50)
+	assert(SaveManager.sync_gauge == 50, "Activating Tier 1 (50% Sync) from 100% must leave 50% Sync")
+	assert(merge_arena._pyramid_active, "Fusion must be active")
+	assert(merge_arena._fusion_controller.current_tier == CombatFusionController.FusionTier.ROBO_CATDOG, "Active tier must be ROBO_CATDOG")
+	assert(merge_arena._pyramid_turns_left == 2, "T1 duration must be 2 turns")
+	assert(merge_arena._pyramid_current_hp == expected_t1_hp, "T1 HP pool must strictly equal sum of Felix + Hound HP")
+
+	# Verify debuffs cleansed on participating mechs, preserved on non-participating
+	assert(SaveManager.party[0].bleed_stacks == 0, "Felix bleed debuff must be cleansed on merge")
+	assert(not SaveManager.party[1].stunned, "Hound stun debuff must be cleansed on merge")
+	assert(SaveManager.party[2].bleed_stacks == 3, "Non-participating Mule debuff must NOT be cleansed")
+	assert(SaveManager.party[3].stunned == true, "Non-participating Cock debuff must NOT be cleansed")
+
+	# 18.6 Upon fusion expiration (2 turns for T1/T2, 3 turns for T3), total damage received is distributed proportionally across participating body parts
+	merge_arena.apply_pyramid_damage(30, true)
+	assert(merge_arena._pyramid_damage_taken == 30, "Fusion must track 30 damage taken")
+	assert(merge_arena._pyramid_current_hp == expected_t1_hp - 30, "Fusion HP must deduct 30 damage")
+
+	# Advance round 1 -> 1 turn left
+	merge_arena._start_new_round()
+	assert(merge_arena._pyramid_active and merge_arena._pyramid_turns_left == 1, "Fusion must remain active after 1 round with 1 turn left")
+
+	# Advance round 2 -> expiration
+	merge_arena._start_new_round()
+	assert(not merge_arena._pyramid_active, "Fusion must expire after 2 turns")
+	assert(not merge_arena._fusion_controller.is_active(), "Fusion controller must be inactive after expiration")
+
+	# Damage distributed only across Felix and Hound; Mule and Cock took 0 damage
+	assert(SaveManager.party[2].get_total_current_hp() == mule_hp, "Non-participating Mule must take 0 damage from fusion")
+	assert(SaveManager.party[3].get_total_current_hp() == cock_hp, "Non-participating Cock must take 0 damage from fusion")
+	var t1_participants_hp: int = SaveManager.party[0].get_total_current_hp() + SaveManager.party[1].get_total_current_hp()
+	assert(t1_participants_hp == expected_t1_hp - 30, "Participating mechs (Felix + Hound) must absorb exactly 30 total distributed damage")
+	merge_arena.queue_free()
+	await get_tree().process_frame
+
+	# 18.7 Tier 2 (ROBO_CATDOG_DONKEY): Heavy armor (+60%), 2 turns duration, 3 mechs damage distribution
+	var t2_arena: CombatArena = arena_packed.instantiate() as CombatArena
+	t2_arena.setup_battle({"node_type": "COMBAT"})
+	add_child(t2_arena)
+	await get_tree().process_frame
+	SaveManager.sync_gauge = 100
+	t2_arena._activate_fusion_tier(CombatFusionController.FusionTier.ROBO_CATDOG_DONKEY)
+	assert(SaveManager.sync_gauge == 25, "Activating Tier 2 (75% Sync) from 100% must leave 25% Sync")
+	assert(t2_arena._pyramid_turns_left == 2, "Tier 2 duration must be 2 turns")
+
+	# Test heavy armor (+60% damage reduction = takes 40% damage)
+	var t2_hit_res: Dictionary = t2_arena.apply_pyramid_damage(50, false)
+	assert(int(t2_hit_res["damage"]) == 20, "Tier 2 heavy armor (+60%) must reduce 50 raw damage to 20")
+
+	# Expire after 2 turns
+	t2_arena._start_new_round()
+	t2_arena._start_new_round()
+	assert(not t2_arena._pyramid_active, "Tier 2 must expire after 2 turns")
+	t2_arena.queue_free()
+	await get_tree().process_frame
+
+	# 18.8 Tier 3 (ROBO_MEGA_PYRAMID): 3 turns duration, status immunity, full quartet
+	var t3_arena: CombatArena = arena_packed.instantiate() as CombatArena
+	t3_arena.setup_battle({"node_type": "BOSS"})
+	add_child(t3_arena)
+	await get_tree().process_frame
+	SaveManager.sync_gauge = 100
+	t3_arena._activate_fusion_tier(CombatFusionController.FusionTier.ROBO_MEGA_PYRAMID)
+	assert(SaveManager.sync_gauge == 0, "Activating Tier 3 (100% Sync) must leave 0% Sync")
+	assert(t3_arena._pyramid_turns_left == 3, "Tier 3 duration must be 3 turns")
+
+	# Advance 2 rounds -> still active (3 turns duration)
+	t3_arena._start_new_round()
+	assert(t3_arena._pyramid_active and t3_arena._pyramid_turns_left == 2, "Tier 3 must have 2 turns remaining after round 1")
+	t3_arena._start_new_round()
+	assert(t3_arena._pyramid_active and t3_arena._pyramid_turns_left == 1, "Tier 3 must have 1 turn remaining after round 2")
+	t3_arena._start_new_round()
+	assert(not t3_arena._pyramid_active, "Tier 3 must expire after 3 turns")
+	t3_arena.queue_free()
+	await get_tree().process_frame
+
+	# 18.9 Audio theme switches dynamically via AudioManager.play_pyramid_theme(tier)
+	AudioManager.play_pyramid_theme(CombatFusionController.FusionTier.ROBO_CATDOG)
+	assert(AudioManager.current_theme_id == &"PYRAMID_2" and AudioManager.active_instruments.size() == 3, "Tier 1 theme must be PYRAMID_2 with 3 instruments")
+
+	AudioManager.play_pyramid_theme(CombatFusionController.FusionTier.ROBO_CATDOG_DONKEY)
+	assert(AudioManager.current_theme_id == &"PYRAMID_3" and AudioManager.active_instruments.size() == 4, "Tier 2 theme must be PYRAMID_3 with 4 instruments")
+
+	AudioManager.play_pyramid_theme(CombatFusionController.FusionTier.ROBO_MEGA_PYRAMID)
+	assert(AudioManager.current_theme_id == &"PYRAMID_4" and AudioManager.active_instruments.size() == 5, "Tier 3 theme must be PYRAMID_4 with 5 instruments")
+
+	print("[18] Issue #29: Tiered robo-fusions with selectable cost tiers in all encounters verified OK")
+
 	AudioManager.stop_music()
 	await get_tree().process_frame
 	SaveManager.delete_run_save()

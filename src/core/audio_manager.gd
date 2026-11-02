@@ -194,8 +194,28 @@ func sync_music_to_party(party_cats: Array = []) -> void:
 		count = SaveManager.party.size()
 	play_story_stage(clampi(maxi(1, count), 1, 4))
 
-func play_pyramid_theme(tier: int = 4) -> void:
-	var clamped_tier: int = clampi(tier, 2, 4)
+func play_pyramid_theme(tier: Variant = 4) -> void:
+	var clamped_tier: int = 4
+	if tier is String or tier is StringName:
+		var s: String = String(tier).to_upper()
+		if s.contains("CATDOG_DONKEY") or s == "TRIO" or s == "PYRAMID_3":
+			clamped_tier = 3
+		elif s.contains("CATDOG") or s == "DUO" or s == "PYRAMID_2":
+			clamped_tier = 2
+		else:
+			clamped_tier = 4
+	elif tier is int:
+		var t_int: int = int(tier)
+		match t_int:
+			1:
+				clamped_tier = 2 # Tier 1: Robo-CatDog (2 cats -> PYRAMID_2)
+			2:
+				clamped_tier = 3 # Tier 2: Robo-CatDogDonkey (3 cats -> PYRAMID_3)
+			3, 4:
+				clamped_tier = 4 # Tier 3: Robo-Mega-Pyramid (4 cats -> PYRAMID_4)
+			_:
+				clamped_tier = clampi(t_int, 2, 4)
+
 	var cfg: Dictionary = PYRAMID_STAGE_CONFIG[clamped_tier] as Dictionary
 	var key: String = String(cfg["key"])
 	var inst_list: Array[String] = []
@@ -221,6 +241,17 @@ func play_pyramid_theme(tier: int = 4) -> void:
 		var pos: float = _music_player.get_playback_position() if _music_player.playing else 0.0
 		_music_player.stream = stream
 		_music_player.play(pos)
+
+func play_fusion_theme(tier: CombatFusionController.FusionTier) -> void:
+	match tier:
+		CombatFusionController.FusionTier.ROBO_CATDOG:
+			play_pyramid_theme(2)
+		CombatFusionController.FusionTier.ROBO_CATDOG_DONKEY:
+			play_pyramid_theme(3)
+		CombatFusionController.FusionTier.ROBO_MEGA_PYRAMID:
+			play_pyramid_theme(4)
+		_:
+			play_pyramid_theme(4)
 
 func play_boss_theme(sector: int = 1) -> void:
 	var clamped_sec: int = clampi(sector, 1, 3)
