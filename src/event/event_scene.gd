@@ -53,6 +53,12 @@ func _ready() -> void:
 
 	_build_ui()
 	var tl_path: String = String(_payload.get("timeline", ""))
+	if tl_path != "" and not FileAccess.file_exists(tl_path):
+		var candidate_name: String = tl_path if tl_path.ends_with(".dtl") else (tl_path + ".dtl")
+		if not candidate_name.begins_with("res://"):
+			candidate_name = "res://data/dialogues/" + candidate_name
+		if FileAccess.file_exists(candidate_name):
+			tl_path = candidate_name
 	if tl_path == "" or not FileAccess.file_exists(tl_path):
 		var sec_idx: int = clampi(SaveManager.current_sector - 1, 0, TIMELINE_FILES.size() - 1)
 		tl_path = TIMELINE_FILES[sec_idx]
@@ -287,11 +293,19 @@ func _render_dialogue_state() -> void:
 			AudioManager.play_story_stage(2)
 		elif img_path.ends_with("story_mill_mule_captive.png") or img_path.ends_with("3-press-boss-appirance.jpg"):
 			AudioManager.play_boss_theme(1)
-		elif img_path.ends_with("story_mule_joins.png") or img_path.ends_with("4a-press-boss-win.jpg"):
+		elif (
+			img_path.ends_with("story_mule_joins.png")
+			or img_path.ends_with("4a-press-boss-win.jpg")
+			or img_path.find("rescue_mule") != -1
+		):
 			AudioManager.play_story_stage(3)
 		elif img_path.ends_with("story_tavern_cock_soup.png") or img_path.ends_with("5-atamansha-boss-apperiance.jpg"):
 			AudioManager.play_boss_theme(2)
-		elif img_path.ends_with("story_cock_joins_quartet.png") or img_path.ends_with("6a-atamansha-boss-win.jpg"):
+		elif (
+			img_path.ends_with("story_cock_joins_quartet.png")
+			or img_path.ends_with("6a-atamansha-boss-win.jpg")
+			or img_path.find("rescue_cock") != -1
+		):
 			AudioManager.play_story_stage(4)
 		elif img_path.ends_with("story_bremen_window_pyramid.png") or img_path.ends_with("7-sputnik-boss-apperiance.jpg"):
 			AudioManager.play_boss_theme(3)
