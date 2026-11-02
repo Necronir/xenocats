@@ -6,6 +6,7 @@ extends Resource
 @export var description: String = ""
 @export var is_modular: bool = false # false = обычный моб (единый HP), true = Элитка / Босс (3 детали)
 @export var is_boss: bool = false
+@export var is_final_boss: bool = false
 @export var is_elite: bool = false
 @export var sector_level: int = 1
 

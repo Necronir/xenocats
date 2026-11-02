@@ -1042,6 +1042,178 @@ func _ready() -> void:
 
 	print("[15] Issue #28: Dynamic 4-Run Story Loop, Biome Themes, Save/Load Roundtrip & Wipe Persistence verified OK")
 
+	# =========================================================================
+	# [16] Issue #30: 4-Phase Final Boss with Color Vulnerability Matrix & Ensemble Finisher
+	# =========================================================================
+	print("\n--- [16] VERIFYING ISSUE #30: 4-PHASE FINAL BOSS & ENSEMBLE FINISHER ---")
+
+	# 16.1 BossColoredSegment data class manages affinity color, shielding, and damage filters
+	var seg_blue: BossColoredSegment = BossColoredSegment.new(
+		&"segment_blue",
+		"Синий резонатор",
+		BossColoredSegment.AffinityColor.BLUE,
+		100, # HP
+		20,  # Shield
+		2,   # Armor
+		1,   # Required tier
+		&"FELIX"
+	)
+	assert(seg_blue.affinity_color == BossColoredSegment.AffinityColor.BLUE, "Affinity color must be BLUE")
+	assert(seg_blue.current_hp == 100 and seg_blue.shield == 20, "HP and Shield must match initial values")
+	assert(seg_blue.is_vulnerable_to(&"FELIX"), "Blue segment must be vulnerable to FELIX")
+	assert(not seg_blue.is_vulnerable_to(&"HOUND"), "Blue segment must not be vulnerable to HOUND solo")
+	assert(not seg_blue.is_vulnerable_to(&"MULE"), "Blue segment must not be vulnerable to MULE solo")
+	assert(not seg_blue.is_vulnerable_to(&"COCK"), "Blue segment must not be vulnerable to COCK solo")
+
+	# 16.2 Attacking a segment with a non-matching hero deals 0 damage, plays dissonant clipping SFX, and displays floating notification \"0! МУЗЫКА СЛИШКОМ СЛАБАЯ!\"
+	var immune_res: Dictionary = seg_blue.apply_damage(50, &"HOUND", 0)
+	assert(immune_res["damage"] == 0, "Non-matching hero attack must deal strictly 0 damage")
+	assert(immune_res["immune"] == true, "Non-matching attack must flag immune=true")
+	assert(immune_res["floating_text"] == "0! МУЗЫКА СЛИШКОМ СЛАБАЯ!", "Non-matching attack must display '0! МУЗЫКА СЛИШКОМ СЛАБАЯ!'")
+	assert(immune_res["sfx"] == "dissonance", "Non-matching attack must trigger dissonant SFX")
+	assert(seg_blue.current_hp == 100 and seg_blue.shield == 20, "Target HP and shield must be untouched on non-matching attack")
+
+	AudioManager.play_sfx("dissonance")
+	assert(AudioManager.last_sfx_played == "dissonance", "AudioManager must support dissonance SFX")
+	AudioManager.play_sfx("clipping")
+	assert(AudioManager.last_sfx_played == "clipping", "AudioManager must support clipping SFX")
+
+	# Matching attack: absorbs shield, reduces armor, damages HP
+	var hit_res_felix: Dictionary = seg_blue.apply_damage(30, &"FELIX", 0)
+	assert(not hit_res_felix["immune"], "Matching hero attack must not be immune")
+	assert(seg_blue.shield == 0, "20 shield absorbed from 30 raw damage")
+	assert(hit_res_felix["absorbed_by_shield"] == 20, "Shield absorption mismatch")
+	assert(hit_res_felix["damage"] == 8, "Damage after shield and armor must be 8")
+	assert(seg_blue.current_hp == 92, "HP must be 92")
+
+	# 16.3 Fusion attacks correctly deal multi-color damage corresponding to their constituent members
+	var seg_red: BossColoredSegment = BossColoredSegment.new(&"segment_red", "Красный глушитель", BossColoredSegment.AffinityColor.RED, 100, 0, 0, 2, &"HOUND")
+	var seg_yellow: BossColoredSegment = BossColoredSegment.new(&"segment_yellow", "Жёлтый цензор", BossColoredSegment.AffinityColor.YELLOW, 100, 0, 0, 3, &"MULE")
+	var seg_green: BossColoredSegment = BossColoredSegment.new(&"segment_green", "Зелёный фильтр", BossColoredSegment.AffinityColor.GREEN, 100, 0, 0, 3, &"COCK")
+
+	# Tier 1 (ROBO_CATDOG): Blue + Red
+	assert(seg_blue.is_vulnerable_to(&"FELIX", 1) and seg_blue.is_vulnerable_to(&"HOUND", 1), "Tier 1 must damage Blue")
+	assert(seg_red.is_vulnerable_to(&"FELIX", 1) and seg_red.is_vulnerable_to(&"HOUND", 1), "Tier 1 must damage Red")
+	assert(not seg_yellow.is_vulnerable_to(&"FELIX", 1), "Tier 1 must NOT damage Yellow")
+	assert(not seg_green.is_vulnerable_to(&"FELIX", 1), "Tier 1 must NOT damage Green")
+
+	var t1_yellow_hit: Dictionary = seg_yellow.apply_damage(60, &"FELIX", 1)
+	assert(t1_yellow_hit["damage"] == 0 and t1_yellow_hit["immune"] and t1_yellow_hit["floating_text"] == "0! МУЗЫКА СЛИШКОМ СЛАБАЯ!", "Tier 1 on Yellow must deal 0 damage with weak music alert")
+
+	# Tier 2 (ROBO_CATDOG_DONKEY): Blue + Red + Yellow
+	assert(seg_blue.is_vulnerable_to(&"FELIX", 2), "Tier 2 must damage Blue")
+	assert(seg_red.is_vulnerable_to(&"FELIX", 2), "Tier 2 must damage Red")
+	assert(seg_yellow.is_vulnerable_to(&"FELIX", 2), "Tier 2 must damage Yellow")
+	assert(not seg_green.is_vulnerable_to(&"FELIX", 2), "Tier 2 must NOT damage Green")
+
+	var t2_green_hit: Dictionary = seg_green.apply_damage(60, &"FELIX", 2)
+	assert(t2_green_hit["damage"] == 0 and t2_green_hit["immune"] and t2_green_hit["floating_text"] == "0! МУЗЫКА СЛИШКОМ СЛАБАЯ!", "Tier 2 on Green must deal 0 damage with weak music alert")
+
+	# Tier 3 (ROBO_MEGA_PYRAMID): Blue + Red + Yellow + Green (Universal spectral damage)
+	assert(seg_blue.is_vulnerable_to(&"FELIX", 3), "Tier 3 must damage Blue")
+	assert(seg_red.is_vulnerable_to(&"FELIX", 3), "Tier 3 must damage Red")
+	assert(seg_yellow.is_vulnerable_to(&"FELIX", 3), "Tier 3 must damage Yellow")
+	assert(seg_green.is_vulnerable_to(&"FELIX", 3), "Tier 3 must damage Green")
+
+	var t3_green_hit: Dictionary = seg_green.apply_damage(45, &"FELIX", 3)
+	assert(t3_green_hit["damage"] == 45 and not t3_green_hit["immune"], "Tier 3 Mega-Pyramid must successfully damage Green")
+
+	# 16.4 Phase gates enforce fusion requirements:
+	# - Phase 1 -> 2 requires Tier 1 (ROBO_CATDOG)
+	# - Phase 2 -> 3 requires Tier 2 (ROBO_CATDOG_DONKEY)
+	# - Phase 3 -> 4 requires Tier 3 (ROBO_MEGA_PYRAMID)
+	var boss_ctrl: FinalBossController = FinalBossController.new()
+	assert(boss_ctrl.current_phase == FinalBossController.Phase.PHASE_1_BLUE, "Boss must start in Phase 1 (Blue)")
+
+	# Phase 1 -> 2 gate checks
+	var p1_gate_notier: Dictionary = boss_ctrl.check_phase_gate(1, [&"FELIX", &"HOUND"], 0)
+	assert(not p1_gate_notier["allowed"] and not p1_gate_notier["rejected"] and p1_gate_notier["requires_tier"] == 1, "Phase 1 -> 2 must require Tier 1 fusion")
+	var p1_gate_pass: Dictionary = boss_ctrl.check_phase_gate(1, [&"FELIX", &"HOUND"], 1)
+	assert(p1_gate_pass["allowed"] and p1_gate_pass["next_phase"] == 2, "Phase 1 -> 2 must pass with Tier 1")
+
+	# Phase 2 -> 3 gate checks
+	var p2_gate_notier: Dictionary = boss_ctrl.check_phase_gate(2, [&"FELIX", &"HOUND", &"MULE"], 1)
+	assert(not p2_gate_notier["allowed"] and not p2_gate_notier["rejected"] and p2_gate_notier["requires_tier"] == 2, "Phase 2 -> 3 must require Tier 2 fusion")
+	var p2_gate_pass: Dictionary = boss_ctrl.check_phase_gate(2, [&"FELIX", &"HOUND", &"MULE"], 2)
+	assert(p2_gate_pass["allowed"] and p2_gate_pass["next_phase"] == 3, "Phase 2 -> 3 must pass with Tier 2")
+
+	# Phase 3 -> 4 gate checks
+	var p3_gate_notier: Dictionary = boss_ctrl.check_phase_gate(3, [&"FELIX", &"HOUND", &"MULE", &"COCK"], 2)
+	assert(not p3_gate_notier["allowed"] and not p3_gate_notier["rejected"] and p3_gate_notier["requires_tier"] == 3, "Phase 3 -> 4 must require Tier 3 fusion")
+	var p3_gate_pass: Dictionary = boss_ctrl.check_phase_gate(3, [&"FELIX", &"HOUND", &"MULE", &"COCK"], 3)
+	assert(p3_gate_pass["allowed"] and p3_gate_pass["next_phase"] == 4, "Phase 3 -> 4 must pass with Tier 3")
+
+	# 16.5 Scripted narrative rejection kicks player back to Hub if required party members are missing
+	# Run 0 (Solo Cat): missing Hound on Phase 1 defeat
+	var run0_boss: FinalBossController = FinalBossController.new()
+	var run0_eject: Dictionary = run0_boss.check_phase_gate(1, [&"FELIX"], 0)
+	assert(run0_eject["rejected"] == true, "Run 0 missing Hound must trigger scripted rejection")
+	assert(run0_eject["target_story_phase"] == StoryProgressionData.StoryPhase.CYCLE_1_DUO, "Run 0 rejection must target CYCLE_1_DUO")
+	assert(run0_eject["floating_text"] == "0! МУЗЫКА СЛИШКОМ СЛАБАЯ!", "Run 0 rejection must display '0! МУЗЫКА СЛИШКОМ СЛАБАЯ!'")
+	assert(run0_eject["sfx"] == "dissonance", "Run 0 rejection must trigger dissonant SFX")
+
+	# Run 1 (Duo): missing Mule on Phase 2 defeat
+	var run1_boss: FinalBossController = FinalBossController.new()
+	var run1_eject: Dictionary = run1_boss.check_phase_gate(2, [&"FELIX", &"HOUND"], 1)
+	assert(run1_eject["rejected"] == true, "Run 1 missing Mule must trigger scripted rejection")
+	assert(run1_eject["target_story_phase"] == StoryProgressionData.StoryPhase.CYCLE_2_TRIO, "Run 1 rejection must target CYCLE_2_TRIO")
+
+	# Run 2 (Trio): missing Cock on Phase 3 defeat
+	var run2_boss: FinalBossController = FinalBossController.new()
+	var run2_eject: Dictionary = run2_boss.check_phase_gate(3, [&"FELIX", &"HOUND", &"MULE"], 2)
+	assert(run2_eject["rejected"] == true, "Run 2 missing Cock must trigger scripted rejection")
+	assert(run2_eject["target_story_phase"] == StoryProgressionData.StoryPhase.CYCLE_3_QUARTET, "Run 2 rejection must target CYCLE_3_QUARTET")
+
+	# 16.6 Phase 4 Finisher: Synchronized 4-note rhythmic QTE executing the full band chord to destroy the boss
+	var run3_boss: FinalBossController = FinalBossController.new()
+	run3_boss.current_phase = FinalBossController.Phase.PHASE_4_GREEN
+	var green_seg: BossColoredSegment = run3_boss.get_current_segment()
+	green_seg.shield = 0
+	green_seg.armor = 0
+	var pre_finisher_hit: Dictionary = run3_boss.apply_attack(258, &"FELIX", 3, true, [&"FELIX", &"HOUND", &"MULE", &"COCK"])
+	assert(run3_boss.is_finisher_ready, "Boss in Phase 4 at <= 1% HP must transition to is_finisher_ready=true")
+	assert(pre_finisher_hit["finisher_triggered"] == true, "Finisher trigger flag must be set")
+
+	# 4-beat sequence: Felix -> Hound -> Mule -> Cock
+	var b1: Dictionary = run3_boss.execute_finisher_beat(1, true)
+	assert(b1["success"] and b1["hero"] == &"FELIX" and not b1["all_completed"], "Beat 1 must be Felix (Guitar)")
+
+	var b2: Dictionary = run3_boss.execute_finisher_beat(2, true)
+	assert(b2["success"] and b2["hero"] == &"HOUND" and not b2["all_completed"], "Beat 2 must be Hound (Drums)")
+
+	var b3: Dictionary = run3_boss.execute_finisher_beat(3, true)
+	assert(b3["success"] and b3["hero"] == &"MULE" and not b3["all_completed"], "Beat 3 must be Mule (Bass)")
+
+	var b4: Dictionary = run3_boss.execute_finisher_beat(4, true)
+	assert(b4["success"] and b4["hero"] == &"COCK" and b4["all_completed"], "Beat 4 must be Cock (Synth) and complete finisher")
+	assert(run3_boss.finisher_succeeded and run3_boss.is_defeated, "Full 4-note finisher must defeat the final boss")
+
+	var vfx_info: Dictionary = run3_boss.trigger_destruction_vfx()
+	assert(vfx_info.has("screenshake_amplitude") and float(vfx_info["screenshake_amplitude"]) >= 15.0, "Finisher must trigger screenshake")
+	assert(vfx_info.has("spark_colors") and (vfx_info["spark_colors"] as Array).size() == 4, "Finisher VFX must produce 4 spectral colors")
+	assert(vfx_info["sfx_main"] == "part_break" and vfx_info["sfx_secondary"] == "pyramid_undock", "Finisher must trigger destruction SFX")
+
+	# 16.7 Integration in EnemyInstance with boss_censor resource
+	var censor_data: EnemyData = DataCatalog.get_enemy("boss_censor")
+	assert(censor_data != null, "boss_censor resource must be registered in DataCatalog")
+	assert(censor_data.is_boss and censor_data.sector_level == 4, "boss_censor must be sector 4 boss")
+
+	var censor_enemy: EnemyInstance = EnemyInstance.new(censor_data)
+	assert(censor_enemy.is_final_boss(), "EnemyInstance must identify boss_censor as final boss")
+	assert(censor_enemy.final_boss_controller != null, "boss_censor must automatically initialize FinalBossController")
+
+	# Non-matching attack on censor enemy deals 0 damage with floating text
+	var en_immune_hit: Dictionary = censor_enemy.take_damage(70, PartData.PartSlot.BODY, false, &"HOUND", 0, [&"FELIX", &"HOUND"])
+	assert(en_immune_hit["damage"] == 0 and en_immune_hit["immune"], "Non-matching attack on censor enemy must deal 0 damage")
+	assert(en_immune_hit["floating_text"] == "0! МУЗЫКА СЛИШКОМ СЛАБАЯ!", "Must display '0! МУЗЫКА СЛИШКОМ СЛАБАЯ!'")
+	assert(en_immune_hit["sfx"] == "dissonance", "Must trigger dissonance sfx")
+
+	# Matching attack on censor enemy deals damage
+	var en_hit_felix: Dictionary = censor_enemy.take_damage(40, PartData.PartSlot.BODY, false, &"FELIX", 0, [&"FELIX", &"HOUND"])
+	assert(en_hit_felix["damage"] > 0 and not en_hit_felix["immune"], "Matching attack on censor enemy must deal damage")
+
+	print("[16] Issue #30: 4-Phase Final Boss with Color Vulnerability Matrix & Ensemble Finisher verified OK")
+
 	AudioManager.stop_music()
 	await get_tree().process_frame
 	SaveManager.delete_run_save()

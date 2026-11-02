@@ -9,6 +9,9 @@ var body_part: PartInstance = null
 var arms_part: PartInstance = null
 var legs_part: PartInstance = null
 
+# Финальный босс (Шпиль Бремен-4, ADR-002, Issue #30)
+var final_boss_controller: FinalBossController = null
+
 # Боевые статусы
 var marked: bool = false
 var bleed_stacks: int = 0
@@ -29,10 +32,32 @@ func _init(p_data: EnemyData = null) -> void:
 		else:
 			current_hp = data.max_hp
 
+		if data.is_final_boss or data.enemy_id == &"boss_censor":
+			setup_final_boss_controller()
+
 func is_modular() -> bool:
-	return data != null and data.is_modular
+	return (data != null and data.is_modular) or final_boss_controller != null
+
+func is_final_boss() -> bool:
+	if final_boss_controller != null:
+		return true
+	if data != null:
+		return data.is_final_boss or data.enemy_id == &"boss_censor" or (data.is_boss and data.sector_level == 4)
+	return false
+
+func setup_final_boss_controller(fbc: FinalBossController = null) -> FinalBossController:
+	if fbc != null:
+		final_boss_controller = fbc
+	else:
+		final_boss_controller = FinalBossController.new()
+	var seg: BossColoredSegment = final_boss_controller.get_current_segment()
+	if seg != null:
+		current_hp = seg.current_hp
+	return final_boss_controller
 
 func is_alive() -> bool:
+	if final_boss_controller != null:
+		return not final_boss_controller.is_defeated and not final_boss_controller.is_ejected
 	if is_modular():
 		return body_part != null and body_part.current_hp > 0
 	return current_hp > 0
@@ -40,6 +65,8 @@ func is_alive() -> bool:
 func get_initiative_score() -> int:
 	if data == null:
 		return 5
+	if final_boss_controller != null:
+		return 18
 	if is_modular() and legs_part != null:
 		if legs_part.is_broken():
 			return maxi(1, int(float(legs_part.get_base_speed()) * 0.3))
@@ -56,7 +83,32 @@ func get_part(slot: PartData.PartSlot) -> PartInstance:
 			return legs_part
 	return body_part
 
-func take_damage(raw_damage: int, target_slot: PartData.PartSlot = PartData.PartSlot.BODY, ignore_armor: bool = false) -> Dictionary:
+func take_damage(
+	raw_damage: int,
+	target_slot: PartData.PartSlot = PartData.PartSlot.BODY,
+	ignore_armor: bool = false,
+	attacker_hero_id: StringName = &"FELIX",
+	fusion_tier: int = 0,
+	party_members: Array[StringName] = []
+) -> Dictionary:
+	if final_boss_controller != null:
+		var boss_res: Dictionary = final_boss_controller.apply_attack(
+			raw_damage,
+			attacker_hero_id,
+			fusion_tier,
+			ignore_armor,
+			party_members
+		)
+		var seg: BossColoredSegment = final_boss_controller.get_current_segment()
+		if seg != null:
+			current_hp = seg.current_hp
+		if body_part != null:
+			body_part.current_hp = current_hp
+		boss_res["slot"] = target_slot
+		boss_res["triggered_mark"] = false
+		boss_res["killed"] = not is_alive()
+		return boss_res
+
 	var bonus_from_mark: int = 0
 	var triggered_mark: bool = false
 	if marked:
@@ -104,7 +156,7 @@ func choose_next_skill(rng: RandomNumberGenerator) -> SkillData:
 	if data == null:
 		return null
 	var pool: Array[SkillData] = []
-	if is_modular():
+	if is_modular() and final_boss_controller == null:
 		if arms_part != null and not arms_part.is_broken() and arms_part.data != null:
 			for s: SkillData in arms_part.data.skills:
 				if s != null:
@@ -127,4 +179,3 @@ func choose_next_skill(rng: RandomNumberGenerator) -> SkillData:
 		fallback.base_damage = 8
 		return fallback
 	return pool[rng.randi_range(0, pool.size() - 1)]
-
