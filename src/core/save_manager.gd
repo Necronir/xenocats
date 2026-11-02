@@ -338,29 +338,53 @@ func handle_biome_boss_defeat(biome_theme: String = "", boss_id: String = "") ->
 	# Yellow Biome Boss -> M.U.L.E. (Donkey / Bassist)
 	# Green Biome Boss -> C.O.C.K. (Rooster / Synth & Electronic Warfare)
 	var p_val: int = int(story_progression.current_phase) if story_progression != null else -1
-	if p_val == int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT) or (boss_id == "boss_satellite" and p_val == 0):
+	if boss_id == "boss_satellite" or (p_val == int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT) and clean_theme == "BLUE"):
 		companion_id = &"HOUND"
 		timeline = "res://data/dialogues/boss_postlude_sputnik_solo.dtl"
 		timeline_id = "boss_postlude_sputnik_solo"
 		photo_path = "res://assets/photos/1-4b-trubadur-apperiance.jpg"
-		post_title = "ПРОЛОГ: СПУТНИК ПОВЕРЖЕН // ПОЯВЛЕНИЕ КИБЕР-ТРУБАДУРА"
+		post_title = "СПУТНИК ПОВЕРЖЕН // ПОЯВЛЕНИЕ КИБЕР-ТРУБАДУРА"
 		fusion_tier = 1
 		clean_theme = "BLUE"
-	elif clean_theme == "YELLOW" or boss_id == "boss_press":
+	elif boss_id == "boss_press" or clean_theme == "YELLOW":
 		companion_id = &"MULE"
 		timeline = "res://data/dialogues/dialogic_rescue_mule.dtl"
 		timeline_id = "dialogic_rescue_mule"
 		photo_path = "res://assets/photos/2-3a-press-boss-win.jpg"
-		post_title = "СЕКТОР: ПОБЕДА НАД ПРЕССОМ // СПАСЕНИЕ ОСЛА M.U.L.E."
+		post_title = "СЕКТОР 1: ПОБЕДА НАД ПРЕССОМ // СПАСЕНИЕ ОСЛА M.U.L.E."
 		fusion_tier = 2 # ROBO_CATDOG_DONKEY
 		clean_theme = "YELLOW"
-	elif clean_theme == "GREEN" or boss_id == "boss_atamansha":
+	elif boss_id == "boss_atamansha" or clean_theme == "GREEN":
 		companion_id = &"COCK"
 		timeline = "res://data/dialogues/dialogic_rescue_cock.dtl"
 		timeline_id = "dialogic_rescue_cock"
 		photo_path = "res://assets/photos/3-2a-atamansha-boss-win.jpg"
-		post_title = "СЕКТОР: ПОБЕДА НАД АТАМАНШЕЙ // СПАСЕНИЕ ПЕТУХА C.O.C.K."
+		post_title = "СЕКТОР 2: ПОБЕДА НАД АТАМАНШЕЙ // СПАСЕНИЕ ПЕТУХА C.O.C.K."
 		fusion_tier = 3 # ROBO_MEGA_PYRAMID
+		clean_theme = "GREEN"
+	elif boss_id == "boss_censor":
+		companion_id = &""
+		timeline = "res://data/dialogues/boss_postlude_sector3.dtl"
+		timeline_id = "boss_postlude_sector3"
+		photo_path = "res://assets/photos/6-4-fake-boss-win.jpg"
+		post_title = "ФИНАЛЬНЫЙ СЕКТОР: СВЕРЖЕНИЕ ЦЕНЗОРА"
+		fusion_tier = 3
+		clean_theme = "BLUE"
+	elif current_sector == 1:
+		companion_id = &"MULE"
+		timeline = "res://data/dialogues/dialogic_rescue_mule.dtl"
+		timeline_id = "dialogic_rescue_mule"
+		photo_path = "res://assets/photos/2-3a-press-boss-win.jpg"
+		post_title = "СЕКТОР 1: ПОБЕДА НАД ПРЕССОМ // СПАСЕНИЕ ОСЛА M.U.L.E."
+		fusion_tier = 2
+		clean_theme = "YELLOW"
+	elif current_sector == 2:
+		companion_id = &"COCK"
+		timeline = "res://data/dialogues/dialogic_rescue_cock.dtl"
+		timeline_id = "dialogic_rescue_cock"
+		photo_path = "res://assets/photos/3-2a-atamansha-boss-win.jpg"
+		post_title = "СЕКТОР 2: ПОБЕДА НАД АТАМАНШЕЙ // СПАСЕНИЕ ПЕТУХА C.O.C.K."
+		fusion_tier = 3
 		clean_theme = "GREEN"
 	else:
 		var inferred: String = MapGenerator.get_sector_theme(current_sector, p_val)
@@ -400,10 +424,19 @@ func handle_biome_boss_defeat(biome_theme: String = "", boss_id: String = "") ->
 	repair_squad_percentage(0.3)
 
 	# 4. Advance story phase in SaveManager
-	if companion_id == &"HOUND" and p_val == int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT):
-		# Ejected from Spire to scrap heap: next sector advance will enter Sector 1 of Cycle 1
+	if boss_id == "boss_satellite" or companion_id == &"HOUND":
+		# Sputnik defeated -> Ejected from Spire to scrap heap: next sector advance will enter Sector 1 of next cycle
 		current_sector = 0
-	advance_story_phase()
+		if story_progression != null and story_progression.current_phase == StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT:
+			advance_story_phase()
+	elif companion_id == &"MULE" or boss_id == "boss_press":
+		if story_progression != null and int(story_progression.current_phase) < int(StoryProgressionData.StoryPhase.CYCLE_2_TRIO):
+			advance_story_phase()
+	elif companion_id == &"COCK" or boss_id == "boss_atamansha":
+		if story_progression != null and int(story_progression.current_phase) < int(StoryProgressionData.StoryPhase.CYCLE_3_QUARTET):
+			advance_story_phase()
+	else:
+		advance_story_phase()
 
 	save_meta()
 	save_run()

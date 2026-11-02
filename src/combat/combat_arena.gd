@@ -349,11 +349,11 @@ func _init_combat_entities() -> void:
 				chosen_boss_ed = DataCatalog.get_enemy(b_override)
 			elif p_phase == int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT) or (th == "BLUE" and sec == 1):
 				chosen_boss_ed = DataCatalog.get_enemy("boss_satellite")
-			elif th == "YELLOW":
+			elif sec == 1 or th == "YELLOW":
 				chosen_boss_ed = DataCatalog.get_enemy("boss_press")
-			elif th == "GREEN":
+			elif sec == 2 or th == "GREEN":
 				chosen_boss_ed = DataCatalog.get_enemy("boss_atamansha")
-			elif th == "BLUE" or sec >= 3:
+			elif sec >= 3:
 				chosen_boss_ed = DataCatalog.get_enemy("boss_satellite")
 
 			if chosen_boss_ed == null:
@@ -2246,6 +2246,8 @@ func _handle_victory() -> void:
 				if en != null and en.data != null and en.data.is_boss:
 					enemy_boss_id = String(en.data.enemy_id)
 					break
+			if enemy_boss_id == "":
+				enemy_boss_id = String(_battle_payload.get("boss_id", ""))
 
 			# Trigger companion rescue pipeline (Issue #31 / ADR-002)
 			var rescue_res: Dictionary = SaveManager.handle_biome_boss_defeat(biome_theme, enemy_boss_id)
@@ -2259,15 +2261,18 @@ func _handle_victory() -> void:
 			var photo_path: String = String(rescue_res.get("photo_path", ""))
 			var post_title: String = String(rescue_res.get("post_title", "СЕКТОР ЗАЧИЩЕН"))
 
-			if cid == "HOUND":
+			if enemy_boss_id == "boss_satellite" or cid == "HOUND":
 				_end_title.text = "СПУТНИК ПОВЕРЖЕН! ПОЯВЛЕНИЕ КИБЕР-ТРУБАДУРА!"
 				_end_btn.text = "УЗНАТЬ, КТО ВЫШЕЛ ИЗ ТЕНИ ->"
-			elif cid == "MULE":
+			elif enemy_boss_id == "boss_press" or cid == "MULE":
 				_end_title.text = "ХОЗЯИН МЕЛЬНИЦЫ ПОВЕРЖЕН! ОСЁЛ M.U.L.E. СПАСЁН!"
 				_end_btn.text = "СПАСТИ ОСЛА M.U.L.E. ->"
-			elif cid == "COCK":
+			elif enemy_boss_id == "boss_atamansha" or cid == "COCK":
 				_end_title.text = "АТАМАНША ПОВЕРЖЕНА! ПЕТУХ C.O.C.K. СПАСЁН!"
 				_end_btn.text = "СПАСТИ ПЕТУХА C.O.C.K. ->"
+			elif enemy_boss_id == "boss_censor":
+				_end_title.text = "ЦЕНЗОР СВЕРГНУТ! ПИРАМИДА БРЕМЕНА СВОБОДНА!"
+				_end_btn.text = "ФИНАЛЬНЫЙ ТРИУМФ ->"
 			else:
 				_end_title.text = "БОСС БИОМА ПОВЕРЖЕН!"
 				_end_btn.text = "СЮЖЕТ: ИТОГ БОЯ ->"
@@ -2281,82 +2286,182 @@ func _handle_victory() -> void:
 				+ "\nРемонт +30% HP проведён для всего отряда! В отряде: " + str(SaveManager.party.size()) + " музыканта."
 			)
 
-			var next_btn_lbl: String = "ПРОДОЛЖИТЬ ПУТЬ СО СПСОМ (АКТ 1) ->" if cid == "HOUND" else ("В ПУТЬ ВТРОЁМ С ОСЛОМ (СЕКТОР 2) ->" if cid == "MULE" else ("В ПУТЬ КВАРТЕТОМ НА ВЕРШИНУ (СЕКТОР 3) ->" if cid == "COCK" else "ПЕРЕЙТИ В СЛЕДУЮЩИЙ СЕКТОР ->"))
-
 			_end_btn.pressed.connect(func() -> void:
-				if cid == "HOUND":
-					# Prologue defeat of Sputnik -> Cyber-Trubadur entrance & ejection -> Wake up on scrap heap & meet Hound
-					var hound_dialogue_payload: Dictionary = {
-						"timeline": "res://data/dialogues/story_intro_hound.dtl",
-						"timeline_name": "story_intro_hound",
-						"next_scene": &"MAP",
-						"next_payload": {},
-						"title": "АКТ 1: Встреча со Псом на свалке",
-						"continue_text": "ОТПРАВИТЬСЯ В ПУТЬ ВМЕСТЕ ->",
-						"action_on_complete": "advance_sector"
-					}
-					var hound_cutscene_payload: Dictionary = {
-						"image_path": "res://assets/photos/2-1-cat-and-hound-together.jpg",
-						"title": "АКТ 1: Пробуждение на свалке",
-						"story_stage": 2,
-						"next_scene": &"EVENT",
-						"next_payload": hound_dialogue_payload
-					}
-					var postlude_payload: Dictionary = {
-						"timeline": postlude_path,
-						"timeline_name": timeline_id,
-						"next_scene": &"VIDEO",
-						"next_payload": hound_cutscene_payload,
-						"title": post_title,
+				if enemy_boss_id == "boss_satellite" or cid == "HOUND":
+					# Sputnik defeat -> Cyber-Trubadur entrance & ejection (ALWAYS runs after defeating Sputnik)
+					var trubadur_postlude_payload: Dictionary = {
+						"timeline": "res://data/dialogues/boss_postlude_sputnik_solo.dtl",
+						"timeline_name": "boss_postlude_sputnik_solo",
+						"title": "АУДИЕНЦИЯ У ТРУБАДУРА // ВЕРДИКТ ВЛАДЫКИ",
 						"continue_text": "ОЧНУТЬСЯ НА СВАЛКЕ ->"
 					}
+					var p_phase: int = int(SaveManager.story_progression.current_phase) if SaveManager.story_progression != null else -1
+					if not SaveManager.story_progression.unlocked_party_members.has(&"HOUND") or SaveManager.party.size() <= 1:
+						# First cycle: meet Hound on scrap heap
+						var hound_dialogue_payload: Dictionary = {
+							"timeline": "res://data/dialogues/story_intro_hound.dtl",
+							"timeline_name": "story_intro_hound",
+							"next_scene": &"MAP",
+							"next_payload": {},
+							"title": "АКТ 1: Встреча со Псом на свалке",
+							"continue_text": "ОТПРАВИТЬСЯ В ПУТЬ ВМЕСТЕ ->",
+							"action_on_complete": "advance_sector"
+						}
+						var hound_cutscene_payload: Dictionary = {
+							"image_path": "res://assets/photos/2-1-cat-and-hound-together.jpg",
+							"title": "АКТ 1: Пробуждение на свалке",
+							"story_stage": 2,
+							"next_scene": &"EVENT",
+							"next_payload": hound_dialogue_payload
+						}
+						trubadur_postlude_payload["next_scene"] = &"VIDEO"
+						trubadur_postlude_payload["next_payload"] = hound_cutscene_payload
+					else:
+						# Subsequent cycles: wake up together on scrap heap / map for next cycle
+						var loop_cutscene_payload: Dictionary = {
+							"image_path": "res://assets/photos/2-1-cat-and-hound-together.jpg",
+							"title": "ОЧНУТЬСЯ НА СВАЛКЕ // НОВЫЙ ЗАБЕГ",
+							"next_scene": &"MAP",
+							"next_payload": {},
+							"continue_text": "ОТПРАВИТЬСЯ В НОВЫЙ ЗАБЕГ ->",
+							"action_on_complete": "advance_sector"
+						}
+						trubadur_postlude_payload["next_scene"] = &"VIDEO"
+						trubadur_postlude_payload["next_payload"] = loop_cutscene_payload
+
 					EventBus.request_scene_change.emit(&"VIDEO", {
 						"image_path": "res://assets/photos/1-4b-trubadur-apperiance.jpg",
-						"title": "ПРОЛОГ: Владыка башни «Бремен-4»",
+						"title": "ВЛАДЫКА БАШНИ «БРЕМЕН-4»: КИБЕР-ТРУБАДУР",
 						"story_stage": 1,
+						"next_scene": &"EVENT",
+						"next_payload": trubadur_postlude_payload
+					})
+					return
+
+				elif enemy_boss_id == "boss_press" or cid == "MULE":
+					# Press defeat -> Rescue MULE cutscene & dialogue -> IMMEDIATELY launch Sputnik boss battle!
+					var sputnik_battle_payload: Dictionary = {
+						"node_id": SaveManager.current_node_id,
+						"node_type": "BOSS",
+						"boss_id": "boss_satellite",
+						"biome_theme": "BLUE"
+					}
+					var sputnik_prelude_payload: Dictionary = {
+						"timeline": "res://data/dialogues/boss_prelude_sputnik_solo.dtl",
+						"timeline_name": "boss_prelude_sputnik_solo",
+						"title": "ВЕРШИНА ВЫШКИ // СПЯЩИЙ СПУТНИК",
+						"continue_text": "В БОЙ СО СПУТНИКОМ ->",
+						"next_scene": &"BATTLE",
+						"next_payload": sputnik_battle_payload
+					}
+					var sputnik_video_payload: Dictionary = {
+						"image_path": "res://assets/photos/1-2-sputnik-apperiance.jpg",
+						"title": "ВЕРШИНА ВЫШКИ: СПЯЩИЙ СПУТНИК БРЕМЕН-4",
+						"next_scene": &"EVENT",
+						"next_payload": sputnik_prelude_payload
+					}
+					var rescue_dialogue_payload: Dictionary = {
+						"timeline": "res://data/dialogues/dialogic_rescue_mule.dtl",
+						"timeline_name": "dialogic_rescue_mule",
+						"title": "СЕКТОР 1: ПОБЕДА НАД ПРЕССОМ // СПАСЕНИЕ ОСЛА M.U.L.E.",
+						"continue_text": "ШТУРМ ВЫШКИ: В БОЙ СО СПУТНИКОМ ->",
+						"next_scene": &"VIDEO",
+						"next_payload": sputnik_video_payload
+					}
+					var win_photo: String = "res://assets/photos/2-3a-press-boss-win.jpg" if ResourceLoader.exists("res://assets/photos/2-3a-press-boss-win.jpg") else photo_path
+					EventBus.request_scene_change.emit(&"VIDEO", {
+						"image_path": win_photo,
+						"title": "СЕКТОР 1: ПОБЕДА НАД ПРЕССОМ // СПАСЕНИЕ ОСЛА M.U.L.E.",
+						"story_stage": 3,
+						"next_scene": &"EVENT",
+						"next_payload": rescue_dialogue_payload
+					})
+					return
+
+				elif enemy_boss_id == "boss_atamansha" or cid == "COCK":
+					# Atamansha defeat -> Rescue COCK cutscene & dialogue -> IMMEDIATELY launch Sputnik boss battle!
+					var sputnik_battle_payload: Dictionary = {
+						"node_id": SaveManager.current_node_id,
+						"node_type": "BOSS",
+						"boss_id": "boss_satellite",
+						"biome_theme": "BLUE"
+					}
+					var sputnik_prelude_payload: Dictionary = {
+						"timeline": "res://data/dialogues/boss_prelude_sputnik_solo.dtl",
+						"timeline_name": "boss_prelude_sputnik_solo",
+						"title": "ВЕРШИНА ВЫШКИ // СПЯЩИЙ СПУТНИК",
+						"continue_text": "В БОЙ СО СПУТНИКОМ ->",
+						"next_scene": &"BATTLE",
+						"next_payload": sputnik_battle_payload
+					}
+					var sputnik_video_payload: Dictionary = {
+						"image_path": "res://assets/photos/4-1-sputnik-boss-apperiance.jpg",
+						"title": "ВЕРШИНА ВЫШКИ: СПЯЩИЙ СПУТНИК БРЕМЕН-4",
+						"next_scene": &"EVENT",
+						"next_payload": sputnik_prelude_payload
+					}
+					var rescue_dialogue_payload: Dictionary = {
+						"timeline": "res://data/dialogues/dialogic_rescue_cock.dtl",
+						"timeline_name": "dialogic_rescue_cock",
+						"title": "СЕКТОР 2: ПОБЕДА НАД АТАМАНШЕЙ // СПАСЕНИЕ ПЕТУХА C.O.C.K.",
+						"continue_text": "ШТУРМ ВЫШКИ: В БОЙ СО СПУТНИКОМ ->",
+						"next_scene": &"VIDEO",
+						"next_payload": sputnik_video_payload
+					}
+					var win_photo: String = "res://assets/photos/3-2a-atamansha-boss-win.jpg" if ResourceLoader.exists("res://assets/photos/3-2a-atamansha-boss-win.jpg") else photo_path
+					EventBus.request_scene_change.emit(&"VIDEO", {
+						"image_path": win_photo,
+						"title": "СЕКТОР 2: ПОБЕДА НАД АТАМАНШЕЙ // СПАСЕНИЕ ПЕТУХА C.O.C.K.",
+						"story_stage": 4,
+						"next_scene": &"EVENT",
+						"next_payload": rescue_dialogue_payload
+					})
+					return
+
+				elif enemy_boss_id == "boss_censor":
+					var epilogue_dialogue_payload: Dictionary = {
+						"timeline": "res://data/dialogues/epilogue_cabin_scene.dtl",
+						"timeline_name": "epilogue_cabin_scene",
+						"title": "ЭПИЛОГ: СВОБОДНЫЙ ЭФИР «БРЕМЕН-4»",
+						"continue_text": "В ЛАГЕРЬ БРОДЯГ (ПОБЕДА В ЗАБЕГЕ) ->",
+						"action_on_complete": "finish_run",
+						"next_scene": &"HUB",
+						"next_payload": {}
+					}
+					var epilogue_cutscene_payload: Dictionary = {
+						"image_path": "res://assets/photos/7-final.jpg",
+						"title": "ЭПИЛОГ: ТРИУМФ БРЕМЕНСКИХ МУЗЫКАНТОВ",
+						"next_scene": &"EVENT",
+						"next_payload": epilogue_dialogue_payload
+					}
+					var postlude_payload: Dictionary = {
+						"timeline": "res://data/dialogues/boss_postlude_sector3.dtl",
+						"timeline_name": "boss_postlude_sector3",
+						"title": "ФИНАЛ: СВЕРЖЕНИЕ ЦЕНЗОРА",
+						"continue_text": "СВОБОДНЫЙ ЭФИР ->",
+						"next_scene": &"VIDEO",
+						"next_payload": epilogue_cutscene_payload
+					}
+					EventBus.request_scene_change.emit(&"VIDEO", {
+						"image_path": "res://assets/photos/6-4-fake-boss-win.jpg",
+						"title": "ФИНАЛ: ПОБЕДА КВАРТЕТА НАД ЦЕНЗОРОМ",
 						"next_scene": &"EVENT",
 						"next_payload": postlude_payload
 					})
 					return
+
 				var postlude_payload: Dictionary = {
 					"timeline": postlude_path,
 					"timeline_name": timeline_id,
 					"next_scene": &"MAP",
 					"next_payload": {},
 					"title": post_title,
-					"continue_text": next_btn_lbl,
+					"continue_text": "ПЕРЕЙТИ В СЛЕДУЮЩИЙ СЕКТОР ->",
 					"action_on_complete": "advance_sector"
 				}
-				var win_photo: String = photo_path
-				if cid == "MULE":
-					if ResourceLoader.exists("res://assets/photos/2-3a-press-boss-win.jpg"):
-						win_photo = "res://assets/photos/2-3a-press-boss-win.jpg"
-					elif ResourceLoader.exists("res://assets/photos/4a-press-boss-win.jpg"):
-						win_photo = "res://assets/photos/4a-press-boss-win.jpg"
-				elif cid == "COCK":
-					if ResourceLoader.exists("res://assets/photos/3-2a-atamansha-boss-win.jpg"):
-						win_photo = "res://assets/photos/3-2a-atamansha-boss-win.jpg"
-					elif ResourceLoader.exists("res://assets/photos/6a-atamansha-boss-win.jpg"):
-						win_photo = "res://assets/photos/6a-atamansha-boss-win.jpg"
-
-				if win_photo != "" and ResourceLoader.exists(win_photo):
-					EventBus.request_scene_change.emit(&"VIDEO", {
-						"image_path": win_photo,
-						"title": post_title,
-						"story_stage": 3 if cid == "MULE" else 4,
-						"next_scene": &"EVENT",
-						"next_payload": postlude_payload
-					})
-				elif cid == "MULE" and ResourceLoader.exists("res://assets/videos/3-mule.ogv"):
-					EventBus.request_scene_change.emit(&"VIDEO", {
-						"video_path": "res://assets/videos/3-mule.ogv",
-						"title": "СЕКТОР 1: ОСВОБОЖДЕНИЕ ОСЛА M.U.L.E.",
-						"next_scene": &"EVENT",
-						"next_payload": postlude_payload
-					})
-				else:
-					EventBus.request_scene_change.emit(&"EVENT", postlude_payload)
+				EventBus.request_scene_change.emit(&"EVENT", postlude_payload)
 			)
+
 	else:
 		_end_title.text = "ПОБЕДА В БОЮ!"
 		_end_title.add_theme_color_override("font_color", Color(0.35, 0.95, 1.0))
@@ -2389,35 +2494,36 @@ func _handle_defeat() -> void:
 	var defeat_custom_title: String = "КОРПУСА ВЫБИТЫ — ЭВАКУАЦИЯ ЯДЕР!"
 	var p_phase: int = int(SaveManager.story_progression.current_phase) if SaveManager.story_progression != null else -1
 
+	var enemy_boss_id: String = ""
+	for en: EnemyInstance in _enemies:
+		if en != null and en.data != null and en.data.is_boss:
+			enemy_boss_id = String(en.data.enemy_id)
+			break
+	if enemy_boss_id == "":
+		enemy_boss_id = String(_battle_payload.get("boss_id", ""))
+
 	if was_boss:
-		if p_phase == int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT):
+		if p_phase == int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT) or enemy_boss_id == "boss_satellite":
 			def_art_path = "res://assets/photos/1-4a-cat-and-sputnik-fail.jpg"
 			if not ResourceLoader.exists(def_art_path):
 				def_art_path = "res://assets/photos/1-4a-cand-and-sputnik-fail.jpg"
-			defeat_custom_title = "СПЯЩИЙ СПУТНИК НЕЙТРАЛИЗОВАЛ ФЕЛИКСА!"
-		elif _is_final_boss_battle():
+			defeat_custom_title = "СПЯЩИЙ СПУТНИК НЕЙТРАЛИЗОВАЛ ОТРЯД!"
+		elif enemy_boss_id == "boss_censor" or _is_final_boss_battle():
 			def_art_path = "res://assets/photos/5-4a-trubadur-fail.jpg"
 			defeat_custom_title = "КИБЕР-ТРУБАДУР ПОДАВИЛ СИГНАЛ БУНТАРЕЙ!"
+		elif enemy_boss_id == "boss_press" or current_sec == 1:
+			def_art_path = "res://assets/photos/2-3b-press-boss-fail.jpg"
+			if not ResourceLoader.exists(def_art_path):
+				def_art_path = "res://assets/photos/4b-press-boss-fail.jpg"
+			defeat_custom_title = "ТРЁХГОЛОВЫЙ ПРЕСС СОКРУШИЛ ОТРЯД!"
+		elif enemy_boss_id == "boss_atamansha" or current_sec == 2:
+			def_art_path = "res://assets/photos/3-2b-atamansha-boss-fail.jpg"
+			if not ResourceLoader.exists(def_art_path):
+				def_art_path = "res://assets/photos/6b-atamansha-boss-fail.jpg"
+			defeat_custom_title = "АТАМАНША РАЗОБРАЛА ВАШИ КОРПУСА НА МЕТАЛЛОЛОМ!"
 		else:
-			var theme_str: String = MapGenerator.get_sector_theme(SaveManager.current_sector, p_phase)
-			if _battle_payload.has("biome_theme"):
-				theme_str = String(_battle_payload["biome_theme"]).to_upper()
-
-			if theme_str == "YELLOW":
-				def_art_path = "res://assets/photos/2-3b-press-boss-fail.jpg"
-				if not ResourceLoader.exists(def_art_path):
-					def_art_path = "res://assets/photos/4b-press-boss-fail.jpg"
-				defeat_custom_title = "ТРЁХГОЛОВЫЙ ПРЕСС СОКРУШИЛ ОТРЯД!"
-			elif theme_str == "GREEN":
-				def_art_path = "res://assets/photos/3-2b-atamansha-boss-fail.jpg"
-				if not ResourceLoader.exists(def_art_path):
-					def_art_path = "res://assets/photos/6b-atamansha-boss-fail.jpg"
-				defeat_custom_title = "АТАМАНША РАЗОБРАЛА ВАШИ КОРПУСА НА МЕТАЛЛОЛОМ!"
-			elif theme_str == "BLUE":
-				def_art_path = "res://assets/photos/4-2b-sputnik-boss-fail.jpg"
-				if not ResourceLoader.exists(def_art_path):
-					def_art_path = "res://assets/photos/8b-sputnik-boss-fail.jpg"
-				defeat_custom_title = "СПУТНИК ИСПЕПЕЛИЛ ОТРЯД ОРБИТАЛЬНЫМ ЛУЧОМ!"
+			def_art_path = "res://assets/photos/4-2b-sputnik-boss-fail.jpg"
+			defeat_custom_title = "СПУТНИК ИСПЕПЕЛИЛ ОТРЯД ОРБИТАЛЬНЫМ ЛУЧОМ!"
 
 	_end_overlay.visible = true
 	_end_overlay.position = Vector2(80, 24)

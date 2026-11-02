@@ -270,6 +270,7 @@ func _on_node_clicked(node_dict: Dictionary) -> void:
 			var b_btn: String = "В БОЙ ->"
 			var b_photo: String = ""
 			var b_cut_title: String = "БОСС"
+			var boss_enemy_id: String = ""
 
 			if p_val == int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT):
 				prelude_path = "res://data/dialogues/boss_prelude_sputnik_solo.dtl"
@@ -277,34 +278,36 @@ func _on_node_clicked(node_dict: Dictionary) -> void:
 				b_btn = "РАЗБУДИТЬ НАДЗИРАТЕЛЯ (В БОЙ) ->"
 				b_photo = "res://assets/photos/1-2-sputnik-apperiance.jpg"
 				b_cut_title = "БОСС: СПЯЩИЙ СПУТНИК ВЫШКИ БРЕМЕН-4"
-			elif th == "YELLOW":
+				boss_enemy_id = "boss_satellite"
+			elif sec == 1:
 				prelude_path = "res://data/dialogues/boss_prelude_sector1.dtl"
 				b_title = "МЕЛЬНИЦА СВАЛКИ // ХОЗЯИН ОСЛА (ТРЁХГОЛОВЫЙ ПРЕСС)"
 				b_btn = "В БОЙ ЗА СПАСЕНИЕ ОСЛА ->"
 				b_photo = "res://assets/photos/2-2-press-boss-appirance.jpg"
 				b_cut_title = "БОСС 1: ПОЯВЛЕНИЕ ТРЁХГОЛОВОГО ПРЕССА"
-			elif th == "GREEN":
+				boss_enemy_id = "boss_press"
+			elif sec == 2:
 				prelude_path = "res://data/dialogues/boss_prelude_sector2.dtl"
 				b_title = "ПРИТОН РАЗБОЙНИКОВ // ПЕТУХ И СУП АТАМАНШИ"
 				b_btn = "В БОЙ ЗА СПАСЕНИЕ ПЕТУХА ->"
 				b_photo = "res://assets/photos/3-1-atamansha-boss-apperiance.jpg"
 				b_cut_title = "БОСС 2: ПОЯВЛЕНИЕ АТАМАНШИ РАЗБОЙНИКОВ"
-			else:
-				prelude_path = "res://data/dialogues/boss_prelude_sector3.dtl"
-				b_title = "ИЗБА НА ВЕРШИНЕ // ПИРАМИДА БРЕМЕНА В ОКНЕ"
-				b_btn = "ВЛОМИТЬСЯ В ОКНО (ФИНАЛЬНЫЙ БОЙ) ->"
-				b_photo = "res://assets/photos/4-1-sputnik-boss-apperiance.jpg"
-				b_cut_title = "ФИНАЛЬНЫЙ БОСС: СПЯЩИЙ СПУТНИК ВЫШКИ БРЕМЕН-4"
-
-			var boss_enemy_id: String = ""
-			if p_val == int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT):
-				boss_enemy_id = "boss_satellite"
-			elif th == "YELLOW":
-				boss_enemy_id = "boss_press"
-			elif th == "GREEN":
 				boss_enemy_id = "boss_atamansha"
-			elif th == "BLUE":
-				boss_enemy_id = "boss_satellite"
+			else:
+				if p_val >= int(StoryProgressionData.StoryPhase.CYCLE_3_QUARTET) or sec >= 4:
+					prelude_path = "res://data/dialogues/boss_prelude_sector3.dtl"
+					b_title = "ИЗБА НА ВЕРШИНЕ // ПИРАМИДА БРЕМЕНА В ОКНЕ"
+					b_btn = "ВЛОМИТЬСЯ В ОКНО (ФИНАЛЬНЫЙ БОЙ) ->"
+					b_photo = "res://assets/photos/6-1-fake-boss-apperiance.jpg"
+					b_cut_title = "ФИНАЛЬНЫЙ БОСС: ЗАСЛУЖЕННЫЕ ДЕЯТЕЛИ ЭСТРАДЫ"
+					boss_enemy_id = "boss_censor"
+				else:
+					prelude_path = "res://data/dialogues/boss_prelude_sector3.dtl"
+					b_title = "ВЕРШИНА БРЕМЕН-4 // СПУТНИК В ЭФИРЕ"
+					b_btn = "В БОЙ ЗА РЕТРАНСЛЯТОР ->"
+					b_photo = "res://assets/photos/4-1-sputnik-boss-apperiance.jpg"
+					b_cut_title = "БОСС 3: СПЯЩИЙ СПУТНИК ВЫШКИ БРЕМЕН-4"
+					boss_enemy_id = "boss_satellite"
 
 			SaveManager.save_run()
 			var event_payload: Dictionary = {

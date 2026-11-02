@@ -1934,6 +1934,35 @@ func _ready() -> void:
 	ev_p0_postlude.queue_free()
 	await get_tree().process_frame
 
+	# 21.6 In Cycle 1 Sector 1, Boss is Press (2-2-press-boss-appirance.jpg, boss_prelude_sector1.dtl)
+	var p1_val: int = int(SaveManager.story_progression.current_phase)
+	assert(p1_val == int(StoryProgressionData.StoryPhase.CYCLE_1_DUO), "Must be in CYCLE_1_DUO")
+	var press_defeat_res: Dictionary = SaveManager.handle_biome_boss_defeat("YELLOW", "boss_press")
+	assert(press_defeat_res["companion_id"] == "MULE", "Press defeat must rescue MULE")
+	assert(press_defeat_res["photo_path"] == "res://assets/photos/2-3a-press-boss-win.jpg", "Press defeat must show 2-3a-press-boss-win.jpg")
+	assert(press_defeat_res["timeline_id"] == "dialogic_rescue_mule", "Must route to dialogic_rescue_mule")
+	assert(SaveManager.party.size() == 3, "Party must now have Felix, Hound, Mule")
+
+	# 21.7 Subsequent Sputnik defeat in Cycle 1 ALWAYS routes to Trubadur postlude & photo
+	var sputnik_c1_res: Dictionary = SaveManager.handle_biome_boss_defeat("BLUE", "boss_satellite")
+	assert(sputnik_c1_res["timeline_id"] == "boss_postlude_sputnik_solo", "Sputnik defeat must ALWAYS route to Trubadur postlude")
+	assert(sputnik_c1_res["photo_path"] == "res://assets/photos/1-4b-trubadur-apperiance.jpg", "Sputnik defeat must ALWAYS show Trubadur appearance photo")
+	assert(SaveManager.current_sector == 0, "Sputnik defeat must reset current_sector to 0 to cycle")
+
+	# 21.8 In Cycle 2 Sector 2, Boss is Atamansha (3-1-atamansha-boss-apperiance.jpg, boss_prelude_sector2.dtl)
+	SaveManager.advance_to_next_sector()
+	assert(SaveManager.current_sector == 1, "Must advance to Sector 1 for Cycle 2")
+	var atamansha_defeat_res: Dictionary = SaveManager.handle_biome_boss_defeat("GREEN", "boss_atamansha")
+	assert(atamansha_defeat_res["companion_id"] == "COCK", "Atamansha defeat must rescue COCK")
+	assert(atamansha_defeat_res["photo_path"] == "res://assets/photos/3-2a-atamansha-boss-win.jpg", "Atamansha defeat must show 3-2a-atamansha-boss-win.jpg")
+	assert(atamansha_defeat_res["timeline_id"] == "dialogic_rescue_cock", "Must route to dialogic_rescue_cock")
+	assert(SaveManager.party.size() == 4, "Party must now have all 4 members")
+
+	# 21.9 Subsequent Sputnik defeat in Cycle 2 ALWAYS routes to Trubadur postlude & photo
+	var sputnik_c2_res: Dictionary = SaveManager.handle_biome_boss_defeat("BLUE", "boss_satellite")
+	assert(sputnik_c2_res["timeline_id"] == "boss_postlude_sputnik_solo", "Sputnik defeat in Cycle 2 must ALWAYS route to Trubadur postlude")
+	assert(sputnik_c2_res["photo_path"] == "res://assets/photos/1-4b-trubadur-apperiance.jpg", "Sputnik defeat in Cycle 2 must show Trubadur photo")
+
 	print("[21] Issue #41: Dynamic Loop Prologue, Sputnik Boss Duel, Trubadur Entrance and Deferred Hound Join verified OK")
 
 

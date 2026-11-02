@@ -179,6 +179,14 @@ func _finish_media() -> void:
 	if _video_player != null and is_instance_valid(_video_player):
 		_video_player.stop()
 
+	var action: String = String(_payload.get("action_on_complete", ""))
+	if action == "advance_sector":
+		SaveManager.advance_to_next_sector()
+	elif action == "finish_run":
+		SaveManager.delete_run_save()
+	else:
+		SaveManager.save_run()
+
 	if _payload.has("next_scene"):
 		var next_scene: StringName = _payload.get("next_scene", &"HUB")
 		var next_payload: Dictionary = _payload.get("next_payload", {})
