@@ -1563,6 +1563,186 @@ func _ready() -> void:
 	assert(AudioManager.current_theme_id == &"PYRAMID_4" and AudioManager.active_instruments.size() == 5, "Tier 3 theme must be PYRAMID_4 with 5 instruments")
 
 	print("[18] Issue #29: Tiered robo-fusions with selectable cost tiers in all encounters verified OK")
+	# --- [19] VERIFYING ISSUE #32: DIALOGIC 2 TIMELINES WITH 4TH-WALL BREAK CHOICE, PISIKOT GAG & MID-BATTLE COMBAT PAUSE ---
+	print("\n--- [19] VERIFYING ISSUE #32: DIALOGIC 2 TIMELINES WITH 4TH-WALL BREAK CHOICE, PISIKOT GAG & MID-BATTLE COMBAT PAUSE ---")
+
+	# 19.1 Verify timeline files exist on disk
+	var first_fusion_tl_path: String = "res://data/dialogues/timeline_first_fusion.dtl"
+	var rescue_mule_tl_path: String = "res://data/dialogues/timeline_rescue_mule.dtl"
+	var rescue_cock_tl_path: String = "res://data/dialogues/timeline_rescue_cock.dtl"
+	assert(FileAccess.file_exists(first_fusion_tl_path), "timeline_first_fusion.dtl must exist")
+	assert(FileAccess.file_exists(rescue_mule_tl_path), "timeline_rescue_mule.dtl must exist")
+	assert(FileAccess.file_exists(rescue_cock_tl_path), "timeline_rescue_cock.dtl must exist")
+
+	# Verify contents of timeline_first_fusion.dtl
+	var f_fusion_file: FileAccess = FileAccess.open(first_fusion_tl_path, FileAccess.READ)
+	var f_fusion_txt: String = f_fusion_file.get_as_text()
+	f_fusion_file.close()
+	assert(f_fusion_txt.find("Robo-CatDog") != -1 or f_fusion_txt.find("Робокотопёс") != -1, "Must mention Robo-CatDog")
+	assert(f_fusion_txt.find("писикот") != -1, "Must contain pisikot gag")
+	assert(f_fusion_txt.find("Уральских пельменей") != -1, "Must reference Ural Pelmeni KVN sketch")
+	assert(f_fusion_txt.find("эщкере") != -1 or f_fusion_txt.find("eshkere") != -1, "Must reference eshkere")
+	assert(f_fusion_txt.find("40-") != -1 or f_fusion_txt.find("40-летние") != -1 or f_fusion_txt.find("boomers") != -1, "Must contain 4th wall break about 40yo boomers")
+	assert(f_fusion_txt.find("player") != -1 or f_fusion_txt.find("игрок") != -1, "Hound must address player")
+	assert(f_fusion_txt.find("Yes, that's true") != -1 or f_fusion_txt.find("Да, это правда") != -1, "Must have Yes choice")
+	assert(f_fusion_txt.find("No, I'm younger") != -1 or f_fusion_txt.find("Нет, я моложе") != -1, "Must have No choice")
+	assert(f_fusion_txt.find("пали контору") != -1 or f_fusion_txt.find("blow their cover") != -1, "Felix must tell Hound not to blow cover")
+	assert(f_fusion_txt.find("замоггаю") != -1 or f_fusion_txt.find("mog") != -1, "Felix must threaten to mog Hound")
+
+	# Verify contents of timeline_rescue_mule.dtl
+	var f_mule_file: FileAccess = FileAccess.open(rescue_mule_tl_path, FileAccess.READ)
+	var f_mule_txt: String = f_mule_file.get_as_text()
+	f_mule_file.close()
+	assert(f_mule_txt.find("писикотоосла") != -1 or f_mule_txt.find("pisikotodonkey") != -1, "Must mention pisikotodonkey")
+	assert(f_mule_txt.find("закатывает глаза") != -1 or f_mule_txt.find("rolls eyes") != -1, "Felix must roll eyes")
+	assert(f_mule_txt.find("part_break") != -1, "Must have part_break audio SFX")
+	assert(f_mule_txt.find("heal") != -1, "Must have heal audio SFX")
+	assert(f_mule_txt.find("(normal)") != -1 and f_mule_txt.find("(battle)") != -1, "Must have portrait expressions")
+
+	# Verify contents of timeline_rescue_cock.dtl
+	var f_cock_file: FileAccess = FileAccess.open(rescue_cock_tl_path, FileAccess.READ)
+	var f_cock_txt: String = f_cock_file.get_as_text()
+	f_cock_file.close()
+	assert(f_cock_txt.find("писикота") != -1, "Must mention pisikot")
+	assert(f_cock_txt.find("C.O.C.K.") != -1, "Must mention C.O.C.K. callsign")
+	assert(f_cock_txt.find("part_break") != -1, "Must have part_break audio SFX")
+	assert(f_cock_txt.find("qte_perfect") != -1, "Must have qte_perfect audio SFX")
+
+	# 19.2 Verify EventScene parsing and choice branching for timeline_first_fusion
+	var ev_fusion: EventScene = ev_scene_res.instantiate() as EventScene
+	ev_fusion.setup_event({"timeline": first_fusion_tl_path})
+	add_child(ev_fusion)
+	await get_tree().process_frame
+	assert(ev_fusion._lines.size() >= 3, "timeline_first_fusion must parse introductory lines")
+	assert(ev_fusion._choices.size() == 2, "timeline_first_fusion must parse 2 branching choice nodes")
+
+	# Test choice 0 in EventScene: Yes -> player_is_boomer = true
+	SaveManager.story_progression.player_is_boomer = false
+	SaveManager.story_progression.seen_boomer_dialog = false
+	ev_fusion._on_choice_selected(ev_fusion._choices[0])
+	assert(SaveManager.story_progression.player_is_boomer == true, "Selecting Yes must set player_is_boomer to true")
+	assert(SaveManager.story_progression.seen_boomer_dialog == true, "Selecting choice must set seen_boomer_dialog to true")
+	assert(ev_fusion._lines.size() >= 1, "Branch lines must be loaded into _lines")
+	assert(ev_fusion._lines[0]["text"].find("пали контору") != -1, "Felix blow cover response must be displayed")
+	ev_fusion.queue_free()
+	await get_tree().process_frame
+
+	# Test choice 1 in EventScene: No -> player_is_boomer = false
+	var ev_fusion2: EventScene = ev_scene_res.instantiate() as EventScene
+	ev_fusion2.setup_event({"timeline": first_fusion_tl_path})
+	add_child(ev_fusion2)
+	await get_tree().process_frame
+	ev_fusion2._on_choice_selected(ev_fusion2._choices[1])
+	assert(SaveManager.story_progression.player_is_boomer == false, "Selecting No must set player_is_boomer to false")
+	assert(ev_fusion2._lines[0]["text"].find("замоггаю") != -1, "Felix mogging response must be displayed")
+	ev_fusion2.queue_free()
+	await get_tree().process_frame
+
+	# 19.3 Verify SaveManager persistence round-trip for player_is_boomer
+	SaveManager.set_player_is_boomer(true)
+	assert(SaveManager.is_player_boomer() == true, "SaveManager.is_player_boomer() helper must return true")
+	SaveManager.save_meta()
+	SaveManager.set_player_is_boomer(false)
+	assert(SaveManager.is_player_boomer() == false, "Must be false after set")
+	SaveManager.load_meta()
+	assert(SaveManager.is_player_boomer() == true, "load_meta() must restore player_is_boomer")
+
+	# 19.4 Verify Mid-Battle Dialogue Trigger, Seamless Combat Pause and Resume
+	var combat_arena_packed: PackedScene = load("res://src/combat/combat_arena.tscn") as PackedScene
+	var combat_arena: CombatArena = combat_arena_packed.instantiate() as CombatArena
+	combat_arena.setup_battle({"node_type": "COMBAT"})
+	add_child(combat_arena)
+	await get_tree().process_frame
+
+	# Ensure combat starts unpaused
+	assert(get_tree().paused == false, "Combat tree must be unpaused initially")
+	assert(not combat_arena.is_mid_battle_dialogue_active(), "Mid-battle dialogue must be inactive initially")
+
+	# Trigger mid-battle dialogue
+	var dlg_overlay: MidBattleDialogueOverlay = combat_arena.trigger_mid_battle_dialogue("res://data/dialogues/timeline_first_fusion.dtl")
+	assert(dlg_overlay != null, "Dialogue overlay must be created")
+	assert(combat_arena.is_mid_battle_dialogue_active() == true, "is_mid_battle_dialogue_active must be true")
+
+	# Acceptance Criteria: Combat seamlessly pauses during mid-battle dialogue trigger
+	assert(get_tree().paused == true, "Combat must seamlessly pause when mid-battle dialogue is triggered")
+
+	# Verify overlay parsed timeline and SFX
+	assert(dlg_overlay._lines.size() >= 4, "Overlay must parse dialogue lines")
+	assert(dlg_overlay._choices.size() == 2, "Overlay must parse 2 choices")
+	assert(AudioManager.last_sfx_played == "pyramid_siren", "First fusion timeline must play pyramid_siren SFX")
+
+	# Advance lines to reach choices
+	while not dlg_overlay.is_showing_choices() and dlg_overlay._line_cursor < dlg_overlay._lines.size() - 1:
+		dlg_overlay._line_cursor += 1
+		dlg_overlay._render_dialogue_state()
+
+	assert(dlg_overlay.is_showing_choices(), "Overlay must present player choices")
+	var choices: Array[Dictionary] = dlg_overlay.get_choices()
+	assert(choices.size() == 2, "Must have exactly 2 choices")
+
+	# Select choice 0: Yes -> sets player_is_boomer = true
+	dlg_overlay.select_choice(0)
+	assert(SaveManager.story_progression.player_is_boomer == true, "Overlay select_choice(0) must set player_is_boomer = true")
+	assert(dlg_overlay.get_current_line()["text"].find("пали контору") != -1, "Felix response displayed in overlay")
+
+	# Advance past Felix response to close dialogue
+	dlg_overlay.close_dialogue()
+	await get_tree().process_frame
+
+	# Acceptance Criteria: Combat seamlessly resumes upon dialogue completion
+	assert(not combat_arena.is_mid_battle_dialogue_active(), "Dialogue overlay must be cleared")
+	assert(get_tree().paused == false, "Combat must seamlessly resume (unpause) upon dialogue completion")
+
+	# 19.5 Verify automatic trigger on first fusion in CombatArena
+	SaveManager.story_progression.seen_boomer_dialog = false
+	SaveManager.sync_gauge = 100
+	combat_arena._force_headless_mid_battle_dialogue = true
+	combat_arena._activate_fusion_tier(CombatFusionController.FusionTier.ROBO_CATDOG)
+
+	assert(combat_arena.is_mid_battle_dialogue_active() == true, "First fusion must automatically trigger mid-battle dialogue")
+	assert(get_tree().paused == true, "Combat must pause on first fusion dialogue trigger")
+
+	# Select choice 1: No -> sets player_is_boomer = false
+	var auto_dlg: MidBattleDialogueOverlay = combat_arena.get_mid_battle_dialogue()
+	assert(auto_dlg != null, "Overlay ref must be valid")
+	auto_dlg.select_choice(1)
+	assert(SaveManager.story_progression.player_is_boomer == false, "Selecting choice 1 must set player_is_boomer = false")
+	assert(auto_dlg.get_current_line()["text"].find("замоггаю") != -1, "Felix mogging response displayed in auto overlay")
+
+	auto_dlg.close_dialogue()
+	await get_tree().process_frame
+	assert(get_tree().paused == false, "Combat must resume after auto-dialogue completion")
+	assert(SaveManager.story_progression.seen_boomer_dialog == true, "seen_boomer_dialog must be set to true")
+
+	# Subsequent fusion must NOT re-trigger dialogue
+	SaveManager.sync_gauge = 100
+	combat_arena._activate_fusion_tier(CombatFusionController.FusionTier.ROBO_CATDOG)
+	assert(not combat_arena.is_mid_battle_dialogue_active(), "Subsequent fusion must NOT trigger dialogue after already seen")
+
+	combat_arena.queue_free()
+	await get_tree().process_frame
+
+	# 19.6 Verify EventScene parses timeline_rescue_mule.dtl and timeline_rescue_cock.dtl with audio SFX
+	var ev_mule_32: EventScene = ev_scene_res.instantiate() as EventScene
+	ev_mule_32.setup_event({"timeline": rescue_mule_tl_path})
+	add_child(ev_mule_32)
+	await get_tree().process_frame
+	assert(ev_mule_32._lines.size() >= 4, "timeline_rescue_mule must parse at least 4 dialogue lines")
+	assert(AudioManager.last_sfx_played == "heal" or AudioManager.last_sfx_played == "part_break", "timeline_rescue_mule must trigger audio SFX")
+	ev_mule_32.queue_free()
+	await get_tree().process_frame
+
+	var ev_cock_32: EventScene = ev_scene_res.instantiate() as EventScene
+	ev_cock_32.setup_event({"timeline": rescue_cock_tl_path})
+	add_child(ev_cock_32)
+	await get_tree().process_frame
+	assert(ev_cock_32._lines.size() >= 4, "timeline_rescue_cock must parse at least 4 dialogue lines")
+	assert(AudioManager.last_sfx_played == "qte_perfect" or AudioManager.last_sfx_played == "part_break", "timeline_rescue_cock must trigger audio SFX")
+	ev_cock_32.queue_free()
+	await get_tree().process_frame
+
+	print("[19] Issue #32: Dialogic 2 timelines, 4th-wall break choice, pisikot gag & mid-battle pause verified OK")
+
 
 	AudioManager.stop_music()
 	await get_tree().process_frame

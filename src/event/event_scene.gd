@@ -206,22 +206,34 @@ func _parse_dtl_timeline(path: String) -> void:
 	_choices.clear()
 	_line_cursor = 0
 
-	if not FileAccess.file_exists(path):
+	var full_path: String = path
+	if not FileAccess.file_exists(full_path):
+		var cand: String = full_path
+		if not cand.begins_with("res://"):
+			cand = "res://data/dialogues/" + cand
+		if not cand.ends_with(".dtl"):
+			cand += ".dtl"
+		if FileAccess.file_exists(cand):
+			full_path = cand
+
+	if not FileAccess.file_exists(full_path):
 		_lines.append({
 			"char": "felix",
 			"mood": "normal",
 			"text": "Пойман слабый сигнал с ретранслятора Бремен-4.",
-			"image": "res://assets/sprites/story/story_cat_alone_road.png"
+			"image": "res://assets/sprites/story/story_cat_alone_road.png",
+			"sfx": ""
 		})
-		_choices.append({"label": "Собрать лом (+30 Лома)", "signal": "safe_scrap"})
+		_choices.append({"label": "Собрать лом (+30 Лома)", "signal": "safe_scrap", "branch_lines": []})
 		return
 
-	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+	var file: FileAccess = FileAccess.open(full_path, FileAccess.READ)
 	var raw_lines: PackedStringArray = file.get_as_text().split("\n")
 	file.close()
 
 	var current_choice: Dictionary = {}
 	var current_image: String = ""
+	var current_sfx: String = ""
 	for raw: String in raw_lines:
 		var line: String = raw.strip_edges()
 		if line == "" or line.begins_with("#"):
@@ -231,15 +243,26 @@ func _parse_dtl_timeline(path: String) -> void:
 			var img_q2: int = line.rfind("\"")
 			if img_q1 != -1 and img_q2 > img_q1:
 				current_image = line.substr(img_q1 + 1, img_q2 - img_q1 - 1)
+		elif line.begins_with("[sound") or line.begins_with("[audio") or line.begins_with("[sfx"):
+			var sfx_q1: int = line.find("\"")
+			var sfx_q2: int = line.rfind("\"")
+			if sfx_q1 != -1 and sfx_q2 > sfx_q1:
+				current_sfx = line.substr(sfx_q1 + 1, sfx_q2 - sfx_q1 - 1)
 		elif line.begins_with("- "):
-			current_choice = {"label": line.substr(2).strip_edges(), "signal": "safe_scrap"}
+			var def_sig: String = "safe_scrap"
+			var lbl: String = line.substr(2).strip_edges()
+			if lbl.find("Yes") != -1 or lbl.find("Да") != -1:
+				def_sig = "boomer_true"
+			elif lbl.find("No") != -1 or lbl.find("Нет") != -1:
+				def_sig = "boomer_false"
+			current_choice = {"label": lbl, "signal": def_sig, "branch_lines": []}
 			_choices.append(current_choice)
 		elif line.begins_with("[signal"):
 			var start_q: int = line.find("\"")
 			var end_q: int = line.rfind("\"")
 			if start_q != -1 and end_q > start_q and not current_choice.is_empty():
 				current_choice["signal"] = line.substr(start_q + 1, end_q - start_q - 1)
-		elif line.find(":") != -1:
+		elif not line.begins_with("[") and line.find(":") != -1:
 			var colon_idx: int = line.find(":")
 			var head: String = line.substr(0, colon_idx).strip_edges()
 			var body: String = line.substr(colon_idx + 1).strip_edges()
@@ -252,7 +275,14 @@ func _parse_dtl_timeline(path: String) -> void:
 				mood = head.substr(p_open + 1, p_close - p_open - 1).strip_edges().to_lower()
 			else:
 				char_id = head.to_lower()
-			_lines.append({"char": char_id, "mood": mood, "text": body, "image": current_image})
+			var parsed_item: Dictionary = {"char": char_id, "mood": mood, "text": body, "image": current_image, "sfx": current_sfx}
+			current_sfx = ""
+			if not _choices.is_empty() and (raw.begins_with("\t") or raw.begins_with("  ")):
+				var bl: Array = current_choice.get("branch_lines", []) as Array
+				bl.append(parsed_item)
+				current_choice["branch_lines"] = bl
+			else:
+				_lines.append(parsed_item)
 
 func _render_dialogue_state() -> void:
 	for child: Node in _choices_box.get_children():
@@ -278,6 +308,10 @@ func _render_dialogue_state() -> void:
 			_portrait_rect.texture = load("res://assets/sprites/enemies/boss_" + cid + ".png") as Texture2D
 		elif ResourceLoader.exists("res://assets/sprites/enemies/" + cid + ".png"):
 			_portrait_rect.texture = load("res://assets/sprites/enemies/" + cid + ".png") as Texture2D
+
+		var line_sfx: String = String(item.get("sfx", ""))
+		if line_sfx != "":
+			AudioManager.play_sfx(line_sfx)
 
 		_speaker_label.text = String(SPEAKER_NAMES.get(cid, cid.to_upper())) + " [" + mood.to_upper() + "]"
 		_dialogue_text.text = String(item["text"])
@@ -341,12 +375,25 @@ func _render_dialogue_state() -> void:
 		var c_btn: Button = Button.new()
 		c_btn.text = "▸ " + String(ch["label"])
 		c_btn.add_theme_font_size_override("font_size", 9)
-		var sig_arg: String = String(ch["signal"])
+		var ch_ref: Dictionary = ch
 		c_btn.pressed.connect(func() -> void:
 			AudioManager.play_sfx("ui_click")
-			_on_dialogic_signal_event(sig_arg)
+			_on_choice_selected(ch_ref)
 		)
 		_choices_box.add_child(c_btn)
+
+func _on_choice_selected(ch: Dictionary) -> void:
+	var sig_arg: String = String(ch.get("signal", ""))
+	if sig_arg != "":
+		_on_dialogic_signal_event(sig_arg)
+	var b_lines: Array = ch.get("branch_lines", []) as Array
+	if not b_lines.is_empty():
+		_lines.clear()
+		for b: Variant in b_lines:
+			_lines.append(b as Dictionary)
+		_line_cursor = 0
+		_choices.clear()
+		_render_dialogue_state()
 
 func _on_dialogic_signal_event(argument: Variant) -> void:
 	var code: String = String(argument)
@@ -358,6 +405,14 @@ func _on_eventbus_dialogic_reward(event_code: String, _amount: int) -> void:
 
 	var summary: String = ""
 	match event_code:
+		"boomer_yes", "boomer_true":
+			SaveManager.set_player_is_boomer(true)
+			AudioManager.play_sfx("pyramid_siren")
+			summary = "Вы признались: «Да, чистая правда, я скуф!» Кот шипит на Пса за слом 4-й стены."
+		"boomer_no", "boomer_false":
+			SaveManager.set_player_is_boomer(false)
+			AudioManager.play_sfx("qte_perfect")
+			summary = "Вы заявили: «Нет, я моложе!» Кот угрожает замоггать Пса прямо внутри слияния."
 		"risky_container":
 			var c: CatMechInstance = SaveManager.party[0]
 			c.apply_part_damage(PartData.PartSlot.ARMS, 15, true)
