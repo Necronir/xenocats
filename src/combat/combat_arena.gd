@@ -49,6 +49,7 @@ var _cat_rigs: Array[Dictionary] = []
 var _pyramid_sprite: Sprite2D = null
 var _enemy_rigs: Array[Dictionary] = []
 var _fusion_controller: CombatFusionController = null
+var _fusion_participating_ids: Array[StringName] = []
 var _shake_tween: Tween = null
 
 # UI узлы
@@ -287,6 +288,10 @@ func _init_combat_entities() -> void:
 	# Частичный перенос синхры и сброс боевых кулдаунов ульты (Issue #26)
 	SaveManager.prepare_battle_sync()
 	_fusion_controller = CombatFusionController.new()
+	_fusion_participating_ids.clear()
+	_pyramid_active = false
+	_pyramid_tier = 4
+	_pyramid_turns_left = 0
 	_pyramid_overheat_rounds = 0
 	_pyramid_action_used = false
 
@@ -382,7 +387,8 @@ func _is_final_boss_battle() -> bool:
 
 func _sync_arena_music() -> void:
 	if _pyramid_active:
-		AudioManager.play_pyramid_theme(_pyramid_tier)
+		var active_t: int = int(_fusion_controller.current_tier) if (_fusion_controller != null and _fusion_controller.is_active()) else (_pyramid_tier - 1)
+		AudioManager.play_pyramid_theme(active_t)
 	elif _is_final_boss_battle():
 		AudioManager.play_boss_theme(3)
 	elif _is_boss_battle():
@@ -398,12 +404,18 @@ func get_available_pyramid_tier() -> int:
 	return clampi(alive_count, 2, 4)
 
 func get_pyramid_title(tier: int = -1) -> String:
-	var t: int = _pyramid_tier if tier < 0 else clampi(tier, 2, 4)
-	if t <= 2:
-		return "МАЛАЯ БАШНЯ «ДУЭТ» (2 ЯРУСА)"
-	if t == 3:
-		return "СРЕДНЯЯ БАШНЯ «ТРИО» (3 ЯРУСА)"
-	return "ТОТЕМ «ПИРАМИДА БРЕМЕНА» (4 ЯРУСА)"
+	if tier < 0 and _fusion_controller != null and _fusion_controller.is_active():
+		return CombatFusionController.get_tier_title(_fusion_controller.current_tier)
+	var t: int = _pyramid_tier if tier < 0 else clampi(tier, 1, 4)
+	match t:
+		1, 2:
+			return "РОБОКОТОПЁС (ТИР 1)"
+		3:
+			return "РОБОКОТОПСООСЁЛ (ТИР 2)"
+		4:
+			return "МЕГА-ПИРАМИДА (ТИР 3)"
+		_:
+			return "ТОТЕМ «ПИРАМИДА БРЕМЕНА» (4 ЯРУСА)"
 
 # --- VFX, партиклы, микро-анимации и шейк экрана (ADR-001 Section 4, Issue #11) ---
 
@@ -808,7 +820,8 @@ func _refresh_hud() -> void:
 		var cat: CatMechInstance = _party[i]
 		var rig: Dictionary = _cat_rigs[i]
 		var root: Node2D = rig["root"] as Node2D
-		root.visible = (not _pyramid_active) and cat.is_alive()
+		var is_participating: bool = _pyramid_active and (_fusion_participating_ids.is_empty() or _fusion_participating_ids.has(cat.cat_id))
+		root.visible = (not is_participating) and cat.is_alive()
 
 		var b_spr: Sprite2D = rig["body_spr"] as Sprite2D
 		var a_spr: Sprite2D = rig["arms_spr"] as Sprite2D
@@ -818,7 +831,7 @@ func _refresh_hud() -> void:
 		l_spr.modulate = Color(0.4, 0.2, 0.2, 0.65) if cat.legs_part.is_broken() else Color(1, 1, 1)
 
 		# Партиклы дыма и искр при HP детали ниже 25% или ее поломке (Issue #11)
-		var cat_is_alive: bool = cat.is_alive() and (not _pyramid_active)
+		var cat_is_alive: bool = cat.is_alive() and (not is_participating)
 		var b_crit: bool = cat_is_alive and (cat.body_part.is_broken() or float(cat.body_part.current_hp) <= float(cat.body_part.get_max_hp()) * 0.25)
 		var a_crit: bool = cat_is_alive and (cat.arms_part.is_broken() or float(cat.arms_part.current_hp) <= float(cat.arms_part.get_max_hp()) * 0.25)
 		var l_crit: bool = cat_is_alive and (cat.legs_part.is_broken() or float(cat.legs_part.current_hp) <= float(cat.legs_part.get_max_hp()) * 0.25)
@@ -918,7 +931,8 @@ func _refresh_hud() -> void:
 			if not AudioManager.active_instruments.is_empty()
 			else "Гитара + Бас + Барабан + Синтезатор + Резонатор «Бремен»"
 		)
-		p_title.text = "★ " + get_pyramid_title(_pyramid_tier) + " | ♫ " + band_str
+		var p_title_str: String = CombatFusionController.get_tier_title(_fusion_controller.current_tier) if (_fusion_controller != null and _fusion_controller.is_active()) else get_pyramid_title(_pyramid_tier)
+		p_title.text = "★ " + p_title_str + " | ♫ " + band_str
 		p_title.add_theme_font_size_override("font_size", 9)
 		p_title.add_theme_color_override("font_color", Color(1.0, 0.9, 0.35))
 		p_title.clip_text = true
@@ -964,7 +978,7 @@ func _refresh_hud() -> void:
 		var cat_names: PackedStringArray = PackedStringArray()
 		var intact_parts: int = 0
 		for c: CatMechInstance in _party:
-			if c.is_alive():
+			if c.is_alive() and (_fusion_participating_ids.is_empty() or _fusion_participating_ids.has(c.cat_id)):
 				cat_names.append(c.display_name + " [" + c.instrument_name + "]")
 				for sl: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
 					var pt: PartInstance = c.get_part(sl)
@@ -1049,6 +1063,8 @@ func _start_new_round() -> void:
 
 	if _pyramid_active:
 		_pyramid_turns_left -= 1
+		if _fusion_controller != null:
+			_fusion_controller.turns_remaining = _pyramid_turns_left
 		if _pyramid_turns_left <= 0:
 			_deactivate_bremen_pyramid()
 
@@ -1062,10 +1078,13 @@ func _start_new_round() -> void:
 				cat.taunt_turns -= 1
 			if cat.speed_buff_turns > 0:
 				cat.speed_buff_turns -= 1
+			var init_score: int = cat.get_initiative_score()
+			if _pyramid_active and _fusion_controller != null and _fusion_controller.current_tier == CombatFusionController.FusionTier.ROBO_CATDOG:
+				init_score += 6
 			_turn_queue.append({
 				"is_player": true,
 				"index": i,
-				"score": cat.get_initiative_score()
+				"score": init_score
 			})
 
 	for j: int in range(_enemies.size()):
@@ -1115,20 +1134,23 @@ func _advance_turn() -> void:
 			if not cat.is_alive():
 				continue
 			if cat.bleed_stacks > 0:
-				var bleed_dmg: int = cat.bleed_stacks * 2
-				cat.bleed_stacks = maxi(0, cat.bleed_stacks - 1)
-				if _pyramid_active:
-					apply_pyramid_damage(bleed_dmg, true)
-					if _check_battle_end():
-						return
+				if _pyramid_active and _fusion_controller != null and _fusion_controller.current_tier == CombatFusionController.FusionTier.ROBO_MEGA_PYRAMID:
+					cat.bleed_stacks = 0
 				else:
-					cat.apply_part_damage(PartData.PartSlot.BODY, bleed_dmg, true)
-					if idx < _cat_rigs.size():
-						var crig: Dictionary = _cat_rigs[idx]
-						_play_rig_hurt(crig, 4.0, PartData.PartSlot.BODY)
-						spawn_damage_number((crig["root"] as Node2D).position, "МАСЛО -" + str(bleed_dmg), Color(0.85, 0.45, 1.0))
-					if not cat.is_alive():
-						_refresh_hud()
+					var bleed_dmg: int = cat.bleed_stacks * 2
+					cat.bleed_stacks = maxi(0, cat.bleed_stacks - 1)
+					if _pyramid_active:
+						apply_pyramid_damage(bleed_dmg, true)
+						if _check_battle_end():
+							return
+					else:
+						cat.apply_part_damage(PartData.PartSlot.BODY, bleed_dmg, true)
+						if idx < _cat_rigs.size():
+							var crig: Dictionary = _cat_rigs[idx]
+							_play_rig_hurt(crig, 4.0, PartData.PartSlot.BODY)
+							spawn_damage_number((crig["root"] as Node2D).position, "МАСЛО -" + str(bleed_dmg), Color(0.85, 0.45, 1.0))
+						if not cat.is_alive():
+							_refresh_hud()
 						if _check_battle_end():
 							return
 						continue
@@ -1186,11 +1208,13 @@ func _begin_player_turn(cat_index: int) -> void:
 	_action_box.visible = true
 	_target_box.visible = false
 	for child: Node in _action_box.get_children():
+		_action_box.remove_child(child)
 		child.queue_free()
 
 	var header: Label = Label.new()
+	var f_title: String = CombatFusionController.get_tier_title(_fusion_controller.current_tier) if (_fusion_controller != null and _fusion_controller.is_active()) else get_pyramid_title(_pyramid_tier)
 	header.text = (
-		("ХОД: " + get_pyramid_title(_pyramid_tier) + " [♫ +Резонатор «Бремен»]:")
+		("ХОД: " + f_title + " [♫ +Резонатор «Бремен»]:")
 		if _pyramid_active
 		else ("ХОД: " + cat.display_name + " (" + cat.role_title + " | ♪ " + cat.instrument_name + ")")
 	)
@@ -1201,33 +1225,61 @@ func _begin_player_turn(cat_index: int) -> void:
 	header.tooltip_text = header.text
 	_action_box.add_child(header)
 
-	# Кнопка активации Башни / Пирамиды Бремена при 100% Синхронизации (2, 3 или 4 яруса по числу живых участников)
-	if SaveManager.sync_gauge >= 100 and not _pyramid_active and _pyramid_overheat_rounds <= 0:
-		var avail_tier: int = get_available_pyramid_tier()
-		var pyr_btn: Button = Button.new()
-		pyr_btn.text = "★ СТЫКОВКА: " + get_pyramid_title(avail_tier) + "! ★"
-		pyr_btn.add_theme_font_size_override("font_size", 10)
-		pyr_btn.clip_text = true
-		pyr_btn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		pyr_btn.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
-		pyr_btn.pressed.connect(_activate_bremen_pyramid)
-		_action_box.add_child(pyr_btn)
-		TutorialToast.show_if_needed(self, &"pyramid_ready")
-	elif _pyramid_overheat_rounds > 0 and not _pyramid_active:
+	if _pyramid_overheat_rounds > 0 and not _pyramid_active:
 		var cool_lbl: Label = Label.new()
 		cool_lbl.text = "⚡ Резонатор «Бремен» остывает (перегрев)..."
 		cool_lbl.add_theme_font_size_override("font_size", 8)
 		cool_lbl.add_theme_color_override("font_color", Color(0.85, 0.65, 0.35))
 		_action_box.add_child(cool_lbl)
+	elif not _pyramid_active and _pyramid_overheat_rounds <= 0:
+		var alive_ids: Array[StringName] = []
+		for c: CatMechInstance in _party:
+			if c.is_alive():
+				alive_ids.append(c.cat_id)
+
+		for t: CombatFusionController.FusionTier in [
+			CombatFusionController.FusionTier.ROBO_CATDOG,
+			CombatFusionController.FusionTier.ROBO_CATDOG_DONKEY,
+			CombatFusionController.FusionTier.ROBO_MEGA_PYRAMID
+		]:
+			if not _fusion_controller.is_tier_available(t, alive_ids):
+				continue
+			var cost: int = _fusion_controller.get_tier_sync_cost(t)
+			var can_afford: bool = (SaveManager.sync_gauge >= cost)
+			var btn: Button = Button.new()
+			btn.name = "FusionButton_Tier" + str(int(t))
+			var t_name: String = CombatFusionController.get_tier_name(t)
+			var t_tip: String = CombatFusionController.get_tier_tooltip(t)
+			btn.add_theme_font_size_override("font_size", 9)
+			btn.clip_text = true
+			btn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+
+			if can_afford:
+				btn.text = "★ " + t_name + " [" + str(cost) + "% Sync] ★"
+				btn.disabled = false
+				btn.tooltip_text = t_tip + "\nПорог активации: " + str(cost) + "% (Доступно! Нажмите для активации)"
+				btn.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
+				btn.pressed.connect(func() -> void:
+					AudioManager.play_sfx("ui_click")
+					_activate_fusion_tier(t)
+				)
+				TutorialToast.show_if_needed(self, &"pyramid_ready")
+			else:
+				btn.text = "🔒 " + t_name + " [" + str(cost) + "% Sync]"
+				btn.disabled = true
+				btn.tooltip_text = t_tip + "\nПорог активации: " + str(cost) + "% (Текущий заряд: " + str(SaveManager.sync_gauge) + "% / " + str(cost) + "%)"
+				btn.add_theme_color_override("font_color", Color(0.65, 0.65, 0.7, 0.7))
+			_action_box.add_child(btn)
 
 	var skills: Array[SkillData] = []
 	if _pyramid_active:
 		var storm_id: String = "pyramid_acoustic_storm"
 		var cascade_id: String = "pyramid_cascade_overload"
-		if _pyramid_tier <= 2:
+		var cur_t: CombatFusionController.FusionTier = _fusion_controller.current_tier if _fusion_controller != null else CombatFusionController.FusionTier.NONE
+		if cur_t == CombatFusionController.FusionTier.ROBO_CATDOG or _pyramid_tier <= 2:
 			storm_id = "pyramid_2_acoustic_storm"
 			cascade_id = "pyramid_2_cascade_overload"
-		elif _pyramid_tier == 3:
+		elif cur_t == CombatFusionController.FusionTier.ROBO_CATDOG_DONKEY or _pyramid_tier == 3:
 			storm_id = "pyramid_3_acoustic_storm"
 			cascade_id = "pyramid_3_cascade_overload"
 		var u1: SkillData = DataCatalog.get_skill(storm_id)
@@ -1272,19 +1324,63 @@ func get_pyramid_max_hp() -> int:
 			total += cat.get_total_max_hp()
 	return total
 
-func _activate_bremen_pyramid() -> void:
-	SaveManager.sync_gauge = 0
+func _get_default_fusion_tier_for_party() -> CombatFusionController.FusionTier:
+	var alive_ids: Array[StringName] = []
+	for c: CatMechInstance in _party:
+		if c.is_alive():
+			alive_ids.append(c.cat_id)
+	# Check from highest to lowest unlocked and alive
+	if alive_ids.has(&"COCK") and (SaveManager.story_progression == null or SaveManager.is_fusion_tier_unlocked(3)):
+		return CombatFusionController.FusionTier.ROBO_MEGA_PYRAMID
+	if alive_ids.has(&"MULE") and (SaveManager.story_progression == null or SaveManager.is_fusion_tier_unlocked(2)):
+		return CombatFusionController.FusionTier.ROBO_CATDOG_DONKEY
+	if alive_ids.has(&"HOUND") and (SaveManager.story_progression == null or SaveManager.is_fusion_tier_unlocked(1)):
+		return CombatFusionController.FusionTier.ROBO_CATDOG
+	if alive_ids.size() >= 4:
+		return CombatFusionController.FusionTier.ROBO_MEGA_PYRAMID
+	if alive_ids.size() >= 3:
+		return CombatFusionController.FusionTier.ROBO_CATDOG_DONKEY
+	return CombatFusionController.FusionTier.ROBO_CATDOG
+
+func _activate_bremen_pyramid(tier: CombatFusionController.FusionTier = CombatFusionController.FusionTier.NONE) -> void:
+	if tier == CombatFusionController.FusionTier.NONE:
+		tier = _get_default_fusion_tier_for_party()
+	_activate_fusion_tier(tier)
+
+func _activate_fusion_tier(tier: CombatFusionController.FusionTier) -> void:
+	if _fusion_controller == null:
+		_fusion_controller = CombatFusionController.new()
+
+	var cost: int = _fusion_controller.get_tier_sync_cost(tier)
+	SaveManager.sync_gauge = maxi(0, SaveManager.sync_gauge - cost)
+
 	_pyramid_active = true
 	_pyramid_action_used = false
-	_pyramid_tier = get_available_pyramid_tier()
-	_pyramid_turns_left = 1
+	_fusion_controller.current_tier = tier
+
+	match tier:
+		CombatFusionController.FusionTier.ROBO_CATDOG:
+			_pyramid_tier = 2
+		CombatFusionController.FusionTier.ROBO_CATDOG_DONKEY:
+			_pyramid_tier = 3
+		CombatFusionController.FusionTier.ROBO_MEGA_PYRAMID:
+			_pyramid_tier = 4
+		_:
+			_pyramid_tier = 4
+
+	var turns: int = _fusion_controller.get_tier_duration(tier)
+	_pyramid_turns_left = turns
+	_fusion_controller.turns_remaining = turns
+
+	_fusion_participating_ids = CombatFusionController.get_constituent_members(tier)
 	_pyramid_initial_hp = 0
 	_pyramid_max_hp = 0
 	_pyramid_damage_taken = 0
 
-	# Все уцелевшие детали живых котов складывают суммарный пул HP (ADR-001 Section 2.4, Issue #9)
+	# Все уцелевшие детали участвующих живых котов складывают суммарный пул HP
+	# и очищаются от дебаффов при слиянии (ADR-002, Issue #29)
 	for cat: CatMechInstance in _party:
-		if cat.is_alive():
+		if cat.is_alive() and _fusion_participating_ids.has(cat.cat_id):
 			cat.clear_debuffs()
 			_pyramid_initial_hp += cat.get_total_current_hp()
 			_pyramid_max_hp += cat.get_total_max_hp()
@@ -1292,7 +1388,7 @@ func _activate_bremen_pyramid() -> void:
 	_pyramid_current_hp = _pyramid_initial_hp
 
 	AudioManager.play_sfx("pyramid_siren")
-	AudioManager.play_pyramid_theme(_pyramid_tier)
+	AudioManager.play_pyramid_theme(int(tier))
 	EventBus.pyramid_activated.emit()
 
 	if _pyramid_sprite != null:
@@ -1319,9 +1415,10 @@ func _activate_bremen_pyramid() -> void:
 		)
 
 	_log_label.text = (
-		"СТЫКОВКА! " + get_pyramid_title(_pyramid_tier) + " (" + str(_pyramid_current_hp) + "/"
-		+ str(_pyramid_max_hp) + " HP)! Вступает Резонатор «Бремен»!"
+		"СТЫКОВКА! " + CombatFusionController.get_tier_title(tier) + " (" + str(_pyramid_current_hp) + "/"
+		+ str(_pyramid_max_hp) + " HP)! Длительность: " + str(_pyramid_turns_left) + " хода."
 	)
+	_refresh_hud()
 	_begin_player_turn(_active_cat_index)
 
 func apply_pyramid_damage(raw_damage: int, _ignore_armor: bool = false) -> Dictionary:
@@ -1333,7 +1430,12 @@ func apply_pyramid_damage(raw_damage: int, _ignore_armor: bool = false) -> Dicti
 			"totem_destroyed": true
 		}
 
-	var dealt: int = clampi(maxi(1, raw_damage), 0, _pyramid_current_hp)
+	var effective_damage: int = raw_damage
+	if not _ignore_armor and _fusion_controller != null and _fusion_controller.current_tier == CombatFusionController.FusionTier.ROBO_CATDOG_DONKEY:
+		# Броня +60% для Робокотопсоосла (ADR-002 Section 2.2)
+		effective_damage = maxi(1, int(float(raw_damage) * 0.4))
+
+	var dealt: int = clampi(maxi(1, effective_damage), 0, _pyramid_current_hp)
 	_pyramid_current_hp = maxi(0, _pyramid_current_hp - dealt)
 	_pyramid_damage_taken += dealt
 	EventBus.pyramid_damaged.emit(dealt, _pyramid_current_hp, _pyramid_max_hp)
@@ -1354,10 +1456,11 @@ func apply_pyramid_damage(raw_damage: int, _ignore_armor: bool = false) -> Dicti
 
 	if _pyramid_current_hp <= 0:
 		for cat: CatMechInstance in _party:
-			for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
-				var pt: PartInstance = cat.get_part(slot)
-				if pt != null:
-					pt.current_hp = 0
+			if _fusion_participating_ids.is_empty() or _fusion_participating_ids.has(cat.cat_id):
+				for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
+					var pt: PartInstance = cat.get_part(slot)
+					if pt != null:
+						pt.current_hp = 0
 
 	_refresh_hud()
 	return {
@@ -1373,6 +1476,8 @@ func _distribute_pyramid_damage_on_undock() -> Dictionary:
 	for cat_idx: int in range(_party.size()):
 		var cat: CatMechInstance = _party[cat_idx]
 		if not cat.is_alive():
+			continue
+		if not _fusion_participating_ids.is_empty() and not _fusion_participating_ids.has(cat.cat_id):
 			continue
 		for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
 			var part: PartInstance = cat.get_part(slot)
@@ -1480,6 +1585,9 @@ func _deactivate_bremen_pyramid() -> Dictionary:
 	var dist_res: Dictionary = _distribute_pyramid_damage_on_undock()
 	_pyramid_active = false
 	_pyramid_turns_left = 0
+	_fusion_participating_ids.clear()
+	if _fusion_controller != null:
+		_fusion_controller.deactivate()
 	AudioManager.play_sfx("pyramid_undock")
 	_sync_arena_music()
 	EventBus.pyramid_deactivated.emit()
