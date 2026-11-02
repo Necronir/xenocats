@@ -1,0 +1,24 @@
+# Dialogic 2 Timeline: boss_postlude_trubadur_quartet — Квартет уничтожает все 4 станции Трубадура
+[image path="res://assets/photos/5-1-trubadur-full.jpg"]
+[sound path="res://assets/audio/sfx/dissonance.wav"]
+felix (battle): Трубадур! Наш квартет в полном сборе: гитара, барабаны, бас и боевой синтезатор!
+cock (battle): КУ-КА-РЕ-КУ! Системы РЭБ заблокировали твои частоты, а синтезатор готов выдать финальный аккорд!
+trubadur (battle): Невозможно! Вы собрали всех четырёх изгоев?! Но даже квартету не сломить мою башню!
+[sound path="res://assets/audio/sfx/qte_hit.wav"]
+[image path="res://assets/photos/5-2-trubadur-blue.jpg"]
+felix (battle): Соло-гитара врубает дисторшн! Синий генератор разбит в пыль!
+[sound path="res://assets/audio/sfx/part_break.wav"]
+[image path="res://assets/photos/5-3-trubadur-red.jpg"]
+hound (battle): Барабанный напор сокрушает Красный генератор!
+[sound path="res://assets/audio/sfx/qte_hit.wav"]
+[image path="res://assets/photos/5-3-trubadur-yellow.jpg"]
+mule (battle): Басовый слэп сминает Жёлтый генератор!
+[sound path="res://assets/audio/sfx/pyramid_siren.wav"]
+cock (battle): А теперь — синтезаторный импульс и перегрузка! Прощай, Зелёный генератор!
+[sound path="res://assets/audio/sfx/part_break.wav"]
+[image path="res://assets/photos/5-4-trubadur-win.jpg"]
+trubadur (damaged): НЕ-Е-ЕТ! Все четыре станции уничтожены! Мой усилитель разбит... Живой звук победил искусственный автотюн!
+felix (happy): Мы сделали это! Вся четвёрка генераторов уничтожена!
+hound (happy): Впереди только радиорубка мародёров на вершине башни!
+mule (happy): Пора освободить эфир планеты от цензуры раз и навсегда!
+cock (battle): Вперёд, в избу радиорубки!

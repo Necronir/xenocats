@@ -2261,9 +2261,26 @@ func _handle_victory() -> void:
 			var photo_path: String = String(rescue_res.get("photo_path", ""))
 			var post_title: String = String(rescue_res.get("post_title", "СЕКТОР ЗАЧИЩЕН"))
 
+			var battle_party_size: int = _party.size()
+			var has_cock: bool = false
+			var has_mule: bool = false
+			var has_hound: bool = false
+			for c: CatMechInstance in _party:
+				if c != null:
+					if c.cat_id == &"COCK": has_cock = true
+					if c.cat_id == &"MULE": has_mule = true
+					if c.cat_id == &"HOUND": has_hound = true
+
 			if enemy_boss_id == "boss_satellite" or cid == "HOUND":
-				_end_title.text = "СПУТНИК ПОВЕРЖЕН! ПОЯВЛЕНИЕ КИБЕР-ТРУБАДУРА!"
-				_end_btn.text = "УЗНАТЬ, КТО ВЫШЕЛ ИЗ ТЕНИ ->"
+				if has_cock or battle_party_size >= 4:
+					_end_title.text = "СПУТНИК ПОВЕРЖЕН! ФИНАЛЬНЫЙ ШТУРМ КВАРТЕТА!"
+					_end_btn.text = "СОКРУШИТЬ 4 СТАНЦИИ ТРУБАДУРА ->"
+				elif has_mule:
+					_end_title.text = "СПУТНИК ПОВЕРЖЕН! ШТУРМ ВЫШКИ ТРИО!"
+					_end_btn.text = "ШТУРМОВАТЬ СТАНЦИИ ТРУБАДУРА ->"
+				else:
+					_end_title.text = "СПУТНИК ПОВЕРЖЕН! ПОЯВЛЕНИЕ КИБЕР-ТРУБАДУРА!"
+					_end_btn.text = "УЗНАТЬ, КТО ВЫШЕЛ ИЗ ТЕНИ ->"
 			elif enemy_boss_id == "boss_press" or cid == "MULE":
 				_end_title.text = "ХОЗЯИН МЕЛЬНИЦЫ ПОВЕРЖЕН! ОСЁЛ M.U.L.E. СПАСЁН!"
 				_end_btn.text = "СПАСТИ ОСЛА M.U.L.E. ->"
@@ -2288,16 +2305,91 @@ func _handle_victory() -> void:
 
 			_end_btn.pressed.connect(func() -> void:
 				if enemy_boss_id == "boss_satellite" or cid == "HOUND":
-					# Sputnik defeat -> Cyber-Trubadur entrance & ejection (ALWAYS runs after defeating Sputnik)
-					var trubadur_postlude_payload: Dictionary = {
-						"timeline": "res://data/dialogues/boss_postlude_sputnik_solo.dtl",
-						"timeline_name": "boss_postlude_sputnik_solo",
-						"title": "АУДИЕНЦИЯ У ТРУБАДУРА // ВЕРДИКТ ВЛАДЫКИ",
-						"continue_text": "ОЧНУТЬСЯ НА СВАЛКЕ ->"
-					}
-					var p_phase: int = int(SaveManager.story_progression.current_phase) if SaveManager.story_progression != null else -1
-					if not SaveManager.story_progression.unlocked_party_members.has(&"HOUND") or SaveManager.party.size() <= 1:
-						# First cycle: meet Hound on scrap heap
+					if has_cock or battle_party_size >= 4:
+						# 3.3 Cycle 2: Full Quartet destroys all 4 stations -> Trubadur defeated -> Cabin & Rock Concert!
+						var epilogue_dialogue_payload: Dictionary = {
+							"timeline": "res://data/dialogues/epilogue_cabin_scene.dtl",
+							"timeline_name": "epilogue_cabin_scene",
+							"title": "ЭПИЛОГ: СВОБОДНЫЙ ЭФИР «БРЕМЕН-4»",
+							"continue_text": "В ЛАГЕРЬ БРОДЯГ (ПОБЕДА В ИГРЕ!) ->",
+							"action_on_complete": "finish_run",
+							"next_scene": &"HUB",
+							"next_payload": {}
+						}
+						var epilogue_cutscene_payload: Dictionary = {
+							"image_path": "res://assets/photos/7-final.jpg",
+							"title": "ВЕЛИКИЙ ПОБЕДНЫЙ РОК-КОНЦЕРТ",
+							"next_scene": &"EVENT",
+							"next_payload": epilogue_dialogue_payload
+						}
+						var cabin_dialogue_payload: Dictionary = {
+							"timeline": "res://data/dialogues/boss_postlude_sector3.dtl",
+							"timeline_name": "boss_postlude_sector3",
+							"title": "ИЗБА РАЗБОЙНИКОВ: БЕГСТВО ПОПСЫ",
+							"continue_text": "ВЫЙТИ НА СЦЕНУ БРЕМЕН-4 ->",
+							"next_scene": &"VIDEO",
+							"next_payload": epilogue_cutscene_payload
+						}
+						var cabin_cutscene_payload: Dictionary = {
+							"image_path": "res://assets/photos/6-1-fake-boss-apperiance.jpg",
+							"title": "ИЗБА РАЗБОЙНИКОВ // ЗОЛОТОЙ АВТОТЮН",
+							"next_scene": &"EVENT",
+							"next_payload": cabin_dialogue_payload
+						}
+						var trubadur_quartet_payload: Dictionary = {
+							"timeline": "res://data/dialogues/boss_postlude_trubadur_quartet.dtl",
+							"timeline_name": "boss_postlude_trubadur_quartet",
+							"title": "СОКРУШЕНИЕ 4 СТАНЦИЙ // ТРУБАДУР ПОВЕРЖЕН",
+							"continue_text": "В ИЗБУ РАДИОРУБКИ ->",
+							"next_scene": &"VIDEO",
+							"next_payload": cabin_cutscene_payload
+						}
+						EventBus.request_scene_change.emit(&"VIDEO", {
+							"image_path": "res://assets/photos/5-1-trubadur-full.jpg",
+							"title": "ФИНАЛЬНЫЙ ШТУРМ: БРЕМЕНСКИЙ КВАРТЕТ",
+							"story_stage": 4,
+							"next_scene": &"EVENT",
+							"next_payload": trubadur_quartet_payload
+						})
+						return
+
+					elif has_mule:
+						# 3.2 Cycle 1: Trio breaks 3 stations -> Green station ejects them -> wake up, go to Sector 2
+						var trio_dialogue_payload: Dictionary = {
+							"timeline": "res://data/dialogues/story_intro_trio.dtl",
+							"timeline_name": "story_intro_trio",
+							"next_scene": &"MAP",
+							"next_payload": {},
+							"title": "В ПОИСКАХ КЛАВИШНИКА: ПРИТОН АТАМАНШИ",
+							"continue_text": "В ПРИТОН АТАМАНШИ (СЕКТОР 2) ->",
+							"action_on_complete": "advance_sector"
+						}
+						var trio_cutscene_payload: Dictionary = {
+							"image_path": "res://assets/photos/2-1-cat-and-hound-together.jpg",
+							"title": "ОЧНУТЬСЯ НА СВАЛКЕ // В ПОИСКАХ ПЕТУХА",
+							"story_stage": 2,
+							"next_scene": &"EVENT",
+							"next_payload": trio_dialogue_payload
+						}
+						var trubadur_trio_payload: Dictionary = {
+							"timeline": "res://data/dialogues/boss_postlude_trubadur_trio.dtl",
+							"timeline_name": "boss_postlude_trubadur_trio",
+							"title": "ШТУРМ ВЫШКИ: ТРИ СТАНЦИИ РАЗБИТЫ",
+							"continue_text": "ОЧНУТЬСЯ НА СВАЛКЕ ->",
+							"next_scene": &"VIDEO",
+							"next_payload": trio_cutscene_payload
+						}
+						EventBus.request_scene_change.emit(&"VIDEO", {
+							"image_path": "res://assets/photos/5-1-trubadur-full.jpg",
+							"title": "ВЛАДЫКА БАШНИ: ШТУРМ ТРИО",
+							"story_stage": 3,
+							"next_scene": &"EVENT",
+							"next_payload": trubadur_trio_payload
+						})
+						return
+
+					else:
+						# 3.1 Cycle 0: Solo Felix breaks Blue station -> ejected to scrap heap -> meets Hound
 						var hound_dialogue_payload: Dictionary = {
 							"timeline": "res://data/dialogues/story_intro_hound.dtl",
 							"timeline_name": "story_intro_hound",
@@ -2314,29 +2406,22 @@ func _handle_victory() -> void:
 							"next_scene": &"EVENT",
 							"next_payload": hound_dialogue_payload
 						}
-						trubadur_postlude_payload["next_scene"] = &"VIDEO"
-						trubadur_postlude_payload["next_payload"] = hound_cutscene_payload
-					else:
-						# Subsequent cycles: wake up together on scrap heap / map for next cycle
-						var loop_cutscene_payload: Dictionary = {
-							"image_path": "res://assets/photos/2-1-cat-and-hound-together.jpg",
-							"title": "ОЧНУТЬСЯ НА СВАЛКЕ // НОВЫЙ ЗАБЕГ",
-							"next_scene": &"MAP",
-							"next_payload": {},
-							"continue_text": "ОТПРАВИТЬСЯ В НОВЫЙ ЗАБЕГ ->",
-							"action_on_complete": "advance_sector"
+						var trubadur_solo_payload: Dictionary = {
+							"timeline": "res://data/dialogues/boss_postlude_sputnik_solo.dtl",
+							"timeline_name": "boss_postlude_sputnik_solo",
+							"title": "АУДИЕНЦИЯ У ТРУБАДУРА // СИНИЙ ГЕНЕРАТОР",
+							"continue_text": "ОЧНУТЬСЯ НА СВАЛКЕ ->",
+							"next_scene": &"VIDEO",
+							"next_payload": hound_cutscene_payload
 						}
-						trubadur_postlude_payload["next_scene"] = &"VIDEO"
-						trubadur_postlude_payload["next_payload"] = loop_cutscene_payload
-
-					EventBus.request_scene_change.emit(&"VIDEO", {
-						"image_path": "res://assets/photos/1-4b-trubadur-apperiance.jpg",
-						"title": "ВЛАДЫКА БАШНИ «БРЕМЕН-4»: КИБЕР-ТРУБАДУР",
-						"story_stage": 1,
-						"next_scene": &"EVENT",
-						"next_payload": trubadur_postlude_payload
-					})
-					return
+						EventBus.request_scene_change.emit(&"VIDEO", {
+							"image_path": "res://assets/photos/1-4b-trubadur-apperiance.jpg",
+							"title": "ВЛАДЫКА БАШНИ «БРЕМЕН-4»: КИБЕР-ТРУБАДУР",
+							"story_stage": 1,
+							"next_scene": &"EVENT",
+							"next_payload": trubadur_solo_payload
+						})
+						return
 
 				elif enemy_boss_id == "boss_press" or cid == "MULE":
 					# Press defeat -> Rescue MULE cutscene & dialogue -> IMMEDIATELY launch Sputnik boss battle!

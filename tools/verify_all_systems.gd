@@ -1943,25 +1943,50 @@ func _ready() -> void:
 	assert(press_defeat_res["timeline_id"] == "dialogic_rescue_mule", "Must route to dialogic_rescue_mule")
 	assert(SaveManager.party.size() == 3, "Party must now have Felix, Hound, Mule")
 
-	# 21.7 Subsequent Sputnik defeat in Cycle 1 ALWAYS routes to Trubadur postlude & photo
+	# 21.7 Subsequent Sputnik defeat in Cycle 1 routes to Trubadur Trio postlude & photo (breaking 3 stations)
 	var sputnik_c1_res: Dictionary = SaveManager.handle_biome_boss_defeat("BLUE", "boss_satellite")
-	assert(sputnik_c1_res["timeline_id"] == "boss_postlude_sputnik_solo", "Sputnik defeat must ALWAYS route to Trubadur postlude")
-	assert(sputnik_c1_res["photo_path"] == "res://assets/photos/1-4b-trubadur-apperiance.jpg", "Sputnik defeat must ALWAYS show Trubadur appearance photo")
-	assert(SaveManager.current_sector == 0, "Sputnik defeat must reset current_sector to 0 to cycle")
+	assert(sputnik_c1_res["timeline_id"] == "boss_postlude_trubadur_trio", "Cycle 1 Sputnik defeat must route to boss_postlude_trubadur_trio")
+	assert(sputnik_c1_res["photo_path"] == "res://assets/photos/5-1-trubadur-full.jpg", "Cycle 1 Sputnik defeat must show 5-1-trubadur-full.jpg")
+	assert(SaveManager.current_sector == 1, "Sputnik defeat in Cycle 1 sets current_sector to 1 so advance enters Sector 2")
 
 	# 21.8 In Cycle 2 Sector 2, Boss is Atamansha (3-1-atamansha-boss-apperiance.jpg, boss_prelude_sector2.dtl)
 	SaveManager.advance_to_next_sector()
-	assert(SaveManager.current_sector == 1, "Must advance to Sector 1 for Cycle 2")
+	assert(SaveManager.current_sector == 2, "Must advance to Sector 2 (Bandit Den) for Cycle 2")
 	var atamansha_defeat_res: Dictionary = SaveManager.handle_biome_boss_defeat("GREEN", "boss_atamansha")
 	assert(atamansha_defeat_res["companion_id"] == "COCK", "Atamansha defeat must rescue COCK")
 	assert(atamansha_defeat_res["photo_path"] == "res://assets/photos/3-2a-atamansha-boss-win.jpg", "Atamansha defeat must show 3-2a-atamansha-boss-win.jpg")
 	assert(atamansha_defeat_res["timeline_id"] == "dialogic_rescue_cock", "Must route to dialogic_rescue_cock")
 	assert(SaveManager.party.size() == 4, "Party must now have all 4 members")
 
-	# 21.9 Subsequent Sputnik defeat in Cycle 2 ALWAYS routes to Trubadur postlude & photo
+	# 21.9 Subsequent Sputnik defeat in Cycle 2 routes to Trubadur Quartet postlude (breaking all 4 stations)
 	var sputnik_c2_res: Dictionary = SaveManager.handle_biome_boss_defeat("BLUE", "boss_satellite")
-	assert(sputnik_c2_res["timeline_id"] == "boss_postlude_sputnik_solo", "Sputnik defeat in Cycle 2 must ALWAYS route to Trubadur postlude")
-	assert(sputnik_c2_res["photo_path"] == "res://assets/photos/1-4b-trubadur-apperiance.jpg", "Sputnik defeat in Cycle 2 must show Trubadur photo")
+	assert(sputnik_c2_res["timeline_id"] == "boss_postlude_trubadur_quartet", "Cycle 2 Sputnik defeat must route to boss_postlude_trubadur_quartet")
+	assert(sputnik_c2_res["photo_path"] == "res://assets/photos/5-1-trubadur-full.jpg", "Cycle 2 Sputnik defeat must show 5-1-trubadur-full.jpg")
+
+	# 21.10 Verify EventScene parses boss_postlude_trubadur_trio.dtl, story_intro_trio.dtl and boss_postlude_trubadur_quartet.dtl
+	var ev_trio: EventScene = ev_scene_res.instantiate() as EventScene
+	ev_trio.setup_event({"timeline": "res://data/dialogues/boss_postlude_trubadur_trio.dtl"})
+	add_child(ev_trio)
+	await get_tree().process_frame
+	assert(ev_trio._lines.size() >= 8, "boss_postlude_trubadur_trio.dtl must parse into at least 8 lines")
+	ev_trio.queue_free()
+	await get_tree().process_frame
+
+	var ev_trio_intro: EventScene = ev_scene_res.instantiate() as EventScene
+	ev_trio_intro.setup_event({"timeline": "res://data/dialogues/story_intro_trio.dtl"})
+	add_child(ev_trio_intro)
+	await get_tree().process_frame
+	assert(ev_trio_intro._lines.size() >= 6, "story_intro_trio.dtl must parse into at least 6 lines")
+	ev_trio_intro.queue_free()
+	await get_tree().process_frame
+
+	var ev_quartet: EventScene = ev_scene_res.instantiate() as EventScene
+	ev_quartet.setup_event({"timeline": "res://data/dialogues/boss_postlude_trubadur_quartet.dtl"})
+	add_child(ev_quartet)
+	await get_tree().process_frame
+	assert(ev_quartet._lines.size() >= 10, "boss_postlude_trubadur_quartet.dtl must parse into at least 10 lines")
+	ev_quartet.queue_free()
+	await get_tree().process_frame
 
 	print("[21] Issue #41: Dynamic Loop Prologue, Sputnik Boss Duel, Trubadur Entrance and Deferred Hound Join verified OK")
 

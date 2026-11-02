@@ -338,14 +338,31 @@ func handle_biome_boss_defeat(biome_theme: String = "", boss_id: String = "") ->
 	# Yellow Biome Boss -> M.U.L.E. (Donkey / Bassist)
 	# Green Biome Boss -> C.O.C.K. (Rooster / Synth & Electronic Warfare)
 	var p_val: int = int(story_progression.current_phase) if story_progression != null else -1
-	if boss_id == "boss_satellite" or (p_val == int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT) and clean_theme == "BLUE"):
-		companion_id = &"HOUND"
-		timeline = "res://data/dialogues/boss_postlude_sputnik_solo.dtl"
-		timeline_id = "boss_postlude_sputnik_solo"
-		photo_path = "res://assets/photos/1-4b-trubadur-apperiance.jpg"
-		post_title = "СПУТНИК ПОВЕРЖЕН // ПОЯВЛЕНИЕ КИБЕР-ТРУБАДУРА"
-		fusion_tier = 1
-		clean_theme = "BLUE"
+	if boss_id == "boss_satellite":
+		if has_party_member("COCK"):
+			companion_id = &""
+			timeline = "res://data/dialogues/boss_postlude_trubadur_quartet.dtl"
+			timeline_id = "boss_postlude_trubadur_quartet"
+			photo_path = "res://assets/photos/5-1-trubadur-full.jpg"
+			post_title = "СПУТНИК ПОВЕРЖЕН // ФИНАЛЬНЫЙ ШТУРМ КВАРТЕТА"
+			fusion_tier = 3
+			clean_theme = "BLUE"
+		elif has_party_member("MULE"):
+			companion_id = &""
+			timeline = "res://data/dialogues/boss_postlude_trubadur_trio.dtl"
+			timeline_id = "boss_postlude_trubadur_trio"
+			photo_path = "res://assets/photos/5-1-trubadur-full.jpg"
+			post_title = "СПУТНИК ПОВЕРЖЕН // ШТУРМ ВЫШКИ ТРИО"
+			fusion_tier = 2
+			clean_theme = "BLUE"
+		else:
+			companion_id = &"HOUND"
+			timeline = "res://data/dialogues/boss_postlude_sputnik_solo.dtl"
+			timeline_id = "boss_postlude_sputnik_solo"
+			photo_path = "res://assets/photos/1-4b-trubadur-apperiance.jpg"
+			post_title = "СПУТНИК ПОВЕРЖЕН // ПОЯВЛЕНИЕ КИБЕР-ТРУБАДУРА"
+			fusion_tier = 1
+			clean_theme = "BLUE"
 	elif boss_id == "boss_press" or clean_theme == "YELLOW":
 		companion_id = &"MULE"
 		timeline = "res://data/dialogues/dialogic_rescue_mule.dtl"
@@ -424,11 +441,18 @@ func handle_biome_boss_defeat(biome_theme: String = "", boss_id: String = "") ->
 	repair_squad_percentage(0.3)
 
 	# 4. Advance story phase in SaveManager
-	if boss_id == "boss_satellite" or companion_id == &"HOUND":
-		# Sputnik defeated -> Ejected from Spire to scrap heap: next sector advance will enter Sector 1 of next cycle
-		current_sector = 0
-		if story_progression != null and story_progression.current_phase == StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT:
-			advance_story_phase()
+	if boss_id == "boss_satellite":
+		if has_party_member("COCK"):
+			if story_progression != null and int(story_progression.current_phase) < int(StoryProgressionData.StoryPhase.COMPLETED):
+				advance_story_phase()
+		elif has_party_member("MULE"):
+			current_sector = 1
+			if story_progression != null and int(story_progression.current_phase) < int(StoryProgressionData.StoryPhase.CYCLE_2_TRIO):
+				advance_story_phase()
+		else:
+			current_sector = 0
+			if story_progression != null and story_progression.current_phase == StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT:
+				advance_story_phase()
 	elif companion_id == &"MULE" or boss_id == "boss_press":
 		if story_progression != null and int(story_progression.current_phase) < int(StoryProgressionData.StoryPhase.CYCLE_2_TRIO):
 			advance_story_phase()
