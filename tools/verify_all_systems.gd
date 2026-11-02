@@ -1214,6 +1214,128 @@ func _ready() -> void:
 
 	print("[16] Issue #30: 4-Phase Final Boss with Color Vulnerability Matrix & Ensemble Finisher verified OK")
 
+	print("\n--- [17] VERIFYING ISSUE #31: BIOME BOSS DEFEAT & COMPANION RESCUE PIPELINE (MULE & COCK) ---")
+
+	# 17.1 Verify Dialogic timeline files exist on disk
+	var mule_tl_path: String = "res://data/dialogues/dialogic_rescue_mule.dtl"
+	var cock_tl_path: String = "res://data/dialogues/dialogic_rescue_cock.dtl"
+	assert(FileAccess.file_exists(mule_tl_path), "dialogic_rescue_mule.dtl must exist")
+	assert(FileAccess.file_exists(cock_tl_path), "dialogic_rescue_cock.dtl must exist")
+
+	# Verify EventScene parses dialogic_rescue_mule and dialogic_rescue_cock
+	var ev_scene_res: PackedScene = load("res://src/event/event_scene.tscn") as PackedScene
+	var ev_mule: EventScene = ev_scene_res.instantiate() as EventScene
+	add_child(ev_mule)
+	ev_mule.setup_event({"timeline": "dialogic_rescue_mule"})
+	await get_tree().process_frame
+	assert(ev_mule._lines.size() >= 3, "dialogic_rescue_mule must parse dialogue lines")
+	ev_mule.queue_free()
+	await get_tree().process_frame
+
+	var ev_cock: EventScene = ev_scene_res.instantiate() as EventScene
+	add_child(ev_cock)
+	ev_cock.setup_event({"timeline": "dialogic_rescue_cock"})
+	await get_tree().process_frame
+	assert(ev_cock._lines.size() >= 3, "dialogic_rescue_cock must parse dialogue lines")
+	ev_cock.queue_free()
+	await get_tree().process_frame
+
+	# 17.2 Initialize party with 2 members (Felix & Hound)
+	SaveManager.set_story_phase(StoryProgressionData.StoryPhase.CYCLE_1_DUO)
+	SaveManager.start_new_run(999111)
+	assert(SaveManager.party.size() == 2, "Starting party must have size 2 before Yellow boss")
+	assert(SaveManager.has_party_member("FELIX") and SaveManager.has_party_member("HOUND"), "Party must have Felix and Hound")
+	assert(not SaveManager.has_party_member("MULE"), "MULE must not be in party before Yellow boss rescue")
+	assert(not SaveManager.has_party_member("COCK"), "COCK must not be in party before Green boss rescue")
+
+	# Damage a part to test 30% squad repair
+	var felix_inst: CatMechInstance = SaveManager.party[0]
+	var initial_body_hp: int = felix_inst.body_part.current_hp
+	felix_inst.body_part.current_hp = 20
+	var felix_damaged_body_hp: int = felix_inst.body_part.current_hp
+
+	# 17.3 Yellow Biome Boss Defeat -> Rescues M.U.L.E.
+	var yellow_res: Dictionary = SaveManager.handle_biome_boss_defeat("YELLOW", "boss_press")
+	assert(yellow_res["rescued"] == true, "Yellow boss defeat must rescue companion")
+	assert(yellow_res["companion_id"] == "MULE", "Yellow boss defeat must rescue MULE")
+	assert(yellow_res["timeline_id"] == "dialogic_rescue_mule", "Timeline must be dialogic_rescue_mule")
+	assert(yellow_res["timeline"] == mule_tl_path, "Timeline path mismatch")
+
+	# Acceptance criteria check:
+	# - Unlocks MULE in SaveManager
+	assert(SaveManager.is_party_member_unlocked(&"MULE"), "MULE must be unlocked in SaveManager")
+	# - Rescued character is immediately instantiated via DataCatalog.create_cat_instance() and appended to active party
+	assert(SaveManager.has_party_member("MULE"), "MULE must be in active party")
+	# - Unit test verifies party size increments to 3 after Yellow boss
+	assert(SaveManager.party.size() == 3, "Party size must increment to 3 after Yellow boss defeat")
+	# - Repair 30% HP across the squad
+	var expected_heal: int = int(float(felix_inst.body_part.get_max_hp()) * 0.3)
+	assert(felix_inst.body_part.current_hp >= felix_damaged_body_hp + expected_heal - 1, "Squad must receive 30% HP repair upon Yellow boss defeat")
+	# - Story phase advanced in SaveManager
+	assert(int(SaveManager.get_story_phase()) >= int(StoryProgressionData.StoryPhase.CYCLE_2_TRIO), "Story phase must advance in SaveManager")
+	# - Fusion tier ROBO_CATDOG_DONKEY unlocked
+	assert(SaveManager.is_fusion_tier_unlocked(2), "ROBO_CATDOG_DONKEY (Tier 2) must be unlocked")
+
+	# 17.4 Next run retains MULE and ROBO_CATDOG_DONKEY
+	SaveManager.start_new_run(999222)
+	assert(SaveManager.party.size() >= 3 and SaveManager.has_party_member("MULE"), "Next run must retain rescued MULE")
+	assert(SaveManager.is_fusion_tier_unlocked(CombatFusionController.FusionTier.ROBO_CATDOG_DONKEY), "Next run must retain ROBO_CATDOG_DONKEY unlock")
+
+	# Prepare for Green Biome Boss defeat: party has 3 members (Felix, Hound, Mule)
+	if SaveManager.has_party_member("COCK"):
+		var filtered_cats: Array[CatMechInstance] = []
+		for c: CatMechInstance in SaveManager.party:
+			if String(c.cat_id) != "COCK":
+				filtered_cats.append(c)
+		SaveManager.party = filtered_cats
+	assert(SaveManager.party.size() == 3, "Party size must be 3 before Green boss")
+	assert(not SaveManager.has_party_member("COCK"), "COCK must not be in party before Green boss rescue")
+
+	# Damage party to test squad repair on Green boss defeat
+	SaveManager.party[1].arms_part.current_hp = 15
+	var hound_arms_damaged: int = SaveManager.party[1].arms_part.current_hp
+	var hound_arms_heal: int = int(float(SaveManager.party[1].arms_part.get_max_hp()) * 0.3)
+
+	# 17.5 Green Biome Boss Defeat -> Rescues C.O.C.K.
+	var green_res: Dictionary = SaveManager.handle_biome_boss_defeat("GREEN", "boss_atamansha")
+	assert(green_res["rescued"] == true, "Green boss defeat must rescue companion")
+	assert(green_res["companion_id"] == "COCK", "Green boss defeat must rescue COCK")
+	assert(green_res["timeline_id"] == "dialogic_rescue_cock", "Timeline must be dialogic_rescue_cock")
+	assert(green_res["timeline"] == cock_tl_path, "Timeline path mismatch")
+
+	# Acceptance criteria check:
+	# - Unlocks COCK in SaveManager
+	assert(SaveManager.is_party_member_unlocked(&"COCK"), "COCK must be unlocked in SaveManager")
+	# - Rescued character is immediately instantiated via DataCatalog.create_cat_instance() and appended to active party
+	assert(SaveManager.has_party_member("COCK"), "COCK must be in active party")
+	# - Unit test verifies party size increments to 4 after Green boss
+	assert(SaveManager.party.size() == 4, "Party size must increment to 4 after Green boss defeat")
+	# - Repair 30% HP across the squad
+	assert(SaveManager.party[1].arms_part.current_hp >= hound_arms_damaged + hound_arms_heal - 1, "Squad must receive 30% HP repair upon Green boss defeat")
+	# - Advance story phase in SaveManager
+	assert(int(SaveManager.get_story_phase()) >= int(StoryProgressionData.StoryPhase.CYCLE_3_QUARTET), "Story phase must advance in SaveManager")
+	# - Fusion tier ROBO_MEGA_PYRAMID unlocked
+	assert(SaveManager.is_fusion_tier_unlocked(3), "ROBO_MEGA_PYRAMID (Tier 3) must be unlocked")
+
+	# 17.6 Next run retains COCK and ROBO_MEGA_PYRAMID
+	SaveManager.start_new_run(999333)
+	assert(SaveManager.party.size() == 4 and SaveManager.has_party_member("COCK"), "Next run must retain full quartet including COCK")
+	assert(SaveManager.is_fusion_tier_unlocked(CombatFusionController.FusionTier.ROBO_MEGA_PYRAMID), "Next run must retain ROBO_MEGA_PYRAMID unlock")
+
+	# 17.7 Verify CombatArena UI integration upon boss victory
+	var arena_packed: PackedScene = load("res://src/combat/combat_arena.tscn") as PackedScene
+	var arena_inst: CombatArena = arena_packed.instantiate() as CombatArena
+	arena_inst.setup_battle({"node_type": "BOSS", "biome_theme": "YELLOW", "boss_id": "boss_press"})
+	add_child(arena_inst)
+	await get_tree().process_frame
+	arena_inst._handle_victory()
+	assert(arena_inst._end_title.text.find("M.U.L.E.") != -1, "Victory title must mention M.U.L.E. rescue")
+	assert(arena_inst._end_btn.text.find("M.U.L.E.") != -1, "Victory button text must mention M.U.L.E. rescue")
+	arena_inst.queue_free()
+	await get_tree().process_frame
+
+	print("[17] Issue #31: Biome boss defeat triggers and companion rescue pipeline (MULE & COCK) verified OK")
+
 	AudioManager.stop_music()
 	await get_tree().process_frame
 	SaveManager.delete_run_save()

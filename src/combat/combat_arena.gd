@@ -307,9 +307,22 @@ func _init_combat_entities() -> void:
 			boss_inst.setup_final_boss_controller()
 			_enemies.append(boss_inst)
 		else:
-			var bosses: Array[EnemyData] = DataCatalog.get_enemies_for_sector(sec, false, true)
-			if not bosses.is_empty():
-				_enemies.append(EnemyInstance.new(bosses[0]))
+			var chosen_boss_ed: EnemyData = null
+			var b_override: String = String(_battle_payload.get("boss_id", ""))
+			if b_override != "":
+				chosen_boss_ed = DataCatalog.get_enemy(b_override)
+			elif th == "YELLOW":
+				chosen_boss_ed = DataCatalog.get_enemy("boss_press")
+			elif th == "GREEN":
+				chosen_boss_ed = DataCatalog.get_enemy("boss_atamansha")
+
+			if chosen_boss_ed == null:
+				var bosses: Array[EnemyData] = DataCatalog.get_enemies_for_sector(sec, false, true)
+				if not bosses.is_empty():
+					chosen_boss_ed = bosses[0]
+
+			if chosen_boss_ed != null:
+				_enemies.append(EnemyInstance.new(chosen_boss_ed))
 	elif node_type == "ELITE":
 		var elites: Array[EnemyData] = DataCatalog.get_enemies_for_sector(sec, true, false)
 		if not elites.is_empty():
@@ -2081,60 +2094,88 @@ func _handle_victory() -> void:
 				EventBus.request_scene_change.emit(&"HUB", {})
 			)
 		else:
-			var win_titles: Dictionary = {
-				1: "ХОЗЯИН МЕЛЬНИЦЫ ПОВЕРЖЕН!",
-				2: "ХОЗЯЙКА ПРИТОНА ПОВЕРЖЕНА!"
-			}
-			var win_btns: Dictionary = {
-				1: "СПАСТИ ОСЛА M.U.L.E. ->",
-				2: "СПАСТИ ПЕТУХА C.O.C.K. ->"
-			}
-			var post_titles: Dictionary = {
-				1: "СПАСЕНИЕ ОСЛА // M.U.L.E. ВСТУПАЕТ В ГРУППУ!",
-				2: "СПАСЕНИЕ ПЕТУХА ОТ СУПА // КВАРТЕТ В СБОРЕ!"
-			}
-			var next_btns: Dictionary = {
-				1: "В ПУТЬ ВТРОЁМ С ОСЛОМ (СЕКТОР 2) ->",
-				2: "В ПУТЬ КВАРТЕТОМ НА ВЕРШИНУ (СЕКТОР 3) ->"
-			}
-			_end_title.text = String(win_titles.get(current_sec, "ПОБЕДА НАД БОССОМ!"))
+			var p_val: int = int(SaveManager.story_progression.current_phase) if SaveManager.story_progression != null else -1
+			var biome_theme: String = MapGenerator.get_sector_theme(SaveManager.current_sector, p_val)
+			if _battle_payload.has("biome_theme"):
+				biome_theme = String(_battle_payload["biome_theme"]).to_upper()
+
+			var enemy_boss_id: String = ""
+			for en: EnemyInstance in _enemies:
+				if en != null and en.data != null and en.data.is_boss:
+					enemy_boss_id = String(en.data.enemy_id)
+					break
+
+			# Trigger companion rescue pipeline (Issue #31 / ADR-002)
+			var rescue_res: Dictionary = SaveManager.handle_biome_boss_defeat(biome_theme, enemy_boss_id)
+			_party = SaveManager.party
+			_refresh_hud()
+			AudioManager.sync_music_to_party(_party)
+
+			postlude_path = String(rescue_res.get("timeline", "res://data/dialogues/dialogic_rescue_mule.dtl"))
+			var timeline_id: String = String(rescue_res.get("timeline_id", "dialogic_rescue_mule"))
+			var cid: String = String(rescue_res.get("companion_id", "MULE"))
+			var photo_path: String = String(rescue_res.get("photo_path", ""))
+			var post_title: String = String(rescue_res.get("post_title", "СЕКТОР ЗАЧИЩЕН"))
+
+			if cid == "MULE":
+				_end_title.text = "ХОЗЯИН МЕЛЬНИЦЫ ПОВЕРЖЕН! ОСЁЛ M.U.L.E. СПАСЁН!"
+				_end_btn.text = "СПАСТИ ОСЛА M.U.L.E. ->"
+			elif cid == "COCK":
+				_end_title.text = "АТАМАНША ПОВЕРЖЕНА! ПЕТУХ C.O.C.K. СПАСЁН!"
+				_end_btn.text = "СПАСТИ ПЕТУХА C.O.C.K. ->"
+			else:
+				_end_title.text = "БОСС БИОМА ПОВЕРЖЕН!"
+				_end_btn.text = "СЮЖЕТ: ИТОГ БОЯ ->"
+
 			_end_title.add_theme_color_override("font_color", Color(0.35, 0.95, 1.0))
 			var drop_txt: String = ("\nНайден модуль: [" + dropped_part_name + "]!") if dropped_part_name != "" else ""
 			_end_desc.text = (
 				"Собрано лома: +" + str(total_scrap)
 				+ ((" | Ядра ИИ: +" + str(total_cores)) if total_cores > 0 else "")
 				+ drop_txt
+				+ "\nРемонт +30% HP проведён для всего отряда! В отряде: " + str(SaveManager.party.size()) + " музыканта."
 			)
-			_end_btn.text = String(win_btns.get(current_sec, "СЮЖЕТ: ИТОГ БОЯ ->"))
+
+			var next_btn_lbl: String = "В ПУТЬ ВТРОЁМ С ОСЛОМ (СЕКТОР 2) ->" if cid == "MULE" else ("В ПУТЬ КВАРТЕТОМ НА ВЕРШИНУ (СЕКТОР 3) ->" if cid == "COCK" else "ПЕРЕЙТИ В СЛЕДУЮЩИЙ СЕКТОР ->")
+
 			_end_btn.pressed.connect(func() -> void:
 				var postlude_payload: Dictionary = {
 					"timeline": postlude_path,
+					"timeline_name": timeline_id,
 					"next_scene": &"MAP",
 					"next_payload": {},
-					"title": String(post_titles.get(current_sec, "СЕКТОР ЗАЧИЩЕН")),
-					"continue_text": String(next_btns.get(current_sec, "ПЕРЕЙТИ В СЛЕДУЮЩИЙ СЕКТОР ->")),
+					"title": post_title,
+					"continue_text": next_btn_lbl,
 					"action_on_complete": "advance_sector"
 				}
-				if current_sec == 1 and ResourceLoader.exists("res://assets/photos/4a-press-boss-win.jpg"):
+				if cid == "MULE" and ResourceLoader.exists("res://assets/photos/4a-press-boss-win.jpg"):
 					EventBus.request_scene_change.emit(&"VIDEO", {
 						"image_path": "res://assets/photos/4a-press-boss-win.jpg",
-						"title": "СЕКТОР 1: ПОБЕДА НАД ПРЕССОМ // СПАСЕНИЕ ОСЛА M.U.L.E.",
+						"title": post_title,
 						"story_stage": 3,
 						"next_scene": &"EVENT",
 						"next_payload": postlude_payload
 					})
-				elif current_sec == 1 and ResourceLoader.exists("res://assets/videos/3-mule.ogv"):
+				elif cid == "MULE" and ResourceLoader.exists("res://assets/videos/3-mule.ogv"):
 					EventBus.request_scene_change.emit(&"VIDEO", {
 						"video_path": "res://assets/videos/3-mule.ogv",
 						"title": "СЕКТОР 1: ОСВОБОЖДЕНИЕ ОСЛА M.U.L.E.",
 						"next_scene": &"EVENT",
 						"next_payload": postlude_payload
 					})
-				elif current_sec == 2 and ResourceLoader.exists("res://assets/photos/6a-atamansha-boss-win.jpg"):
+				elif cid == "COCK" and ResourceLoader.exists("res://assets/photos/6a-atamansha-boss-win.jpg"):
 					EventBus.request_scene_change.emit(&"VIDEO", {
 						"image_path": "res://assets/photos/6a-atamansha-boss-win.jpg",
-						"title": "СЕКТОР 2: ПОБЕДА НАД АТАМАНШЕЙ // СПАСЕНИЕ ПЕТУХА C.O.C.K.",
+						"title": post_title,
 						"story_stage": 4,
+						"next_scene": &"EVENT",
+						"next_payload": postlude_payload
+					})
+				elif photo_path != "" and ResourceLoader.exists(photo_path):
+					EventBus.request_scene_change.emit(&"VIDEO", {
+						"image_path": photo_path,
+						"title": post_title,
+						"story_stage": 3 if cid == "MULE" else 4,
 						"next_scene": &"EVENT",
 						"next_payload": postlude_payload
 					})

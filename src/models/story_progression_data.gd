@@ -59,7 +59,15 @@ func set_phase(phase: StoryPhase, sync_defaults: bool = true) -> void:
 
 func advance_phase() -> bool:
 	if int(current_phase) < int(StoryPhase.COMPLETED):
-		set_phase((int(current_phase) + 1) as StoryPhase)
+		var prev_members: Array[StringName] = unlocked_party_members.duplicate()
+		var prev_tiers: Array[int] = unlocked_fusion_tiers.duplicate()
+		set_phase((int(current_phase) + 1) as StoryPhase, true)
+		for m: StringName in prev_members:
+			if not unlocked_party_members.has(m):
+				unlocked_party_members.append(m)
+		for t: int in prev_tiers:
+			if not unlocked_fusion_tiers.has(t):
+				unlocked_fusion_tiers.append(t)
 		return true
 	return false
 

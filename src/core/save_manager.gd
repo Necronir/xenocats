@@ -102,6 +102,26 @@ func unlock_fusion_tier(tier: int) -> bool:
 		save_meta()
 	return changed
 
+func is_fusion_tier_unlocked(tier: int) -> bool:
+	if story_progression == null:
+		story_progression = StoryProgressionData.new()
+	return story_progression.unlocked_fusion_tiers.has(tier)
+
+func get_unlocked_fusion_tiers() -> Array[int]:
+	if story_progression == null:
+		story_progression = StoryProgressionData.new()
+	return story_progression.unlocked_fusion_tiers.duplicate()
+
+func is_party_member_unlocked(cat_id: StringName) -> bool:
+	if story_progression == null:
+		story_progression = StoryProgressionData.new()
+	return story_progression.unlocked_party_members.has(cat_id)
+
+func get_unlocked_party_members() -> Array[StringName]:
+	if story_progression == null:
+		story_progression = StoryProgressionData.new()
+	return story_progression.unlocked_party_members.duplicate()
+
 # --- Перки и бонусы мета-прогрессии ---
 
 func has_perk(perk_id: String) -> bool:
@@ -256,6 +276,105 @@ func recruit_cat(cat_id: String) -> bool:
 	party.append(new_cat)
 	_apply_meta_and_tape_bonuses_to_cat(new_cat)
 	return true
+
+func repair_squad_percentage(ratio: float = 0.3) -> void:
+	for cat: CatMechInstance in party:
+		for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
+			var part: PartInstance = cat.get_part(slot)
+			if part != null:
+				part.repair(int(float(part.get_max_hp()) * ratio))
+
+func rescue_companion(cat_id: String) -> Dictionary:
+	var cid_upper: String = cat_id.to_upper().strip_edges()
+	var theme: String = "YELLOW" if cid_upper == "MULE" else ("GREEN" if cid_upper == "COCK" else "")
+	var b_id: String = "boss_press" if cid_upper == "MULE" else ("boss_atamansha" if cid_upper == "COCK" else "")
+	return handle_biome_boss_defeat(theme, b_id)
+
+func handle_biome_boss_defeat(biome_theme: String = "", boss_id: String = "") -> Dictionary:
+	var clean_theme: String = biome_theme.to_upper().strip_edges()
+	var companion_id: StringName = &""
+	var timeline: String = ""
+	var timeline_id: String = ""
+	var photo_path: String = ""
+	var post_title: String = ""
+	var fusion_tier: int = 0
+
+	# Map theme or boss_id to companion rescue per ADR-002:
+	# Yellow Biome Boss -> M.U.L.E. (Donkey / Bassist)
+	# Green Biome Boss -> C.O.C.K. (Rooster / Synth & Electronic Warfare)
+	if clean_theme == "YELLOW" or boss_id == "boss_press":
+		companion_id = &"MULE"
+		timeline = "res://data/dialogues/dialogic_rescue_mule.dtl"
+		timeline_id = "dialogic_rescue_mule"
+		photo_path = "res://assets/photos/4a-press-boss-win.jpg"
+		post_title = "СЕКТОР: ПОБЕДА НАД ПРЕССОМ // СПАСЕНИЕ ОСЛА M.U.L.E."
+		fusion_tier = 2 # ROBO_CATDOG_DONKEY
+		clean_theme = "YELLOW"
+	elif clean_theme == "GREEN" or boss_id == "boss_atamansha":
+		companion_id = &"COCK"
+		timeline = "res://data/dialogues/dialogic_rescue_cock.dtl"
+		timeline_id = "dialogic_rescue_cock"
+		photo_path = "res://assets/photos/6a-atamansha-boss-win.jpg"
+		post_title = "СЕКТОР: ПОБЕДА НАД АТАМАНШЕЙ // СПАСЕНИЕ ПЕТУХА C.O.C.K."
+		fusion_tier = 3 # ROBO_MEGA_PYRAMID
+		clean_theme = "GREEN"
+	else:
+		var p_val: int = int(story_progression.current_phase) if story_progression != null else -1
+		var inferred: String = MapGenerator.get_sector_theme(current_sector, p_val)
+		if inferred == "YELLOW" or current_sector == 1:
+			companion_id = &"MULE"
+			timeline = "res://data/dialogues/dialogic_rescue_mule.dtl"
+			timeline_id = "dialogic_rescue_mule"
+			photo_path = "res://assets/photos/4a-press-boss-win.jpg"
+			post_title = "СЕКТОР: ПОБЕДА НАД ПРЕССОМ // СПАСЕНИЕ ОСЛА M.U.L.E."
+			fusion_tier = 2
+			clean_theme = "YELLOW"
+		elif inferred == "GREEN" or current_sector == 2:
+			companion_id = &"COCK"
+			timeline = "res://data/dialogues/dialogic_rescue_cock.dtl"
+			timeline_id = "dialogic_rescue_cock"
+			photo_path = "res://assets/photos/6a-atamansha-boss-win.jpg"
+			post_title = "СЕКТОР: ПОБЕДА НАД АТАМАНШЕЙ // СПАСЕНИЕ ПЕТУХА C.O.C.K."
+			fusion_tier = 3
+			clean_theme = "GREEN"
+
+	# 1. Unlock companion in SaveManager (which also unlocks the fusion tier in StoryProgressionData)
+	if companion_id != &"":
+		unlock_party_member(companion_id)
+		if fusion_tier > 0:
+			unlock_fusion_tier(fusion_tier)
+
+	# 2. Rescued character is immediately instantiated via DataCatalog.create_cat_instance() and appended to active party
+	var instantiated: bool = false
+	if companion_id != &"" and not has_party_member(String(companion_id)):
+		var new_cat: CatMechInstance = DataCatalog.create_cat_instance(String(companion_id))
+		if new_cat != null:
+			party.append(new_cat)
+			_apply_meta_and_tape_bonuses_to_cat(new_cat)
+			instantiated = true
+
+	# 3. Repair 30% HP across the squad
+	repair_squad_percentage(0.3)
+
+	# 4. Advance story phase in SaveManager
+	advance_story_phase()
+
+	save_meta()
+	save_run()
+
+	return {
+		"rescued": (companion_id != &""),
+		"companion_id": String(companion_id),
+		"biome_theme": clean_theme,
+		"timeline": timeline,
+		"timeline_id": timeline_id,
+		"post_title": post_title,
+		"photo_path": photo_path,
+		"fusion_tier": fusion_tier,
+		"party_size": party.size(),
+		"repaired_percentage": 0.3,
+		"newly_instantiated": instantiated
+	}
 
 func advance_to_next_sector() -> void:
 	current_sector += 1
