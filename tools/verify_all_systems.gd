@@ -11,7 +11,8 @@ func _ready() -> void:
 	var tapes_count: int = DataCatalog.get_all_tapes().size()
 	print("[1] Loaded parts: ", parts_count, " | tapes: ", tapes_count)
 	assert(parts_count >= 16, "Expected at least 16 parts in catalog")
-	assert(tapes_count == 3, "Expected 3 music tapes")
+	assert(tapes_count >= 4, "Expected at least 4 music tapes in catalog")
+	assert(DataCatalog.get_tape("tape_bremen_triumph") != null, "tape_bremen_triumph must be registered in catalog")
 
 	# 2. Verify Front Mission 3-part rules on CatMechInstance
 	SaveManager.start_new_run(777888)
@@ -64,7 +65,8 @@ func _ready() -> void:
 		"res://src/combat/combat_arena.tscn",
 		"res://src/garage/garage_scene.tscn",
 		"res://src/event/event_scene.tscn",
-		"res://src/core/video_player_scene.tscn"
+		"res://src/core/video_player_scene.tscn",
+		"res://src/epilogue/epilogue_scene.tscn"
 	]
 	for spath: String in scenes_to_test:
 		var packed: PackedScene = load(spath) as PackedScene
@@ -1742,6 +1744,127 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	print("[19] Issue #32: Dialogic 2 timelines, 4th-wall break choice, pisikot gag & mid-battle pause verified OK")
+	# =========================================================================
+	# [20] Issue #34: Epilogue: Robbers' Cabin Fairy-Tale Cutscene & Grand Victory Rock Concert
+	# =========================================================================
+	print("\n--- [20] VERIFYING ISSUE #34: EPILOGUE: ROBBERS' CABIN CUTSCENE & GRAND VICTORY ROCK CONCERT ---")
+
+	# 20.1 Verify SceneManager routing and registration for EPILOGUE scene
+	assert(SceneManager.SCENE_PATHS.has("EPILOGUE"), "SceneManager must register EPILOGUE scene")
+	var epilogue_packed: PackedScene = load("res://src/epilogue/epilogue_scene.tscn") as PackedScene
+	assert(epilogue_packed != null, "Epilogue scene must be loadable")
+	var epilogue: EpilogueScene = epilogue_packed.instantiate() as EpilogueScene
+	assert(epilogue != null, "Epilogue scene must instantiate as EpilogueScene")
+	add_child(epilogue)
+	await get_tree().process_frame
+
+	# 20.2 Verify Act 1: Initial state starts at Cabin, showing Robo-Mega-Pyramid sprite
+	assert(epilogue.get_current_act() == EpilogueScene.Act.CABIN, "Epilogue must start at Act 1: CABIN")
+	assert(epilogue.get_cabin_sprite_path().ends_with("story_cabin_mega_pyramid.png") or epilogue.get_cabin_sprite_path().ends_with("bremen_pyramid.png"), "Initial Act 1 sprite must be Mega-Pyramid")
+	assert(not epilogue.is_animal_pyramid_active(), "Classic animal pyramid must not be active initially")
+
+	# 20.3 Verify Cabin cutscene sequence switches sprites from Mega-Pyramid to stacked animal pyramid with comic SFX
+	# Step through dialogue to the disassembly line
+	var reached_switch: bool = false
+	for line_i: int in range(12):
+		var cur_line: Dictionary = epilogue.get_dialogue_line(epilogue._line_cursor)
+		if bool(cur_line.get("switch_pyramid", false)):
+			reached_switch = true
+			break
+		epilogue.advance_cabin_dialogue()
+		await get_tree().process_frame
+
+	assert(reached_switch, "Must reach classic pyramid disassembly line in dialogue")
+	assert(epilogue.is_animal_pyramid_active() == true, "Must switch to classic animal pyramid")
+	assert(epilogue.get_cabin_sprite_path().ends_with("story_bremen_window_pyramid.png") or epilogue.get_cabin_sprite_path().ends_with("bremen_animal_pyramid.png"), "Sprite must switch to classic animal pyramid")
+	assert(epilogue.has_comic_sfx_played() == true, "Comic SFX must play on pyramid disassembly switch")
+
+	# 20.4 Verify Outlaw dialogue displays authentic Brothers Grimm panic quotes and Felix punchline
+	var found_outlaw_panic: bool = false
+	var found_felix_punchline: bool = false
+	for ch_line: Dictionary in epilogue._lines:
+		var txt: String = String(ch_line.get("text", ""))
+		var spk: String = String(ch_line.get("speaker", ""))
+		if spk == "outlaw" and (txt.find("ведьма") != -1 or txt.find("witch") != -1) and (txt.find("когтями") != -1 or txt.find("claws") != -1) and (txt.find("ножом") != -1 or txt.find("knife") != -1 or txt.find("devil") != -1):
+			found_outlaw_panic = true
+		if spk == "felix" and (txt.find("робопетухокотопсоосла") != -1 or txt.find("Robo-RoosterCatDogDonkey") != -1):
+			found_felix_punchline = true
+
+	assert(found_outlaw_panic, "Outlaw dialogue must contain authentic Brothers Grimm panic quotes")
+	assert(found_felix_punchline, "Felix dialogue must contain punchline: Robo-RoosterCatDogDonkey")
+
+	# 20.5 Verify Act 2: Grand Victory Rock Concert
+	var prev_highest_ng: int = SaveManager.highest_ng_cycle
+	epilogue.start_act_2_concert()
+	await get_tree().process_frame
+
+	assert(epilogue.get_current_act() == EpilogueScene.Act.CONCERT, "Must transition to Act 2: CONCERT")
+
+	# 20.6 Final Concert plays full polyphonic track (Guitar + Drums + Bass + Synth)
+	assert(epilogue.is_polyphonic_track_playing() == true, "Final Concert must play full polyphonic track")
+	assert(AudioManager.active_instruments.has("Гитара"), "Active instruments must include Guitar")
+	assert(AudioManager.active_instruments.has("Барабан"), "Active instruments must include Drums")
+	assert(AudioManager.active_instruments.has("Бас"), "Active instruments must include Bass")
+	assert(AudioManager.active_instruments.has("Синтезатор"), "Active instruments must include Synth")
+
+	# 20.7 Animated character rigs for all 4 musicians
+	var rigs: Array[Dictionary] = epilogue.get_character_rigs()
+	assert(rigs.size() == 4, "Concert stage must have exactly 4 character rigs (Mule, Felix, Hound, Cock)")
+	var rig_ids: Array[String] = []
+	for r: Dictionary in rigs:
+		rig_ids.append(String(r["id"]))
+	assert(rig_ids.has("FELIX") and rig_ids.has("HOUND") and rig_ids.has("MULE") and rig_ids.has("COCK"), "All 4 heroes must have animated character rigs on stage")
+
+	# Simulate several process frames to verify animations, lighting & pyro
+	epilogue._process(0.16)
+	epilogue._process(0.16)
+	await get_tree().process_frame
+	assert(epilogue.are_lights_and_pyro_active() == true, "Stage spotlights and pyrotechnic cannons must be active")
+
+	# 20.8 Credits roll over concert performance and player input allows skipping to Hub
+	var initial_scroll_y: float = epilogue.get_credits_scroll_position()
+	epilogue._process(0.5)
+	assert(epilogue.get_credits_scroll_position() < initial_scroll_y, "Credits must roll upward over concert performance")
+
+	var hub_requested: Array[bool] = [false]
+	var scene_handler: Callable = func(s_name: StringName, _pl: Dictionary) -> void:
+		if s_name == &"HUB":
+			hub_requested[0] = true
+	EventBus.request_scene_change.connect(scene_handler)
+	epilogue.skip_to_hub()
+	await get_tree().process_frame
+	EventBus.request_scene_change.disconnect(scene_handler)
+	assert(hub_requested[0] == true, "Player input skipping concert must navigate to Hub")
+
+	# 20.9 Unlocks tape_bremen_triumph and sets highest_ng_cycle += 1 in SaveManager
+	assert(SaveManager.unlocked_tapes.has("tape_bremen_triumph"), "Must unlock tape_bremen_triumph in SaveManager")
+	assert(SaveManager.highest_ng_cycle == prev_highest_ng + 1, "Must set highest_ng_cycle += 1 in SaveManager")
+	assert(SaveManager.story_progression.concert_hall_liberated == true, "Must set concert_hall_liberated = true")
+	assert(SaveManager.story_progression.current_phase == StoryProgressionData.StoryPhase.COMPLETED, "Story phase must be COMPLETED")
+
+	# Verify persistence of unlocked tape and NG+ cycle in meta_save.json
+	SaveManager.save_meta()
+	SaveManager.load_meta()
+	assert(SaveManager.unlocked_tapes.has("tape_bremen_triumph"), "tape_bremen_triumph must persist across save_meta/load_meta roundtrip")
+	assert(SaveManager.highest_ng_cycle == prev_highest_ng + 1, "highest_ng_cycle must persist across save_meta/load_meta roundtrip")
+
+	# 20.10 Verify Dialogic 2 timeline files for Epilogue
+	assert(FileAccess.file_exists("res://data/dialogues/epilogue_cabin_scene.dtl"), "epilogue_cabin_scene.dtl must exist")
+	assert(FileAccess.file_exists("res://data/dialogues/boss_postlude_sector3.dtl"), "boss_postlude_sector3.dtl must exist")
+
+	var ev_scene_epilogue: EventScene = ev_scene_res.instantiate() as EventScene
+	ev_scene_epilogue.setup_event({"timeline": "res://data/dialogues/epilogue_cabin_scene.dtl"})
+	add_child(ev_scene_epilogue)
+	await get_tree().process_frame
+	assert(ev_scene_epilogue._lines.size() >= 8, "epilogue_cabin_scene.dtl must parse into at least 8 lines in EventScene")
+	ev_scene_epilogue.queue_free()
+	await get_tree().process_frame
+
+	epilogue.queue_free()
+	await get_tree().process_frame
+
+	print("[20] Issue #34: Robbers' cabin fairy-tale cutscene, sprite switch, Grimm quotes & victory rock concert verified OK")
+
 
 
 	AudioManager.stop_music()

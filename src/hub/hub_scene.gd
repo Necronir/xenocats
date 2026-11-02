@@ -343,17 +343,28 @@ func _refresh_hub() -> void:
 	_tapes_box.add_child(h3)
 
 	for tape: MusicTapeData in DataCatalog.get_all_tapes():
+		var is_unlocked: bool = SaveManager.unlocked_tapes.has(String(tape.tape_id))
 		var is_eq: bool = (SaveManager.equipped_tape_id == tape.tape_id)
 		var t_lbl: Label = Label.new()
 		t_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		t_lbl.add_theme_font_size_override("font_size", 8)
-		t_lbl.text = tape.tape_name + "\n" + tape.description
+		if is_unlocked:
+			t_lbl.text = tape.tape_name + "\n" + tape.description
+		else:
+			t_lbl.text = "🔒 " + tape.tape_name + "\n[ТРЕБУЕТСЯ ПОБЕДА В ЭПИЛОГЕ]"
 		_tapes_box.add_child(t_lbl)
 
 		var t_btn: Button = Button.new()
 		t_btn.add_theme_font_size_override("font_size", 8)
-		t_btn.text = "♪ ИГРАЕТ СЕЙЧАС ♪" if is_eq else "Вставить кассету"
-		t_btn.disabled = is_eq
+		if not is_unlocked:
+			t_btn.text = "Заблокировано"
+			t_btn.disabled = true
+		elif is_eq:
+			t_btn.text = "♪ ИГРАЕТ СЕЙЧАС ♪"
+			t_btn.disabled = true
+		else:
+			t_btn.text = "Вставить кассету"
+			t_btn.disabled = false
 		t_btn.pressed.connect(func() -> void:
 			SaveManager.equip_tape(tape.tape_id)
 			AudioManager.play_tape(tape.tape_id)

@@ -66,6 +66,15 @@ func _ready() -> void:
 	)
 	hbox.add_child(_boss3_btn)
 
+	var epilogue_btn: Button = _make_dev_button(
+		"★ ЭПИЛОГ",
+		Color(1.0, 0.85, 0.35),
+		func() -> void:
+			AudioManager.play_sfx("ui_click")
+			EventBus.request_scene_change.emit(&"EPILOGUE", {"act": 1})
+	)
+	hbox.add_child(epilogue_btn)
+
 func refresh_labels() -> void:
 	if _current_boss_btn != null:
 		var sec: int = clampi(SaveManager.current_sector if SaveManager.has_active_run else 1, 1, 3)

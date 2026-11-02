@@ -171,6 +171,26 @@ def generate_cats() -> None:
     d.rectangle([29, 14, 35, 88], fill=(120, 255, 255, 255))
     pyr.save(os.path.join(out_dir, "bremen_pyramid.png"))
 
+    # Classic Brothers Grimm Animal Pyramid: bremen_animal_pyramid.png (Rooster on Cat on Dog on Donkey)
+    anim_pyr = Image.new("RGBA", (64, 96), (0, 0, 0, 0))
+    da = ImageDraw.Draw(anim_pyr)
+    # Bottom: Donkey (MULE)
+    da.rectangle([10, 68, 54, 92], fill=(215, 165, 40, 255), outline=(20, 22, 28, 255))
+    da.polygon([(8, 70), (12, 60), (16, 70)], fill=(215, 165, 40, 255))
+    da.polygon([(18, 70), (22, 60), (26, 70)], fill=(215, 165, 40, 255))
+    # 2nd: Dog (HOUND)
+    da.rectangle([14, 46, 50, 68], fill=(175, 45, 55, 255), outline=(20, 22, 28, 255))
+    da.ellipse([10, 52, 16, 62], fill=(135, 30, 40, 255))
+    # 3rd: Cat (FELIX)
+    da.rectangle([18, 26, 46, 46], fill=(55, 145, 220, 255), outline=(20, 22, 28, 255))
+    da.polygon([(18, 26), (22, 18), (26, 26)], fill=(55, 145, 220, 255))
+    da.polygon([(38, 26), (42, 18), (46, 26)], fill=(55, 145, 220, 255))
+    # Top: Rooster (COCK)
+    da.rectangle([22, 12, 42, 26], fill=(140, 65, 195, 255), outline=(20, 22, 28, 255))
+    da.polygon([(26, 12), (32, 2), (38, 12)], fill=(255, 50, 80, 255))
+    da.polygon([(16, 18), (22, 16), (22, 20)], fill=(255, 210, 40, 255))
+    anim_pyr.save(os.path.join(out_dir, "bremen_animal_pyramid.png"))
+
 
 def generate_portraits() -> None:
     out_dir = os.path.join(ROOT, "sprites", "portraits")
@@ -183,8 +203,9 @@ def generate_portraits() -> None:
         "atamansha": ((200, 40, 90, 255), (255, 230, 50, 255)),
         "press": ((180, 65, 50, 255), (255, 180, 40, 255)),
         "satellite": ((70, 95, 185, 255), (120, 255, 255, 255)),
+        "outlaw": ((150, 70, 40, 255), (255, 120, 60, 255)),
     }
-    moods = ["normal", "battle", "damaged", "glitch"]
+    moods = ["normal", "battle", "damaged", "glitch", "panic", "shocked", "happy"]
     for name, (bg_col, eye_col) in chars.items():
         for mood in moods:
             img = Image.new("RGBA", (48, 48), (18, 20, 28, 255))
@@ -209,6 +230,15 @@ def generate_portraits() -> None:
             elif mood == "glitch":
                 for y in range(18, 27, 2):
                     d.line([(13, y), (34, y)], fill=eye_col, width=1)
+            elif mood in ("panic", "shocked"):
+                d.ellipse([15, 19, 21, 25], fill=(255, 255, 255, 255), outline=(255, 40, 40, 255))
+                d.ellipse([26, 19, 32, 25], fill=(255, 255, 255, 255), outline=(255, 40, 40, 255))
+                d.ellipse([17, 21, 19, 23], fill=(0, 0, 0, 255))
+                d.ellipse([28, 21, 30, 23], fill=(0, 0, 0, 255))
+                d.rectangle([20, 29, 27, 35], fill=(220, 40, 40, 255), outline=(10, 10, 15, 255))
+            elif mood == "happy":
+                d.arc([15, 19, 21, 25], 180, 360, fill=eye_col, width=2)
+                d.arc([26, 19, 32, 25], 180, 360, fill=eye_col, width=2)
             img.save(os.path.join(out_dir, f"{name}_{mood}.png"))
 
 
@@ -595,6 +625,27 @@ def generate_story_illustrations() -> None:
         _draw_note(d, nx, 16, ncol)
     img.save(os.path.join(story_dir, "story_cock_joins_quartet.png"))
 
+    # 7.5. story_cabin_mega_pyramid.png: Towering 15m Robo-Mega-Pyramid at outlaw radio cabin window
+    img = Image.new("RGBA", (W, H), (10, 12, 24, 255))
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, W - 1, H - 1], outline=(80, 180, 255, 255), width=2)
+    # Outlaw radio cabin on right
+    d.rectangle([130, 14, 250, 86], fill=(42, 30, 24, 255), outline=(230, 160, 50, 255), width=2)
+    d.rectangle([124, 24, 134, 76], fill=(255, 230, 120, 255)) # Window
+    # Outlaw shadow behind window
+    d.rectangle([150, 34, 174, 60], fill=(20, 16, 22, 255))
+    # Giant Towering Robo-Mega-Pyramid on left
+    d.rectangle([40, 62, 104, 86], fill=(215, 165, 40, 255), outline=(15, 18, 24, 255), width=2) # MULE
+    d.rectangle([48, 44, 96, 62], fill=(175, 45, 55, 255), outline=(15, 18, 24, 255), width=2)  # HOUND
+    d.rectangle([54, 26, 90, 44], fill=(55, 145, 220, 255), outline=(15, 18, 24, 255), width=2)  # FELIX
+    d.rectangle([60, 10, 84, 26], fill=(140, 65, 195, 255), outline=(15, 18, 24, 255), width=2) # COCK
+    d.polygon([(56, 10), (72, 2), (88, 10)], fill=(80, 255, 220, 255)) # Resonator antenna
+    # Glowing energy spine & laser eyes
+    d.rectangle([70, 14, 74, 82], fill=(120, 255, 255, 255))
+    d.ellipse([80, 30, 86, 36], fill=(255, 60, 60, 255))
+    d.line([(86, 33), (124, 38)], fill=(255, 50, 50, 255), width=2) # Laser pointer to window
+    img.save(os.path.join(story_dir, "story_cabin_mega_pyramid.png"))
+
     # 8. story_bremen_window_pyramid.png: 4 Musicians stacked in Pyramid at window scaring the Satellite Boss
     img = Image.new("RGBA", (W, H), (14, 18, 32, 255))
     d = ImageDraw.Draw(img)
@@ -759,6 +810,17 @@ def generate_audio() -> None:
         [
             math.sin(2 * math.pi * (392.0 + 260.0 * (i / (sr * 0.25))) * (i / sr)) * 0.4
             for i in range(int(sr * 0.25))
+    # comic_slide.wav (cartoon slide whistle + spring boing on disassembly)
+    comic_len = int(sr * 0.45)
+    comic_samples = []
+    for i in range(comic_len):
+        t = i / sr
+        prog = i / comic_len
+        f = 880.0 * (1.0 - 0.75 * prog) + math.sin(2 * math.pi * 14.0 * t) * 45.0
+        env = (1.0 - prog * 0.5) * math.sin(math.pi * min(1.0, prog * 10.0)) * 0.55
+        bounce = math.sin(2 * math.pi * 350.0 * t) * max(0.0, prog - 0.7) * 0.3
+        comic_samples.append((math.sin(2 * math.pi * f * t) + bounce) * env)
+    write_wav(os.path.join(sfx_dir, "comic_slide.wav"), comic_samples, sr)
         ],
         sr,
     )
@@ -768,6 +830,7 @@ def generate_audio() -> None:
         ("tape_hardbass.wav", [110.0, 110.0, 220.0, 130.81, 146.83, 110.0, 164.81, 146.83]),
         ("tape_blues.wav", [146.83, 174.61, 196.00, 207.65, 196.00, 174.61, 146.83, 130.81]),
         ("tape_synth.wav", [220.0, 261.63, 329.63, 392.0, 329.63, 261.63, 246.94, 196.0]),
+        ("tape_bremen_triumph.wav", [293.66, 329.63, 369.99, 440.0, 440.0, 369.99, 440.0, 587.33]),
     ]
     for fname, notes in tapes:
         samples: list[float] = []

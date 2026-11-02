@@ -30,7 +30,8 @@ const SFX_PATHS: Dictionary = {
 	"ui_click": "res://assets/audio/sfx/ui_click.wav",
 	"heal": "res://assets/audio/sfx/heal.wav",
 	"dissonance": "res://assets/audio/sfx/dissonance.wav",
-	"clipping": "res://assets/audio/sfx/clipping.wav"
+	"clipping": "res://assets/audio/sfx/clipping.wav",
+	"comic_slide": "res://assets/audio/sfx/comic_slide.wav"
 }
 
 const CHAR_THEME_PATHS: Dictionary = {

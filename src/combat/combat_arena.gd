@@ -2204,34 +2204,12 @@ func _handle_victory() -> void:
 				+ "• Текущий цикл сложности: " + ("Обычный (Цикл 0)" if SaveManager.ng_cycle == 0 else ("NG+ Цикл " + str(SaveManager.ng_cycle)))
 			)
 			_epilogue_btn.visible = true
-			_epilogue_btn.text = "СЮЖЕТНЫЙ ЭПИЛОГ: КОНЦЕРТ БРЕМЕНСКИХ МУЗЫКАНТОВ ->"
+			_epilogue_btn.text = "СЮЖЕТНЫЙ ЭПИЛОГ: ИЗБА И РОК-КОНЦЕРТ ->"
 			_epilogue_btn.pressed.connect(func() -> void:
-				var final_concert_payload: Dictionary = {
-					"image_path": "res://assets/photos/9-final.jpg",
-					"title": "ФИНАЛ: ВЕЛИКИЙ КОНЦЕРТ БРЕМЕНСКИХ МУЗЫКАНТОВ",
-					"story_stage": 4,
-					"next_scene": &"HUB",
-					"next_payload": {},
-					"action_on_complete": "finish_run"
-				}
-				var postlude_payload: Dictionary = {
-					"timeline": postlude_path,
-					"next_scene": &"VIDEO",
-					"next_payload": final_concert_payload,
-					"title": "ФИНАЛ: КОНЦЕРТ БРЕМЕНСКИХ МУЗЫКАНТОВ",
-					"continue_text": "К ФИНАЛЬНОМУ ТРИУМФУ ->",
-					"action_on_complete": "finish_run"
-				}
-				if ResourceLoader.exists("res://assets/photos/8a-sputnik-boss-win.jpg"):
-					EventBus.request_scene_change.emit(&"VIDEO", {
-						"image_path": "res://assets/photos/8a-sputnik-boss-win.jpg",
-						"title": "СЕКТОР 3: СИГНАЛ SOS ПЕРЕДАН В КОСМОС // СПУТНИК ПОВЕРЖЕН",
-						"story_stage": 4,
-						"next_scene": &"EVENT",
-						"next_payload": postlude_payload
-					})
-				else:
-					EventBus.request_scene_change.emit(&"EVENT", postlude_payload)
+				EventBus.request_scene_change.emit(&"EPILOGUE", {
+					"act": 1,
+					"source": "final_boss_victory"
+				})
 			)
 			_end_btn.text = "В ЛАГЕРЬ БРОДЯГ (ХАБ)"
 			_end_btn.pressed.connect(func() -> void:

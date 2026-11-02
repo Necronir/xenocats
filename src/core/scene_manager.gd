@@ -17,7 +17,8 @@ const SCENE_PATHS: Dictionary = {
 	"BATTLE": "res://src/combat/combat_arena.tscn",
 	"GARAGE": "res://src/garage/garage_scene.tscn",
 	"EVENT": "res://src/event/event_scene.tscn",
-	"VIDEO": "res://src/core/video_player_scene.tscn"
+	"VIDEO": "res://src/core/video_player_scene.tscn",
+	"EPILOGUE": "res://src/epilogue/epilogue_scene.tscn"
 }
 
 func _ready() -> void:
@@ -73,6 +74,8 @@ func change_scene(scene_name: StringName, payload: Dictionary = {}) -> void:
 		inst.call("setup_event", payload)
 	elif inst.has_method("setup_video") and key == "VIDEO":
 		inst.call("setup_video", payload)
+	elif inst.has_method("setup_epilogue") and key == "EPILOGUE":
+		inst.call("setup_epilogue", payload)
 
 	_screen_container.add_child(inst)
 	_current_scene = inst
