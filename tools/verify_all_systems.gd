@@ -195,6 +195,7 @@ func _ready() -> void:
 		assert(ResourceLoader.exists(sil_path), "Story illustration missing: " + sil_path)
 
 	# Verify progressive Bremen Musicians party recruitment (Sector 1: 2 -> Sector 2: 3 -> Sector 3: 4)
+	SaveManager.set_story_phase(StoryProgressionData.StoryPhase.CYCLE_1_DUO)
 	SaveManager.start_new_run(777888)
 	assert(SaveManager.party.size() == 2, "Sector 1 must start with FELIX + HOUND (2 musicians)")
 	SaveManager.advance_to_next_sector()
@@ -403,6 +404,7 @@ func _ready() -> void:
 	assert(AudioManager.current_story_stage == 1 and AudioManager.active_instruments == ["Гитара"], "Stage 1 must play only Cat's Guitar")
 
 	# Verify Prologue cutscene progression: starts with Stage 1 (Cat alone), switches to Stage 2 when meeting Hound
+	SaveManager.set_story_phase(StoryProgressionData.StoryPhase.CYCLE_1_DUO)
 	SaveManager.start_new_run(444555)
 	var intro_ev: EventScene = ev_scene_packed.instantiate() as EventScene
 	intro_ev.setup_event({"timeline": "res://data/dialogues/story_intro_crash.dtl"})
@@ -903,6 +905,142 @@ func _ready() -> void:
 	assert(SaveManager.unlocked_perks.is_empty(), "Hard reset must clear unlocked perks")
 	assert(not SaveManager.has_active_run, "Hard reset must delete active run")
 	print("[14] Issue #26: Game Balance, Trump Card Pyramid, Partial Carryover, Inventory HP Preservation, Hard Reset & NG+ Cycle verified OK")
+
+	# 15. Verify Issue #28: Dynamic 4-Run Story Loop & Sequential Biome Unlock Topology
+	# 15.1 Verify StoryProgressionData enum and defaults
+	var sp_fresh: StoryProgressionData = StoryProgressionData.new()
+	assert(int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT) == 0, "CYCLE_0_SOLO_CAT must be 0")
+	assert(int(StoryProgressionData.StoryPhase.CYCLE_1_DUO) == 1, "CYCLE_1_DUO must be 1")
+	assert(int(StoryProgressionData.StoryPhase.CYCLE_2_TRIO) == 2, "CYCLE_2_TRIO must be 2")
+	assert(int(StoryProgressionData.StoryPhase.CYCLE_3_QUARTET) == 3, "CYCLE_3_QUARTET must be 3")
+	assert(int(StoryProgressionData.StoryPhase.COMPLETED) == 4, "COMPLETED must be 4")
+	assert(sp_fresh.current_phase == StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT, "Default phase must be CYCLE_0_SOLO_CAT")
+	assert(sp_fresh.unlocked_party_members == [&"FELIX"], "Default unlocked party members must be FELIX only")
+	assert(sp_fresh.unlocked_fusion_tiers == [0], "Default unlocked fusion tiers must be [0]")
+
+	# 15.2 Verify phase advancement and companion defaults
+	assert(sp_fresh.advance_phase(), "Advancing from CYCLE_0 must succeed")
+	assert(sp_fresh.current_phase == StoryProgressionData.StoryPhase.CYCLE_1_DUO, "Advanced phase must be CYCLE_1_DUO")
+	assert(sp_fresh.unlocked_party_members.has(&"FELIX") and sp_fresh.unlocked_party_members.has(&"HOUND"), "CYCLE_1_DUO must unlock FELIX and HOUND")
+	assert(sp_fresh.unlocked_fusion_tiers.has(1), "CYCLE_1_DUO must unlock Tier 1 fusion")
+
+	assert(sp_fresh.advance_phase(), "Advancing from CYCLE_1 must succeed")
+	assert(sp_fresh.current_phase == StoryProgressionData.StoryPhase.CYCLE_2_TRIO, "Advanced phase must be CYCLE_2_TRIO")
+	assert(sp_fresh.unlocked_party_members.has(&"MULE"), "CYCLE_2_TRIO must unlock MULE")
+	assert(sp_fresh.unlocked_fusion_tiers.has(2), "CYCLE_2_TRIO must unlock Tier 2 fusion")
+
+	assert(sp_fresh.advance_phase(), "Advancing from CYCLE_2 must succeed")
+	assert(sp_fresh.current_phase == StoryProgressionData.StoryPhase.CYCLE_3_QUARTET, "Advanced phase must be CYCLE_3_QUARTET")
+	assert(sp_fresh.unlocked_party_members.has(&"COCK"), "CYCLE_3_QUARTET must unlock COCK")
+	assert(sp_fresh.unlocked_fusion_tiers.has(3), "CYCLE_3_QUARTET must unlock Tier 3 fusion")
+
+	assert(sp_fresh.advance_phase(), "Advancing from CYCLE_3 to COMPLETED must succeed")
+	assert(sp_fresh.current_phase == StoryProgressionData.StoryPhase.COMPLETED, "Advanced phase must be COMPLETED")
+	assert(not sp_fresh.advance_phase(), "Advancing beyond COMPLETED must return false")
+
+	# 15.3 Verify Unit Test save/load roundtrip of StoryProgressionData
+	var sp_custom: StoryProgressionData = StoryProgressionData.new()
+	sp_custom.set_phase(StoryProgressionData.StoryPhase.CYCLE_2_TRIO)
+	sp_custom.seen_boomer_dialog = true
+	sp_custom.player_is_boomer = true
+	sp_custom.concert_hall_liberated = true
+	var sp_dict: Dictionary = sp_custom.to_dict()
+	var sp_loaded: StoryProgressionData = StoryProgressionData.new()
+	sp_loaded.from_dict(sp_dict)
+	assert(sp_loaded.current_phase == StoryProgressionData.StoryPhase.CYCLE_2_TRIO, "Roundtrip phase mismatch")
+	assert(sp_loaded.unlocked_party_members == [&"FELIX", &"HOUND", &"MULE"], "Roundtrip party members mismatch")
+	assert(sp_loaded.unlocked_fusion_tiers == [0, 1, 2], "Roundtrip fusion tiers mismatch")
+	assert(sp_loaded.seen_boomer_dialog and sp_loaded.player_is_boomer and sp_loaded.concert_hall_liberated, "Roundtrip flags mismatch")
+
+	var test_res_path: String = "user://test_story_progression.tres"
+	var res_save_err: Error = ResourceSaver.save(sp_custom, test_res_path)
+	assert(res_save_err == OK, "ResourceSaver failed to save StoryProgressionData")
+	var sp_disk_res: StoryProgressionData = ResourceLoader.load(test_res_path) as StoryProgressionData
+	assert(sp_disk_res != null and sp_disk_res.current_phase == StoryProgressionData.StoryPhase.CYCLE_2_TRIO, "ResourceLoader failed to load StoryProgressionData")
+	if FileAccess.file_exists(test_res_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(test_res_path))
+
+	# 15.4 Verify SaveManager.meta_save.json stores current_phase, unlocked_party_members, unlocked_fusion_tiers
+	SaveManager.set_story_phase(StoryProgressionData.StoryPhase.CYCLE_2_TRIO)
+	SaveManager.save_meta()
+	assert(FileAccess.file_exists(SaveManager.META_SAVE_PATH), "meta_save.json must exist")
+	var mfile: FileAccess = FileAccess.open(SaveManager.META_SAVE_PATH, FileAccess.READ)
+	assert(mfile != null, "Failed to read meta_save.json")
+	var meta_raw: Variant = JSON.parse_string(mfile.get_as_text())
+	mfile.close()
+	assert(meta_raw is Dictionary, "meta_save.json must be valid JSON dictionary")
+	var mdict: Dictionary = meta_raw as Dictionary
+	assert(mdict.has("current_phase") and int(mdict["current_phase"]) == 2, "meta_save.json must store current_phase at top-level")
+	assert(mdict.has("unlocked_party_members") and (mdict["unlocked_party_members"] as Array).has("MULE"), "meta_save.json must store unlocked_party_members at top-level")
+	assert(mdict.has("unlocked_fusion_tiers") and (mdict["unlocked_fusion_tiers"] as Array).map(func(v: Variant) -> int: return int(v)).has(2), "meta_save.json must store unlocked_fusion_tiers at top-level")
+
+	SaveManager.story_progression = null
+	SaveManager.load_meta()
+	assert(SaveManager.story_progression != null, "load_meta() must recreate story_progression")
+	assert(SaveManager.get_story_phase() == StoryProgressionData.StoryPhase.CYCLE_2_TRIO, "Loaded phase mismatch")
+	assert(SaveManager.story_progression.unlocked_party_members.has(&"MULE"), "Loaded unlocked members mismatch")
+
+	# 15.5 Verify SaveManager.start_new_run() initializes party matching current story phase
+	SaveManager.set_story_phase(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT)
+	SaveManager.start_new_run(888111)
+	assert(SaveManager.party.size() == 1 and SaveManager.party[0].cat_id == &"FELIX", "CYCLE_0 must start with Solo Felix")
+
+	SaveManager.set_story_phase(StoryProgressionData.StoryPhase.CYCLE_1_DUO)
+	SaveManager.start_new_run(888222)
+	assert(SaveManager.party.size() == 2 and SaveManager.has_party_member("FELIX") and SaveManager.has_party_member("HOUND"), "CYCLE_1 must start with Felix and Hound")
+
+	SaveManager.set_story_phase(StoryProgressionData.StoryPhase.CYCLE_2_TRIO)
+	SaveManager.start_new_run(888333)
+	assert(SaveManager.party.size() == 3 and SaveManager.has_party_member("MULE"), "CYCLE_2 must start with Trio (including MULE)")
+
+	SaveManager.set_story_phase(StoryProgressionData.StoryPhase.CYCLE_3_QUARTET)
+	SaveManager.start_new_run(888444)
+	assert(SaveManager.party.size() == 4 and SaveManager.has_party_member("COCK"), "CYCLE_3 must start with full Quartet (including COCK)")
+
+	# 15.6 Verify on party wipe, unlocked characters are not lost; subsequent runs start with all unlocked companions
+	SaveManager.set_story_phase(StoryProgressionData.StoryPhase.CYCLE_1_DUO)
+	SaveManager.start_new_run(777111)
+	assert(SaveManager.party.size() == 2, "Starting run in CYCLE_1 must have 2 cats")
+	SaveManager.recruit_cat("MULE")
+	assert(SaveManager.party.size() == 3, "After recruiting MULE party size must be 3")
+	assert(SaveManager.story_progression.unlocked_party_members.has(&"MULE"), "MULE must be permanently unlocked")
+
+	# Simulate party wipe
+	SaveManager.delete_run_save()
+	assert(not SaveManager.has_active_run, "Run save must be deleted after party wipe")
+	SaveManager.load_meta()
+	assert(SaveManager.story_progression.unlocked_party_members.has(&"MULE"), "MULE must persist in meta-save across wipe")
+
+	SaveManager.start_new_run(777222)
+	assert(SaveManager.party.size() == 3 and SaveManager.has_party_member("MULE"), "Subsequent run after wipe must start with unlocked companions")
+
+	# 15.7 Verify MapGenerator.generate_sector_dag() floor count and sector theme adaptation
+	# Prologue (Run 0): shortened Blue Biome (7 floors)
+	var dag_c0: Array[Dictionary] = MapGenerator.generate_sector_dag(555, 1, -1, int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT))
+	assert(dag_c0[dag_c0.size() - 1]["floor"] == 7, "Prologue must adapt floor count to 7")
+	assert(dag_c0[dag_c0.size() - 1]["type"] == "BOSS", "Floor 7 must be BOSS node in Prologue")
+	assert(dag_c0[0]["theme"] == "BLUE", "Prologue sector theme must be BLUE")
+	assert(MapGenerator.get_sector_theme(1, int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT)) == "BLUE", "Sector theme for CYCLE_0 must be BLUE")
+	assert(MapGenerator.get_sector_floor_count(1, int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT)) == 7, "Sector floor count for CYCLE_0 must be 7")
+
+	# Canonical sequence: Green (Sector 1) -> Yellow (Sector 2) -> Red (Sector 3) -> Blue (Sector 4)
+	var dag_s1: Array[Dictionary] = MapGenerator.generate_sector_dag(555, 1, -1, int(StoryProgressionData.StoryPhase.CYCLE_3_QUARTET))
+	assert(dag_s1[dag_s1.size() - 1]["floor"] == 15 and dag_s1[0]["theme"] == "GREEN", "Sector 1 must be 15 floors and GREEN theme")
+	assert(MapGenerator.get_sector_theme(1) == "GREEN", "Sector 1 default theme must be GREEN")
+
+	var dag_s2: Array[Dictionary] = MapGenerator.generate_sector_dag(555, 2, -1, int(StoryProgressionData.StoryPhase.CYCLE_3_QUARTET))
+	assert(dag_s2[dag_s2.size() - 1]["floor"] == 15 and dag_s2[0]["theme"] == "YELLOW", "Sector 2 must be 15 floors and YELLOW theme")
+	assert(MapGenerator.get_sector_theme(2) == "YELLOW", "Sector 2 default theme must be YELLOW")
+
+	var dag_s3: Array[Dictionary] = MapGenerator.generate_sector_dag(555, 3, -1, int(StoryProgressionData.StoryPhase.CYCLE_3_QUARTET))
+	assert(dag_s3[dag_s3.size() - 1]["floor"] == 15 and dag_s3[0]["theme"] == "RED", "Sector 3 must be 15 floors and RED theme")
+	assert(MapGenerator.get_sector_theme(3) == "RED", "Sector 3 default theme must be RED")
+
+	var dag_s4: Array[Dictionary] = MapGenerator.generate_sector_dag(555, 4, -1, int(StoryProgressionData.StoryPhase.CYCLE_3_QUARTET))
+	assert(dag_s4[dag_s4.size() - 1]["floor"] == 15 and dag_s4[0]["theme"] == "BLUE", "Sector 4 must be 15 floors and BLUE theme")
+	assert(MapGenerator.get_sector_theme(4) == "BLUE", "Sector 4 default theme must be BLUE")
+
+	print("[15] Issue #28: Dynamic 4-Run Story Loop, Biome Themes, Save/Load Roundtrip & Wipe Persistence verified OK")
 
 	AudioManager.stop_music()
 	await get_tree().process_frame

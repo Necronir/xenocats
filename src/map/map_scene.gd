@@ -26,7 +26,8 @@ func _ready() -> void:
 	if not SaveManager.has_active_run:
 		SaveManager.start_new_run()
 	if SaveManager.map_graph.is_empty():
-		SaveManager.map_graph = MapGenerator.generate_sector_dag(SaveManager.run_seed, SaveManager.current_sector)
+		var phase_val: int = int(SaveManager.story_progression.current_phase) if SaveManager.story_progression != null else -1
+		SaveManager.map_graph = MapGenerator.generate_sector_dag(SaveManager.run_seed, SaveManager.current_sector, -1, phase_val)
 		SaveManager.save_run()
 
 	_build_ui()
@@ -38,7 +39,7 @@ func _build_ui() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.stretch_mode = TextureRect.STRETCH_SCALE
 	bg.modulate = Color(0.55, 0.55, 0.65, 1.0)
-	var sec: int = clampi(SaveManager.current_sector, 1, 3)
+	var sec: int = clampi(SaveManager.current_sector, 1, 4)
 	var bg_path: String = "res://assets/sprites/backgrounds/bg_sector" + str(sec) + ".png"
 	if ResourceLoader.exists(bg_path):
 		bg.texture = load(bg_path) as Texture2D
@@ -70,7 +71,8 @@ func _build_ui() -> void:
 	_header_label.clip_text = true
 	_header_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_header_label.add_theme_font_size_override("font_size", 10)
-	var sec_title: String = String(SECTOR_NAMES.get(SaveManager.current_sector, "СЕКТОР 1"))
+	var phase_val: int = int(SaveManager.story_progression.current_phase) if SaveManager.story_progression != null else -1
+	var sec_title: String = MapGenerator.get_sector_title(SaveManager.current_sector, phase_val)
 	_header_label.text = sec_title + " | Сид: #" + str(SaveManager.run_seed)
 	_header_label.add_theme_color_override("font_color", Color(0.4, 0.95, 1.0))
 	top_hbox.add_child(_header_label)
@@ -121,8 +123,12 @@ func _build_ui() -> void:
 	_scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	map_panel.add_child(_scroll)
 
+	var max_fl: int = 15
+	for n_dict: Dictionary in SaveManager.map_graph:
+		max_fl = maxi(max_fl, int(n_dict.get("floor", 15)))
+
 	_graph_canvas = Control.new()
-	_graph_canvas.custom_minimum_size = Vector2(MAP_LEFT_PAD * 2.0 + FLOOR_SPACING_X * 15.0, 224.0)
+	_graph_canvas.custom_minimum_size = Vector2(MAP_LEFT_PAD * 2.0 + FLOOR_SPACING_X * float(max_fl), 224.0)
 	_graph_canvas.draw.connect(_on_graph_draw)
 	_scroll.add_child(_graph_canvas)
 
@@ -139,7 +145,7 @@ func _build_ui() -> void:
 	leg_lbl.add_theme_font_size_override("font_size", 9)
 	leg_lbl.text = (
 		"ЛЕГЕНДА НОД: [БОЙ: Мародёры]  |  [ЭЛИТА: Модульный дроид + редкая деталь]  |  "
-		+ "[МАСТЕРСКАЯ: Ремонт и сборка]  |  [СИГНАЛ: Диалог Dialogic 2]  |  [БОСС СЕКТОРА: 15 этаж]"
+		+ "[МАСТЕРСКАЯ: Ремонт и сборка]  |  [СИГНАЛ: Диалог Dialogic 2]  |  [БОСС: " + str(max_fl) + " этаж]"
 	)
 	legend_panel.add_child(leg_lbl)
 
