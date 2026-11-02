@@ -517,6 +517,11 @@ static func _build_default_catalog_if_needed() -> void:
 		"Синтвейв перегрузки: +4 к базовой скорости ног и инициативе.",
 		"res://assets/audio/tapes/tape_synth.wav", &"SPEED_AURA", 4
 	)
+	_register_tape(
+		"tape_bremen_triumph", "Кассета: Bremen Triumph Anthem",
+		"Памятная кассета триумфа «Бремен-4»: легендарный рок-концерт квартета. +25% к силе урона ансамбля и ускорение синхронизации.",
+		"res://assets/audio/tapes/tape_bremen_triumph.wav", &"TRIUMPH_AURA", 25
+	)
 
 	# Подсказки внутриигрового обучения (Issue #12)
 	_register_tutorial(

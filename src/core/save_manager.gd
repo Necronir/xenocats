@@ -180,6 +180,30 @@ func equip_tape(tape_id: StringName) -> void:
 	save_meta()
 	reapply_party_bonuses()
 
+func unlock_tape(tape_id: String) -> bool:
+	if not unlocked_tapes.has(tape_id):
+		unlocked_tapes.append(tape_id)
+		save_meta()
+		return true
+	return false
+
+func complete_epilogue_triumph() -> Dictionary:
+	var newly_unlocked: bool = false
+	if not unlocked_tapes.has("tape_bremen_triumph"):
+		unlocked_tapes.append("tape_bremen_triumph")
+		newly_unlocked = true
+	highest_ng_cycle += 1
+	if story_progression != null:
+		story_progression.concert_hall_liberated = true
+		story_progression.set_phase(StoryProgressionData.StoryPhase.COMPLETED)
+	save_meta()
+	return {
+		"tape_unlocked": "tape_bremen_triumph",
+		"highest_ng_cycle": highest_ng_cycle,
+		"concert_hall_liberated": true,
+		"newly_unlocked": newly_unlocked
+	}
+
 # --- NG+ Масштабирование сложности ---
 
 func get_enemy_hp_mult() -> float:
@@ -498,6 +522,9 @@ func apply_meta_and_tape_bonuses_to_part(part: PartInstance, cat_id: StringName)
 			armor_aura = tape.passive_aura_value
 		elif tape.passive_aura_type == &"SPEED_AURA":
 			speed_aura = tape.passive_aura_value
+		elif tape.passive_aura_type == &"TRIUMPH_AURA":
+			armor_aura = 2
+			speed_aura = 3
 
 	var cid: String = String(cat_id)
 	var perk_hp: int = 15 if has_perk(cid + "_CORE_HP") else 0
@@ -553,7 +580,7 @@ func prepare_battle_sync() -> void:
 func add_sync(amount: int) -> void:
 	var tape: MusicTapeData = get_active_tape()
 	var final_add: int = amount
-	if tape != null and tape.passive_aura_type == &"SYNC_BOOST" and amount > 0:
+	if tape != null and (tape.passive_aura_type == &"SYNC_BOOST" or tape.passive_aura_type == &"TRIUMPH_AURA") and amount > 0:
 		final_add = int(round(float(amount) * (1.0 + float(tape.passive_aura_value) / 100.0)))
 	var was_full: bool = sync_gauge >= 100
 	sync_gauge = clampi(sync_gauge + final_add, 0, 100)

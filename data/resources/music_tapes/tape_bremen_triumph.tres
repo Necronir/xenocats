@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="MusicTapeData" format=3]
+
+[ext_resource type="Script" path="res://src/models/music_tape_data.gd" id="1_triumph"]
+
+[resource]
+script = ExtResource("1_triumph")
+tape_id = &"tape_bremen_triumph"
+tape_name = "Кассета: Bremen Triumph Anthem"
+description = "Памятная кассета триумфа «Бремен-4»: легендарный рок-концерт квартета. +25% к силе урона ансамбля и ускорение синхронизации."
+track_path = "res://assets/audio/tapes/tape_bremen_triumph.wav"
+passive_aura_type = &"TRIUMPH_AURA"
+passive_aura_value = 25

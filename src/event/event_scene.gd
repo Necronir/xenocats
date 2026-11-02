@@ -34,7 +34,8 @@ const SPEAKER_NAMES: Dictionary = {
 	"cock": "C.O.C.K. (Голосистый Петух-Солист)",
 	"press": "ХОЗЯИН МЕЛЬНИЦЫ (Трёхголовый Пресс)",
 	"atamansha": "ХОЗЯЙКА ПРИТОНА (Атаманша)",
-	"satellite": "НАДЗИРАТЕЛЬ ИЗБЫ (Спящий Спутник)"
+	"satellite": "НАДЗИРАТЕЛЬ ИЗБЫ (Спящий Спутник)",
+	"outlaw": "ГЛАВАРЬ РАЗБОЙНИКОВ (Мародёр из Избы)"
 }
 
 func setup_event(payload: Dictionary) -> void:
@@ -341,7 +342,11 @@ func _render_dialogue_state() -> void:
 			or img_path.find("rescue_cock") != -1
 		):
 			AudioManager.play_story_stage(4)
-		elif img_path.ends_with("story_bremen_window_pyramid.png") or img_path.ends_with("7-sputnik-boss-apperiance.jpg"):
+		elif (
+			img_path.ends_with("story_cabin_mega_pyramid.png")
+			or img_path.ends_with("story_bremen_window_pyramid.png")
+			or img_path.ends_with("7-sputnik-boss-apperiance.jpg")
+		):
 			AudioManager.play_boss_theme(3)
 		elif (
 			img_path.ends_with("story_bremen_victory_concert.png")
