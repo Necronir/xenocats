@@ -100,7 +100,7 @@ func _build_visual_hierarchy() -> void:
 	_bg_rect = TextureRect.new()
 	_bg_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_bg_rect.stretch_mode = TextureRect.STRETCH_SCALE
-	var sec: int = clampi(SaveManager.current_sector, 1, 3)
+	var sec: int = clampi(SaveManager.current_sector, 1, 4)
 	var bg_path: String = "res://assets/sprites/backgrounds/bg_sector" + str(sec) + ".png"
 	if ResourceLoader.exists(bg_path):
 		_bg_rect.texture = load(bg_path) as Texture2D

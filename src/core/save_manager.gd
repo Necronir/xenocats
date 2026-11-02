@@ -9,6 +9,7 @@ const VICTORY_BONUS_SCRAP: int = 250
 const VICTORY_BONUS_CORES: int = 5
 
 var settings: GameSettings = null
+var story_progression: StoryProgressionData = null
 
 # --- Мета-состояние (Лагерь Бродяг / Hub) ---
 var titanium_scrap: int = 80
@@ -47,6 +48,7 @@ var run_cores_earned: int = 0
 
 func _ready() -> void:
 	DataCatalog.ensure_loaded()
+	story_progression = StoryProgressionData.new()
 	settings = GameSettings.new()
 	if not settings.load_from_disk(SETTINGS_PATH):
 		settings.save_to_disk(SETTINGS_PATH)
@@ -62,6 +64,43 @@ func _exit_tree() -> void:
 	party.clear()
 	CatMechInstance.clear_static_cache()
 	DataCatalog.clear_cache()
+
+# --- Сюжетная мета-прогрессия (ADR-002, Issue #28) ---
+
+func get_story_phase() -> StoryProgressionData.StoryPhase:
+	if story_progression == null:
+		story_progression = StoryProgressionData.new()
+	return story_progression.current_phase
+
+func set_story_phase(phase: StoryProgressionData.StoryPhase) -> void:
+	if story_progression == null:
+		story_progression = StoryProgressionData.new()
+	story_progression.set_phase(phase)
+	save_meta()
+
+func advance_story_phase() -> bool:
+	if story_progression == null:
+		story_progression = StoryProgressionData.new()
+	var advanced: bool = story_progression.advance_phase()
+	if advanced:
+		save_meta()
+	return advanced
+
+func unlock_party_member(cat_id: StringName) -> bool:
+	if story_progression == null:
+		story_progression = StoryProgressionData.new()
+	var changed: bool = story_progression.unlock_party_member(cat_id)
+	if changed:
+		save_meta()
+	return changed
+
+func unlock_fusion_tier(tier: int) -> bool:
+	if story_progression == null:
+		story_progression = StoryProgressionData.new()
+	var changed: bool = story_progression.unlock_fusion_tier(tier)
+	if changed:
+		save_meta()
+	return changed
 
 # --- Перки и бонусы мета-прогрессии ---
 
@@ -171,7 +210,27 @@ func start_new_run(custom_seed: int = -1) -> void:
 	run_scrap = 50 + recycler_lvl * 35
 	sync_gauge = clampi(battery_lvl * 12, 0, 100)
 
-	party = DataCatalog.create_starting_party()
+	party.clear()
+	if story_progression == null:
+		story_progression = StoryProgressionData.new()
+
+	var members_to_spawn: Array[StringName] = []
+	for member_id: StringName in story_progression.unlocked_party_members:
+		members_to_spawn.append(member_id)
+
+	if members_to_spawn.is_empty():
+		members_to_spawn = StoryProgressionData.get_default_party_for_phase(story_progression.current_phase)
+
+	for mid: StringName in members_to_spawn:
+		var cat_inst: CatMechInstance = DataCatalog.create_cat_instance(String(mid))
+		if cat_inst != null:
+			party.append(cat_inst)
+
+	if party.is_empty():
+		var felix: CatMechInstance = DataCatalog.create_cat_instance("FELIX")
+		if felix != null:
+			party.append(felix)
+
 	# Базовый склад деталей (без имбового titan_body)
 	spare_parts_inventory = [
 		{"part_id": "scrap_arms", "current_hp": 65}
@@ -188,6 +247,7 @@ func has_party_member(cat_id: String) -> bool:
 	return false
 
 func recruit_cat(cat_id: String) -> bool:
+	unlock_party_member(StringName(cat_id))
 	if has_party_member(cat_id):
 		return false
 	var new_cat: CatMechInstance = DataCatalog.create_cat_instance(cat_id)
@@ -204,6 +264,8 @@ func advance_to_next_sector() -> void:
 	completed_node_ids.clear()
 	map_graph.clear()
 	pending_battle.clear()
+	var phase_val: int = int(story_progression.current_phase) if story_progression != null else -1
+	map_graph = MapGenerator.generate_sector_dag(run_seed, current_sector, -1, phase_val)
 	if current_sector >= 2:
 		recruit_cat("MULE")
 	if current_sector >= 3:
@@ -221,13 +283,13 @@ func jump_to_boss_battle(target_sector: int = -1) -> Dictionary:
 		start_new_run()
 
 	var previous_sector: int = current_sector
-	var sec: int = clampi(target_sector if target_sector > 0 else current_sector, 1, 3)
+	var sec: int = clampi(target_sector if target_sector > 0 else current_sector, 1, 4)
 	current_sector = sec
 
-	if target_sector == 1 and party.size() > 2:
+	if (target_sector == 1 or sec == 1) and party.size() > 2:
 		party = DataCatalog.create_starting_party()
 		_apply_meta_and_tape_bonuses_to_party()
-	elif target_sector == 2 and has_party_member("COCK"):
+	elif (target_sector == 2 or sec == 2) and has_party_member("COCK"):
 		var filtered: Array[CatMechInstance] = []
 		for c: CatMechInstance in party:
 			if String(c.cat_id) != "COCK":
@@ -248,7 +310,8 @@ func jump_to_boss_battle(target_sector: int = -1) -> Dictionary:
 
 	if map_graph.is_empty() or previous_sector != current_sector or target_sector > 0:
 		completed_node_ids.clear()
-		map_graph = MapGenerator.generate_sector_dag(run_seed, current_sector)
+		var phase_val: int = int(story_progression.current_phase) if story_progression != null else -1
+		map_graph = MapGenerator.generate_sector_dag(run_seed, current_sector, -1, phase_val)
 
 	var boss_node_id: int = 0
 	var boss_floor: int = MapGenerator.TOTAL_FLOORS
@@ -266,16 +329,19 @@ func jump_to_boss_battle(target_sector: int = -1) -> Dictionary:
 	has_active_run = true
 	save_run()
 
-	var prelude_path: String = "res://data/dialogues/boss_prelude_sector" + str(current_sector) + ".dtl"
+	var dtl_sec: int = clampi(current_sector, 1, 3)
+	var prelude_path: String = "res://data/dialogues/boss_prelude_sector" + str(dtl_sec) + ".dtl"
 	var boss_titles: Dictionary = {
 		1: "МЕЛЬНИЦА СВАЛКИ // ХОЗЯИН ОСЛА (ТРЁХГОЛОВЫЙ ПРЕСС)",
 		2: "ПРИТОН РАЗБОЙНИКОВ // ПЕТУХ И СУП АТАМАНШИ",
-		3: "ИЗБА НА ВЕРШИНЕ // ПИРАМИДА БРЕМЕНА В ОКНЕ"
+		3: "ВЕРШИНА БРЕМЕН-4 // СПУТНИК В ЭФИРЕ",
+		4: "ВЕРШИНА БРЕМЕН-4 // ИСТИННЫЙ РЕВИЗОР ЭФИРА"
 	}
 	var boss_btns: Dictionary = {
 		1: "В БОЙ ЗА СПАСЕНИЕ ОСЛА ->",
 		2: "В БОЙ ЗА СПАСЕНИЕ ПЕТУХА ->",
-		3: "ВЛОМИТЬСЯ В ОКНО (ФИНАЛЬНЫЙ БОЙ) ->"
+		3: "В БОЙ ЗА РЕТРАНСЛЯТОР ->",
+		4: "ВЛОМИТЬСЯ В ОКНО (ФИНАЛЬНЫЙ БОЙ) ->"
 	}
 	var payload: Dictionary = {
 		"timeline": prelude_path,
@@ -431,6 +497,9 @@ func complete_run_victory() -> Dictionary:
 # --- Сериализация MetaState (user://meta_save.json) ---
 
 func save_meta() -> void:
+	if story_progression == null:
+		story_progression = StoryProgressionData.new()
+	var sp_dict: Dictionary = story_progression.to_dict()
 	var data: Dictionary = {
 		"titanium_scrap": titanium_scrap,
 		"ai_cores": ai_cores,
@@ -439,7 +508,11 @@ func save_meta() -> void:
 		"unlocked_perks": unlocked_perks,
 		"shuttle_upgrades": shuttle_upgrades,
 		"unlocked_tapes": unlocked_tapes,
-		"equipped_tape_id": String(equipped_tape_id)
+		"equipped_tape_id": String(equipped_tape_id),
+		"current_phase": int(story_progression.current_phase),
+		"unlocked_party_members": sp_dict["unlocked_party_members"],
+		"unlocked_fusion_tiers": sp_dict["unlocked_fusion_tiers"],
+		"story_progression": sp_dict
 	}
 	var file: FileAccess = FileAccess.open(META_SAVE_PATH, FileAccess.WRITE)
 	if file != null:
@@ -447,6 +520,8 @@ func save_meta() -> void:
 		file.close()
 
 func load_meta() -> void:
+	if story_progression == null:
+		story_progression = StoryProgressionData.new()
 	if not FileAccess.file_exists(META_SAVE_PATH):
 		save_meta()
 		return
@@ -475,6 +550,19 @@ func load_meta() -> void:
 				unlocked_tapes.append(String(t))
 		equipped_tape_id = StringName(String(d.get("equipped_tape_id", "tape_hardbass")))
 
+		if d.has("story_progression") and d["story_progression"] is Dictionary:
+			story_progression.from_dict(d["story_progression"] as Dictionary)
+		else:
+			var sp_dict: Dictionary = {}
+			if d.has("current_phase"):
+				sp_dict["current_phase"] = d["current_phase"]
+			if d.has("unlocked_party_members"):
+				sp_dict["unlocked_party_members"] = d["unlocked_party_members"]
+			if d.has("unlocked_fusion_tiers"):
+				sp_dict["unlocked_fusion_tiers"] = d["unlocked_fusion_tiers"]
+			if not sp_dict.is_empty():
+				story_progression.from_dict(sp_dict)
+
 # --- Сброс всего прогресса (Hard Reset / New Game) ---
 
 func hard_reset_all_progress() -> void:
@@ -484,6 +572,21 @@ func hard_reset_all_progress() -> void:
 
 	titanium_scrap = 0
 	ai_cores = 0
+	successful_evacuations = 0
+	highest_ng_cycle = 0
+	ng_cycle = 0
+	unlocked_perks.clear()
+	shuttle_upgrades = {
+		"hull_reinforce": 0,
+		"scrap_recycler": 0,
+		"harmonic_battery": 0
+	}
+	unlocked_tapes = ["tape_hardbass", "tape_blues", "tape_synth"]
+	equipped_tape_id = &"tape_hardbass"
+
+	if story_progression == null:
+		story_progression = StoryProgressionData.new()
+	story_progression.reset()
 	successful_evacuations = 0
 	highest_ng_cycle = 0
 	ng_cycle = 0
