@@ -326,10 +326,13 @@ func _on_music_finished() -> void:
 		_music_player.play()
 
 func play_sfx(sfx_name: String) -> void:
-	last_sfx_played = sfx_name
+	var key: String = sfx_name
+	if key.find("/") != -1:
+		key = key.get_file().get_basename()
+	last_sfx_played = key
 	if is_muted or DisplayServer.get_name() == "headless":
 		return
-	var stream: AudioStream = _sfx_cache.get(sfx_name, null) as AudioStream
+	var stream: AudioStream = _sfx_cache.get(key, null) as AudioStream
 	if stream == null:
 		return
 	for p: AudioStreamPlayer in _sfx_players:

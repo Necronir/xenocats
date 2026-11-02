@@ -51,6 +51,11 @@ var _enemy_rigs: Array[Dictionary] = []
 var _fusion_controller: CombatFusionController = null
 var _fusion_participating_ids: Array[StringName] = []
 var _shake_tween: Tween = null
+var mid_battle_dialogue_enabled: bool = true
+var _mid_battle_dialogue: MidBattleDialogueOverlay = null
+var _force_headless_mid_battle_dialogue: bool = false
+signal mid_battle_dialogue_started(timeline: String)
+signal mid_battle_dialogue_completed(timeline: String)
 
 # UI узлы
 var _top_bar_label: Label = null
@@ -84,6 +89,29 @@ func can_pause() -> bool:
 func _exit_tree() -> void:
 	if _shake_tween != null and _shake_tween.is_valid():
 		_shake_tween.kill()
+	if _mid_battle_dialogue != null and is_instance_valid(_mid_battle_dialogue):
+		_mid_battle_dialogue.close_dialogue()
+
+func is_mid_battle_dialogue_active() -> bool:
+	return _mid_battle_dialogue != null and is_instance_valid(_mid_battle_dialogue)
+
+func get_mid_battle_dialogue() -> MidBattleDialogueOverlay:
+	return _mid_battle_dialogue
+
+func trigger_mid_battle_dialogue(timeline_path: String = "res://data/dialogues/timeline_first_fusion.dtl") -> MidBattleDialogueOverlay:
+	if is_mid_battle_dialogue_active():
+		return _mid_battle_dialogue
+
+	var overlay: MidBattleDialogueOverlay = MidBattleDialogueOverlay.new()
+	_mid_battle_dialogue = overlay
+	add_child(overlay)
+	overlay.setup_timeline(timeline_path)
+	overlay.dialogue_completed.connect(func(tl: String) -> void:
+		_mid_battle_dialogue = null
+		mid_battle_dialogue_completed.emit(tl)
+	)
+	mid_battle_dialogue_started.emit(timeline_path)
+	return overlay
 
 func _ready() -> void:
 	_rng.randomize()
@@ -1420,6 +1448,14 @@ func _activate_fusion_tier(tier: CombatFusionController.FusionTier) -> void:
 	)
 	_refresh_hud()
 	_begin_player_turn(_active_cat_index)
+
+	if (
+		mid_battle_dialogue_enabled
+		and SaveManager.story_progression != null
+		and not SaveManager.story_progression.seen_boomer_dialog
+		and (DisplayServer.get_name() != "headless" or _force_headless_mid_battle_dialogue)
+	):
+		trigger_mid_battle_dialogue("res://data/dialogues/timeline_first_fusion.dtl")
 
 func apply_pyramid_damage(raw_damage: int, _ignore_armor: bool = false) -> Dictionary:
 	if _pyramid_current_hp <= 0:

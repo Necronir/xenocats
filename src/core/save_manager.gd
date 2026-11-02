@@ -122,6 +122,17 @@ func get_unlocked_party_members() -> Array[StringName]:
 		story_progression = StoryProgressionData.new()
 	return story_progression.unlocked_party_members.duplicate()
 
+func set_player_is_boomer(is_boomer: bool) -> void:
+	if story_progression == null:
+		story_progression = StoryProgressionData.new()
+	story_progression.player_is_boomer = is_boomer
+	story_progression.seen_boomer_dialog = true
+
+func is_player_boomer() -> bool:
+	if story_progression == null:
+		story_progression = StoryProgressionData.new()
+	return story_progression.player_is_boomer
+
 # --- Перки и бонусы мета-прогрессии ---
 
 func has_perk(perk_id: String) -> bool:
