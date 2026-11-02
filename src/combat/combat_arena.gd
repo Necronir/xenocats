@@ -365,11 +365,13 @@ func _init_combat_entities() -> void:
 				var boss_einst: EnemyInstance = EnemyInstance.new(chosen_boss_ed)
 				if p_phase == int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT):
 					# Prologue balance: Solo Felix duels sleeping Satellite
-					boss_einst.body_hp = mini(boss_einst.body_hp, 140)
-					boss_einst.arms_hp = mini(boss_einst.arms_hp, 70)
-					boss_einst.legs_hp = mini(boss_einst.legs_hp, 60)
-					boss_einst.armor = 2
-					boss_einst.base_attack = 10
+					if boss_einst.body_part != null:
+						boss_einst.body_part.current_hp = mini(boss_einst.body_part.current_hp, 140)
+					if boss_einst.arms_part != null:
+						boss_einst.arms_part.current_hp = mini(boss_einst.arms_part.current_hp, 70)
+					if boss_einst.legs_part != null:
+						boss_einst.legs_part.current_hp = mini(boss_einst.legs_part.current_hp, 60)
+					boss_einst.current_hp = boss_einst.body_part.current_hp if boss_einst.body_part != null else 140
 				_enemies.append(boss_einst)
 	elif node_type == "ELITE":
 		var elites: Array[EnemyData] = DataCatalog.get_enemies_for_sector(sec, true, false)

@@ -2,6 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
+uid="uid://uwnmcw1ruf68"
+path="res://.godot/imported/1-5a-trubadur-fail.jpg-24d94bc74280ed5fb491732fda029be5.ctex"
 metadata={
 "vram_texture": false
 }
@@ -9,6 +11,7 @@ metadata={
 [deps]
 
 source_file="res://assets/photos/1-5a-trubadur-fail.jpg"
+dest_files=["res://.godot/imported/1-5a-trubadur-fail.jpg-24d94bc74280ed5fb491732fda029be5.ctex"]
 
 [params]
 

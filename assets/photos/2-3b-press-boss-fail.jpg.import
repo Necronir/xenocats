@@ -2,6 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
+uid="uid://dp4qm3wo30bj6"
+path="res://.godot/imported/2-3b-press-boss-fail.jpg-8612ef678c77e6b7d43ffd1a384faee8.ctex"
 metadata={
 "vram_texture": false
 }
@@ -9,6 +11,7 @@ metadata={
 [deps]
 
 source_file="res://assets/photos/2-3b-press-boss-fail.jpg"
+dest_files=["res://.godot/imported/2-3b-press-boss-fail.jpg-8612ef678c77e6b7d43ffd1a384faee8.ctex"]
 
 [params]
 

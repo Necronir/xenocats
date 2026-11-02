@@ -2,6 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
+uid="uid://dau4f85eouowl"
+path="res://.godot/imported/4-2a-sputnik-boss-win.jpg-0ed526b5781b12f810b7417e76d76d3c.ctex"
 metadata={
 "vram_texture": false
 }
@@ -9,6 +11,7 @@ metadata={
 [deps]
 
 source_file="res://assets/photos/4-2a-sputnik-boss-win.jpg"
+dest_files=["res://.godot/imported/4-2a-sputnik-boss-win.jpg-0ed526b5781b12f810b7417e76d76d3c.ctex"]
 
 [params]
 

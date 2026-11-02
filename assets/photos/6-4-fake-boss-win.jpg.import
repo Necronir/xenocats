@@ -2,6 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
+uid="uid://dsbjw6rxkh2hx"
+path="res://.godot/imported/6-4-fake-boss-win.jpg-08308f764fd3f0736ce9977294572ffa.ctex"
 metadata={
 "vram_texture": false
 }
@@ -9,6 +11,7 @@ metadata={
 [deps]
 
 source_file="res://assets/photos/6-4-fake-boss-win.jpg"
+dest_files=["res://.godot/imported/6-4-fake-boss-win.jpg-08308f764fd3f0736ce9977294572ffa.ctex"]
 
 [params]
 

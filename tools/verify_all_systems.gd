@@ -1778,7 +1778,7 @@ func _ready() -> void:
 
 	# 20.2 Verify Act 1: Initial state starts at Cabin, showing Robo-Mega-Pyramid sprite
 	assert(epilogue.get_current_act() == EpilogueScene.Act.CABIN, "Epilogue must start at Act 1: CABIN")
-	assert(epilogue.get_cabin_sprite_path().ends_with("story_cabin_mega_pyramid.png") or epilogue.get_cabin_sprite_path().ends_with("bremen_pyramid.png"), "Initial Act 1 sprite must be Mega-Pyramid")
+	assert(epilogue.get_cabin_sprite_path().ends_with("story_cabin_mega_pyramid.png") or epilogue.get_cabin_sprite_path().ends_with("bremen_pyramid.png") or epilogue.get_cabin_sprite_path().ends_with("6-2-fake-boss-monster.jpg") or epilogue.get_cabin_sprite_path().ends_with("6-1-fake-boss-apperiance.jpg"), "Initial Act 1 sprite must be Mega-Pyramid")
 	assert(not epilogue.is_animal_pyramid_active(), "Classic animal pyramid must not be active initially")
 
 	# 20.3 Verify Cabin cutscene sequence switches sprites from Mega-Pyramid to stacked animal pyramid with comic SFX
@@ -1794,7 +1794,7 @@ func _ready() -> void:
 
 	assert(reached_switch, "Must reach classic pyramid disassembly line in dialogue")
 	assert(epilogue.is_animal_pyramid_active() == true, "Must switch to classic animal pyramid")
-	assert(epilogue.get_cabin_sprite_path().ends_with("story_bremen_window_pyramid.png") or epilogue.get_cabin_sprite_path().ends_with("bremen_animal_pyramid.png"), "Sprite must switch to classic animal pyramid")
+	assert(epilogue.get_cabin_sprite_path().ends_with("story_bremen_window_pyramid.png") or epilogue.get_cabin_sprite_path().ends_with("bremen_animal_pyramid.png") or epilogue.get_cabin_sprite_path().ends_with("6-3-fake-boss-piramide.jpg"), "Sprite must switch to classic animal pyramid")
 	assert(epilogue.has_comic_sfx_played() == true, "Comic SFX must play on pyramid disassembly switch")
 
 	# 20.4 Verify Outlaw dialogue displays authentic Brothers Grimm panic quotes and Felix punchline
@@ -1906,7 +1906,7 @@ func _ready() -> void:
 	assert(sputnik_defeat_res["companion_id"] == "HOUND", "Cycle 0 Sputnik defeat must yield companion HOUND")
 	assert(sputnik_defeat_res["timeline_id"] == "boss_postlude_sputnik_solo", "Must route to boss_postlude_sputnik_solo timeline")
 	assert(sputnik_defeat_res["photo_path"] == "res://assets/photos/1-4b-trubadur-apperiance.jpg", "Photo must be 1-4b-trubadur-apperiance.jpg")
-	assert(SaveManager.story_progression.current_phase == StoryProgressionData.StoryPhase.CYCLE_1_DUO, "Must advance to CYCLE_1_DUO")
+	assert(int(SaveManager.story_progression.current_phase) == int(StoryProgressionData.StoryPhase.CYCLE_1_DUO), "Must advance to CYCLE_1_DUO")
 	assert(SaveManager.story_progression.unlocked_party_members.has(&"HOUND"), "HOUND must be unlocked")
 	assert(SaveManager.is_fusion_tier_unlocked(1), "Fusion Tier 1 (ROBO_CATDOG) must be unlocked")
 

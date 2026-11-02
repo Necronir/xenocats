@@ -2,6 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
+uid="uid://jm3icnru2gf4"
+path="res://.godot/imported/5-3-trubadur-red.jpg-ca70c0b0e65af15aa2e153b82b83f959.ctex"
 metadata={
 "vram_texture": false
 }
@@ -9,6 +11,7 @@ metadata={
 [deps]
 
 source_file="res://assets/photos/5-3-trubadur-red.jpg"
+dest_files=["res://.godot/imported/5-3-trubadur-red.jpg-ca70c0b0e65af15aa2e153b82b83f959.ctex"]
 
 [params]
 

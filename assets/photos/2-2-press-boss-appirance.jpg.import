@@ -2,6 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
+uid="uid://b0p1x5mnv0fa7"
+path="res://.godot/imported/2-2-press-boss-appirance.jpg-998f336d6d0333e5f5dc27eae3403719.ctex"
 metadata={
 "vram_texture": false
 }
@@ -9,6 +11,7 @@ metadata={
 [deps]
 
 source_file="res://assets/photos/2-2-press-boss-appirance.jpg"
+dest_files=["res://.godot/imported/2-2-press-boss-appirance.jpg-998f336d6d0333e5f5dc27eae3403719.ctex"]
 
 [params]
 

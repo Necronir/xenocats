@@ -2,6 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
+uid="uid://cjnbnefyrwyjq"
+path="res://.godot/imported/1-4a-cand-and-sputnik-fail.jpg-0f231df6ea4e8c0b36bf7121c584f6c5.ctex"
 metadata={
 "vram_texture": false
 }
@@ -9,6 +11,7 @@ metadata={
 [deps]
 
 source_file="res://assets/photos/1-4a-cand-and-sputnik-fail.jpg"
+dest_files=["res://.godot/imported/1-4a-cand-and-sputnik-fail.jpg-0f231df6ea4e8c0b36bf7121c584f6c5.ctex"]
 
 [params]
 

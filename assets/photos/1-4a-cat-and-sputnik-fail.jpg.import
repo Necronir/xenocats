@@ -2,6 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
+uid="uid://bp58ox4ovxtoy"
+path="res://.godot/imported/1-4a-cat-and-sputnik-fail.jpg-c0c12e18cffd9af565ab6ba381b08805.ctex"
 metadata={
 "vram_texture": false
 }
@@ -9,6 +11,7 @@ metadata={
 [deps]
 
 source_file="res://assets/photos/1-4a-cat-and-sputnik-fail.jpg"
+dest_files=["res://.godot/imported/1-4a-cat-and-sputnik-fail.jpg-c0c12e18cffd9af565ab6ba381b08805.ctex"]
 
 [params]
 

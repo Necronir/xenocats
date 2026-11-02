@@ -2,6 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
+uid="uid://ccv0det6peau3"
+path="res://.godot/imported/7-final.jpg-93f8d209215b84289bdc7e6980fac4bf.ctex"
 metadata={
 "vram_texture": false
 }
@@ -9,6 +11,7 @@ metadata={
 [deps]
 
 source_file="res://assets/photos/7-final.jpg"
+dest_files=["res://.godot/imported/7-final.jpg-93f8d209215b84289bdc7e6980fac4bf.ctex"]
 
 [params]
 

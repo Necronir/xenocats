@@ -386,8 +386,6 @@ func handle_biome_boss_defeat(biome_theme: String = "", boss_id: String = "") ->
 		unlock_party_member(companion_id)
 		if fusion_tier > 0:
 			unlock_fusion_tier(fusion_tier)
-		if companion_id == &"HOUND" and story_progression.current_phase == StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT:
-			story_progression.advance_phase()
 
 	# 2. Rescued character is immediately instantiated via DataCatalog.create_cat_instance() and appended to active party
 	var instantiated: bool = false
@@ -402,6 +400,9 @@ func handle_biome_boss_defeat(biome_theme: String = "", boss_id: String = "") ->
 	repair_squad_percentage(0.3)
 
 	# 4. Advance story phase in SaveManager
+	if companion_id == &"HOUND" and p_val == int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT):
+		# Ejected from Spire to scrap heap: next sector advance will enter Sector 1 of Cycle 1
+		current_sector = 0
 	advance_story_phase()
 
 	save_meta()
@@ -422,14 +423,8 @@ func handle_biome_boss_defeat(biome_theme: String = "", boss_id: String = "") ->
 	}
 
 func advance_to_next_sector() -> void:
+	current_sector += 1
 	var phase_val: int = int(story_progression.current_phase) if story_progression != null else -1
-	if phase_val == int(StoryProgressionData.StoryPhase.CYCLE_1_DUO) and party.size() <= 2 and current_sector <= 1:
-		# Fresh transition from Cycle 0 solo into Cycle 1 Duo: start at Sector 1 of Cycle 1
-		current_sector = 1
-		if not has_party_member("HOUND") and story_progression != null and story_progression.unlocked_party_members.has(&"HOUND"):
-			recruit_cat("HOUND")
-	else:
-		current_sector += 1
 
 	current_floor = 0
 	current_node_id = -1
@@ -437,15 +432,10 @@ func advance_to_next_sector() -> void:
 	map_graph.clear()
 	pending_battle.clear()
 	map_graph = MapGenerator.generate_sector_dag(run_seed, current_sector, -1, phase_val)
-	if story_progression == null:
-		if current_sector >= 2:
-			recruit_cat("MULE")
-		if current_sector >= 3:
-			recruit_cat("COCK")
-	else:
-		for mid: StringName in story_progression.unlocked_party_members:
-			if not has_party_member(String(mid)):
-				recruit_cat(String(mid))
+	if current_sector >= 2:
+		recruit_cat("MULE")
+	if current_sector >= 3:
+		recruit_cat("COCK")
 	for cat: CatMechInstance in party:
 		for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
 			var part: PartInstance = cat.get_part(slot)

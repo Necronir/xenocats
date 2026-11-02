@@ -2,6 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
+uid="uid://dj6mg2x5wvh6y"
+path="res://.godot/imported/6-3-fake-boss-piramide.jpg-283998f5c7d84e3932df7a2c18f6e9aa.ctex"
 metadata={
 "vram_texture": false
 }
@@ -9,6 +11,7 @@ metadata={
 [deps]
 
 source_file="res://assets/photos/6-3-fake-boss-piramide.jpg"
+dest_files=["res://.godot/imported/6-3-fake-boss-piramide.jpg-283998f5c7d84e3932df7a2c18f6e9aa.ctex"]
 
 [params]
 
