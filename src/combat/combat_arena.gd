@@ -48,6 +48,7 @@ var _enemies_stage: Node2D = null
 var _cat_rigs: Array[Dictionary] = []
 var _pyramid_sprite: Sprite2D = null
 var _enemy_rigs: Array[Dictionary] = []
+var _fusion_controller: CombatFusionController = null
 var _shake_tween: Tween = null
 
 # UI узлы
@@ -285,18 +286,30 @@ func _init_combat_entities() -> void:
 
 	# Частичный перенос синхры и сброс боевых кулдаунов ульты (Issue #26)
 	SaveManager.prepare_battle_sync()
+	_fusion_controller = CombatFusionController.new()
 	_pyramid_overheat_rounds = 0
 	_pyramid_action_used = false
 
 	# Определяем состав врагов по типу ноды
 	_enemies.clear()
 	var node_type: String = String(_battle_payload.get("node_type", "COMBAT"))
-	var sec: int = clampi(SaveManager.current_sector, 1, 3)
+	var sec: int = clampi(SaveManager.current_sector, 1, 4)
 
 	if node_type == "BOSS":
-		var bosses: Array[EnemyData] = DataCatalog.get_enemies_for_sector(sec, false, true)
-		if not bosses.is_empty():
-			_enemies.append(EnemyInstance.new(bosses[0]))
+		var p_val: int = int(SaveManager.story_progression.current_phase) if SaveManager.story_progression != null else -1
+		var th: String = MapGenerator.get_sector_theme(SaveManager.current_sector, p_val)
+		if sec >= 4 or String(_battle_payload.get("boss_id", "")) == "boss_censor":
+			var censor_ed: EnemyData = DataCatalog.get_enemy("boss_censor")
+			if censor_ed == null:
+				var b_list: Array[EnemyData] = DataCatalog.get_enemies_for_sector(sec, false, true)
+				censor_ed = b_list[0] if not b_list.is_empty() else null
+			var boss_inst: EnemyInstance = EnemyInstance.new(censor_ed)
+			boss_inst.setup_final_boss_controller()
+			_enemies.append(boss_inst)
+		else:
+			var bosses: Array[EnemyData] = DataCatalog.get_enemies_for_sector(sec, false, true)
+			if not bosses.is_empty():
+				_enemies.append(EnemyInstance.new(bosses[0]))
 	elif node_type == "ELITE":
 		var elites: Array[EnemyData] = DataCatalog.get_enemies_for_sector(sec, true, false)
 		if not elites.is_empty():
@@ -344,9 +357,21 @@ func _is_boss_battle() -> bool:
 			return true
 	return false
 
+func _is_final_boss_battle() -> bool:
+	if not _is_boss_battle():
+		return false
+	if SaveManager.current_sector >= 4 and String(_battle_payload.get("node_type", "")) == "BOSS":
+		return true
+	for en: EnemyInstance in _enemies:
+		if en != null and en.is_final_boss():
+			return true
+	return false
+
 func _sync_arena_music() -> void:
 	if _pyramid_active:
 		AudioManager.play_pyramid_theme(_pyramid_tier)
+	elif _is_final_boss_battle():
+		AudioManager.play_boss_theme(3)
 	elif _is_boss_battle():
 		AudioManager.play_boss_theme(clampi(SaveManager.current_sector, 1, 3))
 	else:
@@ -1487,7 +1512,25 @@ func _on_skill_chosen(sk: SkillData) -> void:
 		var en: EnemyInstance = _enemies[e_idx]
 		if not en.is_alive():
 			continue
-		if en.is_modular():
+		if en.final_boss_controller != null:
+			has_modular_enemy = true
+			var fbc: FinalBossController = en.final_boss_controller
+			var seg: BossColoredSegment = fbc.get_current_segment()
+			var seg_btn: Button = Button.new()
+			seg_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			seg_btn.add_theme_font_size_override("font_size", 8)
+			var col_str: String = BossColoredSegment.color_to_russian(seg.affinity_color)
+			var g_col: Color = BossColoredSegment.color_to_godot_color(seg.affinity_color)
+			seg_btn.text = "СЕГМЕНТ [ФАЗА " + str(fbc.current_phase) + "]: " + seg.segment_name + " (" + str(seg.current_hp) + " HP) - " + col_str
+			seg_btn.add_theme_color_override("font_color", g_col)
+			seg_btn.pressed.connect(func() -> void:
+				AudioManager.play_sfx("ui_click")
+				_selected_enemy_index = e_idx
+				_selected_part_slot = PartData.PartSlot.BODY
+				_start_player_qte()
+			)
+			_target_box.add_child(seg_btn)
+		elif en.is_modular():
 			has_modular_enemy = true
 			# 3 кнопки выбора конкретной детали у Элитки или Босса!
 			var row: HBoxContainer = HBoxContainer.new()
@@ -1630,41 +1673,108 @@ func _on_qte_completed(multiplier: float, rating_label: String, bonus_sync: int)
 					actual_e_idx = fallback_idx
 					break
 		if target_en != null and target_en.is_alive():
-			var hit_res: Dictionary = target_en.take_damage(scaled_dmg, _selected_part_slot, sk.ignore_armor)
+			var active_fusion_tier: int = 0
+			if _fusion_controller != null and _fusion_controller.is_active():
+				active_fusion_tier = int(_fusion_controller.current_tier)
+			elif _pyramid_active:
+				match _pyramid_tier:
+					2: active_fusion_tier = 1
+					3: active_fusion_tier = 2
+					4: active_fusion_tier = 3
+					_: active_fusion_tier = 3
+			var alive_party_ids: Array[StringName] = []
+			for ally_m: CatMechInstance in _party:
+				if ally_m != null and ally_m.is_alive():
+					alive_party_ids.append(ally_m.cat_id)
+			var hit_res: Dictionary = target_en.take_damage(
+				scaled_dmg,
+				_selected_part_slot,
+				sk.ignore_armor,
+				cat.cat_id,
+				active_fusion_tier,
+				alive_party_ids
+			)
 			_apply_skill_status_to_enemy(target_en, sk, multiplier)
-			var slot_str: String = PartData.slot_to_russian(hit_res["slot"] as PartData.PartSlot)
-			var dealt_dmg: int = int(hit_res["damage"])
-			log_parts.append(target_en.data.enemy_name + " (" + slot_str + "): -" + str(dealt_dmg) + " HP")
-
-			var is_crit_hit: bool = is_crit_sync or bool(hit_res["triggered_mark"])
-			if actual_e_idx < _enemy_rigs.size():
-				var erig: Dictionary = _enemy_rigs[actual_e_idx]
-				var epos: Vector2 = (erig["root"] as Node2D).position
-				_play_rig_hurt(erig, 6.0, hit_res["slot"] as PartData.PartSlot)
-				var d_text: String = ("КРИТ! -" if is_crit_hit else "-") + str(dealt_dmg)
-				var d_col: Color = Color(1.0, 0.9, 0.25) if is_crit_hit else Color(1.0, 0.35, 0.35)
-				spawn_damage_number(epos, d_text, d_col, is_crit_hit)
-				_emit_spark_burst(epos, 16 if is_crit_hit else 9)
-
-			if bool(hit_res["triggered_mark"]):
-				if not _pyramid_active and _pyramid_overheat_rounds <= 0:
-					SaveManager.add_sync(15)
-				log_parts.append("КОМБО ПО МЕТКЕ!")
-			if bool(hit_res["just_broken"]) and target_en.is_modular():
-				AudioManager.play_sfx("part_break")
-				EventBus.enemy_part_destroyed.emit(actual_e_idx, int(hit_res["slot"]))
-				log_parts.append("ДЕТАЛЬ [" + slot_str + "] ОТСТРЕЛЕНА!")
-				# Тряска экрана и искры при взрыве детали (Issue #11)
-				_trigger_screenshake(9.0, 0.3)
+			# Проверка сюжетного катапультирования (ADR-002, Issue #30)
+			if bool(hit_res.get("ejected", false)):
+				var alert_text: String = String(hit_res.get("floating_text", "0! МУЗЫКА СЛИШКОМ СЛАБАЯ!"))
+				AudioManager.play_sfx(String(hit_res.get("sfx", "dissonance")))
 				if actual_e_idx < _enemy_rigs.size():
-					var epos: Vector2 = (_enemy_rigs[actual_e_idx]["root"] as Node2D).position
-					_emit_spark_burst(epos, 28)
-					spawn_damage_number(epos + Vector2(0, -14), "СЛОМАН!", Color(1.0, 0.25, 0.25), true)
-			elif not target_en.is_alive():
-				_trigger_screenshake(8.0, 0.25)
+					var erig: Dictionary = _enemy_rigs[actual_e_idx]
+					var epos: Vector2 = (erig["root"] as Node2D).position
+					spawn_damage_number(epos, alert_text, Color(1.0, 0.25, 0.4), true)
+					_trigger_screenshake(7.0, 0.35)
+				var rej_reason: String = String(hit_res.get("ejection_reason", "Музыка слишком слабая. Прослушивание не пройдено!"))
+				var new_phase: StoryProgressionData.StoryPhase = hit_res.get("target_story_phase", StoryProgressionData.StoryPhase.CYCLE_1_DUO) as StoryProgressionData.StoryPhase
+				log_parts.append("РЕВИЗОР ЭФИРА: " + rej_reason)
+				_log_label.text = " | ".join(log_parts)
+				_refresh_hud()
+				await get_tree().create_timer(1.2, false).timeout
+				if not is_inside_tree():
+					return
+				if SaveManager.story_progression != null:
+					SaveManager.set_story_phase(new_phase)
+				SaveManager.delete_run_save()
+				EventBus.request_scene_change.emit(&"HUB", {
+					"ejected": true,
+					"ejection_reason": rej_reason
+				})
+				return
+
+			# Проверка иммунитета к несовпадающему цвету (ADR-002, Issue #30)
+			if bool(hit_res.get("immune", false)):
+				var alert_text: String = String(hit_res.get("floating_text", "0! МУЗЫКА СЛИШКОМ СЛАБАЯ!"))
+				AudioManager.play_sfx(String(hit_res.get("sfx", "dissonance")))
 				if actual_e_idx < _enemy_rigs.size():
-					var epos: Vector2 = (_enemy_rigs[actual_e_idx]["root"] as Node2D).position
-					_emit_spark_burst(epos, 26)
+					var erig: Dictionary = _enemy_rigs[actual_e_idx]
+					var epos: Vector2 = (erig["root"] as Node2D).position
+					spawn_damage_number(epos, alert_text, Color(1.0, 0.25, 0.4), true)
+					_trigger_screenshake(4.0, 0.2)
+				log_parts.append(target_en.data.enemy_name + ": 0 УРОНА! МУЗЫКА СЛИШКОМ СЛАБАЯ!")
+			else:
+				var slot_str: String = PartData.slot_to_russian(hit_res["slot"] as PartData.PartSlot)
+				var dealt_dmg: int = int(hit_res["damage"])
+				log_parts.append(target_en.data.enemy_name + " (" + slot_str + "): -" + str(dealt_dmg) + " HP")
+
+				var is_crit_hit: bool = is_crit_sync or bool(hit_res["triggered_mark"])
+				if actual_e_idx < _enemy_rigs.size():
+					var erig: Dictionary = _enemy_rigs[actual_e_idx]
+					var epos: Vector2 = (erig["root"] as Node2D).position
+					_play_rig_hurt(erig, 6.0, hit_res["slot"] as PartData.PartSlot)
+					var d_text: String = ("КРИТ! -" if is_crit_hit else "-") + str(dealt_dmg)
+					var d_col: Color = Color(1.0, 0.9, 0.25) if is_crit_hit else Color(1.0, 0.35, 0.35)
+					spawn_damage_number(epos, d_text, d_col, is_crit_hit)
+					_emit_spark_burst(epos, 16 if is_crit_hit else 9)
+
+				if bool(hit_res["triggered_mark"]):
+					if not _pyramid_active and _pyramid_overheat_rounds <= 0:
+						SaveManager.add_sync(15)
+					log_parts.append("КОМБО ПО МЕТКЕ!")
+				if bool(hit_res["just_broken"]) and target_en.is_modular():
+					AudioManager.play_sfx("part_break")
+					EventBus.enemy_part_destroyed.emit(actual_e_idx, int(hit_res["slot"]))
+					log_parts.append("ДЕТАЛЬ [" + slot_str + "] ОТСТРЕЛЕНА!")
+					# Тряска экрана и искры при взрыве детали (Issue #11)
+					_trigger_screenshake(9.0, 0.3)
+					if actual_e_idx < _enemy_rigs.size():
+						var epos: Vector2 = (_enemy_rigs[actual_e_idx]["root"] as Node2D).position
+						_emit_spark_burst(epos, 28)
+						spawn_damage_number(epos + Vector2(0, -14), "СЛОМАН!", Color(1.0, 0.25, 0.25), true)
+				elif not target_en.is_alive():
+					_trigger_screenshake(8.0, 0.25)
+					if actual_e_idx < _enemy_rigs.size():
+						var epos: Vector2 = (_enemy_rigs[actual_e_idx]["root"] as Node2D).position
+						_emit_spark_burst(epos, 26)
+
+			# Проверка активации 4-нотного добивания (Ensemble Finisher, Issue #30)
+			if bool(hit_res.get("finisher_triggered", false)) or (target_en.final_boss_controller != null and target_en.final_boss_controller.is_finisher_ready and not target_en.final_boss_controller.finisher_succeeded):
+				_log_label.text = "ФИНАЛЬНЫЙ АККОРД! ВЫПОЛНИТЕ РИТМ-ДОБИВАНИЕ ВСЕМ АНСАМБЛЕМ!"
+				_trigger_screenshake(10.0, 0.4)
+				await get_tree().create_timer(0.4, false).timeout
+				if not is_inside_tree():
+					return
+				await _start_ensemble_finisher(target_en)
+				return
 
 	_log_label.text = " | ".join(log_parts)
 	_refresh_hud()
@@ -1913,7 +2023,7 @@ func _handle_victory() -> void:
 	if was_boss:
 		var current_sec: int = clampi(SaveManager.current_sector, 1, 3)
 		var postlude_path: String = "res://data/dialogues/boss_postlude_sector" + str(current_sec) + ".dtl"
-		if SaveManager.current_sector == 3 or current_sec >= 3:
+		if SaveManager.current_sector >= 3 or current_sec >= 3 or _is_final_boss_battle():
 			var victory_stats: Dictionary = SaveManager.complete_run_victory()
 			_end_overlay.position = Vector2(60, 26)
 			_end_overlay.size = Vector2(520, 298)
@@ -2089,3 +2199,59 @@ func _handle_defeat() -> void:
 	_end_btn.pressed.connect(func() -> void:
 		EventBus.request_scene_change.emit(&"HUB", {})
 	)
+
+func _start_ensemble_finisher(target_en: EnemyInstance) -> void:
+	var fbc: FinalBossController = target_en.final_boss_controller
+	if fbc == null:
+		return
+
+	_action_box.visible = false
+	_target_box.visible = false
+	_fsm.transition_to(CombatFSM.State.QTE_ATTACK_PHASE)
+
+	var beats: Array[Dictionary] = [
+		{"hero": &"FELIX", "name": "ФЕЛИКС", "inst": "СОЛО-ГИТАРА", "color": Color(0.2, 0.7, 1.0)},
+		{"hero": &"HOUND", "name": "ХАУНД", "inst": "УДАРНЫЕ", "color": Color(1.0, 0.3, 0.3)},
+		{"hero": &"MULE", "name": "МЬЮЛ", "inst": "БАС-ПАРТИЯ", "color": Color(1.0, 0.85, 0.2)},
+		{"hero": &"COCK", "name": "КОК", "inst": "СИНТЕЗАТОР", "color": Color(0.3, 0.95, 0.4)}
+	]
+
+	var boss_pos: Vector2 = Vector2(480, 160)
+	if not _enemy_rigs.is_empty():
+		boss_pos = (_enemy_rigs[0]["root"] as Node2D).position
+
+	for beat_idx: int in range(1, 5):
+		var beat_info: Dictionary = beats[beat_idx - 1]
+		_log_label.text = "РИТМ-АККОРД [" + str(beat_idx) + "/4]: " + String(beat_info["name"]) + " (" + String(beat_info["inst"]) + ")"
+		_qte.start_qte("АККОРД " + str(beat_idx) + "/4: " + String(beat_info["inst"]))
+		var qte_res: Array = await _qte.qte_completed
+		var step_res: Dictionary = fbc.execute_finisher_beat(beat_idx, true)
+		var b_color: Color = beat_info["color"] as Color
+		spawn_damage_number(boss_pos + Vector2(0, -20), String(step_res.get("floating_text", "В РИТМЕ!")), b_color, true)
+		_emit_spark_burst(boss_pos, 22)
+		_trigger_screenshake(8.0, 0.25)
+		AudioManager.play_sfx("qte_perfect")
+		await get_tree().create_timer(0.3, false).timeout
+		if not is_inside_tree():
+			return
+
+	# 4 ноты завершены успешно!
+	var vfx_data: Dictionary = fbc.trigger_destruction_vfx()
+	_trigger_screenshake(float(vfx_data.get("screenshake_amplitude", 16.0)), float(vfx_data.get("screenshake_duration", 1.5)))
+	AudioManager.play_sfx(String(vfx_data.get("sfx_main", "part_break")))
+	AudioManager.play_sfx(String(vfx_data.get("sfx_secondary", "pyramid_undock")))
+	AudioManager.play_ensemble_theme()
+
+	for c: Color in vfx_data.get("spark_colors", [Color.CYAN, Color.RED, Color.YELLOW, Color.GREEN]):
+		_emit_spark_burst(boss_pos, 30)
+
+	spawn_damage_number(boss_pos + Vector2(0, -35), "ФИНАЛЬНЫЙ АККОРД: РЕВИЗОР ЭФИРА УНИЧТОЖЕН!", Color(0.35, 1.0, 0.6), true)
+
+	target_en.current_hp = 0
+	_log_label.text = "РЕВИЗОР ЭФИРА УНИЧТОЖЕН! КОНЦЕРТНЫЙ ЗАЛ ОСВОБОЖДЁН!"
+	_refresh_hud()
+
+	await get_tree().create_timer(1.2, false).timeout
+	if not is_inside_tree():
+		return
+	_handle_victory()

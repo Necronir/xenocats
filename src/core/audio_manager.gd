@@ -28,7 +28,9 @@ const SFX_PATHS: Dictionary = {
 	"pyramid_siren": "res://assets/audio/sfx/pyramid_siren.wav",
 	"pyramid_undock": "res://assets/audio/sfx/pyramid_undock.wav",
 	"ui_click": "res://assets/audio/sfx/ui_click.wav",
-	"heal": "res://assets/audio/sfx/heal.wav"
+	"heal": "res://assets/audio/sfx/heal.wav",
+	"dissonance": "res://assets/audio/sfx/dissonance.wav",
+	"clipping": "res://assets/audio/sfx/clipping.wav"
 }
 
 const CHAR_THEME_PATHS: Dictionary = {

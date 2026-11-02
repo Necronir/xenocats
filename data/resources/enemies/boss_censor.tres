@@ -1,0 +1,77 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_part"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_skill"]
+[ext_resource type="Script" path="res://src/models/enemy_data.gd" id="3_enemy"]
+
+[sub_resource type="Resource" id="Resource_censor_barrage"]
+script = ExtResource("2_skill")
+skill_id = &"enemy_censor_interference"
+skill_name = "Глушение частот"
+description = "Акустические помехи и глушение эфирного диапазона."
+target_type = 0
+base_damage = 22
+qte_profile = 3
+
+[sub_resource type="Resource" id="Resource_censor_laser"]
+script = ExtResource("2_skill")
+skill_id = &"enemy_censor_laser"
+skill_name = "Ревизорский лазер"
+description = "Направленный луч подавления творческой свободы."
+target_type = 2
+base_damage = 25
+qte_profile = 3
+
+[sub_resource type="Resource" id="Resource_censor_arms"]
+script = ExtResource("1_part")
+part_id = &"boss_censor_arms"
+part_name = "Орудия Худсовета (Шпиль Бремен-4)"
+description = "Манипуляторы цензуры и рупорные излучатели."
+slot = 1
+max_hp = 220
+armor = 4
+base_speed = 18
+skills = Array[ExtResource("2_skill")]([SubResource("Resource_censor_barrage"), SubResource("Resource_censor_laser")])
+texture_path = "res://assets/sprites/enemies/boss_satellite_arms.png"
+
+[sub_resource type="Resource" id="Resource_censor_body"]
+script = ExtResource("1_part")
+part_id = &"boss_censor_body"
+part_name = "Ядро Ревизора (Шпиль Бремен-4)"
+description = "Автоматический худсовет и центральный цензор."
+max_hp = 810
+armor = 5
+base_speed = 18
+skills = Array[ExtResource("2_skill")]([SubResource("Resource_censor_barrage"), SubResource("Resource_censor_laser")])
+texture_path = "res://assets/sprites/enemies/boss_satellite_body.png"
+
+[sub_resource type="Resource" id="Resource_censor_legs"]
+script = ExtResource("1_part")
+part_id = &"boss_censor_legs"
+part_name = "Станина Шпиля (Шпиль Бремен-4)"
+description = "Опорная платформа ретранслятора."
+slot = 2
+max_hp = 200
+armor = 4
+base_speed = 18
+texture_path = "res://assets/sprites/enemies/boss_satellite_legs.png"
+
+[resource]
+script = ExtResource("3_enemy")
+enemy_id = &"boss_censor"
+enemy_name = "Главный Ревизор эфира // Худсовет Бремен-4"
+is_modular = true
+is_boss = true
+sector_level = 4
+max_hp = 810
+armor = 5
+speed = 18
+body_part = SubResource("Resource_censor_body")
+arms_part = SubResource("Resource_censor_arms")
+legs_part = SubResource("Resource_censor_legs")
+skills = Array[ExtResource("2_skill")]([SubResource("Resource_censor_barrage"), SubResource("Resource_censor_laser")])
+dodge_pattern_id = &"boss_satellite_interference"
+dodge_patterns = Array[StringName]([&"boss_satellite_orbital", &"boss_satellite_homing", &"boss_satellite_interference"])
+sprite_prefix = "boss_satellite"
+scrap_reward = 350
+core_reward = 10
