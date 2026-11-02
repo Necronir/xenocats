@@ -173,66 +173,39 @@ func _build_ui() -> void:
 		AudioManager.play_sfx("ui_click")
 		SaveManager.start_new_run()
 
-		var hound_dtl_payload: Dictionary = {
-			"timeline": "res://data/dialogues/story_intro_hound.dtl",
-			"next_scene": &"MAP",
-			"next_payload": {},
-			"title": "ПРОЛОГ: ВСТРЕЧА С ПСОМ (ЧАСТЬ 2)",
-			"continue_text": "В ПУТЬ ВДВОЁМ С ПСОМ (СЕКТОР 1) ->"
-		}
+		var is_cycle_0: bool = SaveManager.story_progression != null and SaveManager.story_progression.current_phase == StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT
 
-		var after_cat_event: Dictionary = {}
-		if ResourceLoader.exists("res://assets/photos/2-cat-and-hound-together.jpg"):
-			after_cat_event = {
-				"next_scene": &"VIDEO",
-				"next_payload": {
-					"image_path": "res://assets/photos/2-cat-and-hound-together.jpg",
-					"title": "ПРОЛОГ: ВСТРЕЧА С ПСОМ H.O.U.N.D.",
-					"story_stage": 2,
+		if is_cycle_0:
+			var cat_dtl_payload: Dictionary = {
+				"timeline": "res://data/dialogues/story_intro_cat.dtl",
+				"next_scene": &"MAP",
+				"next_payload": {},
+				"title": "ПРОЛОГ: ИЗГНАНИЕ КОТА (ЧАСТЬ 1)",
+				"continue_text": "В ПУТЬ К ВЫШКЕ БРЕМЕН-4 ->"
+			}
+			var cat_img: String = "res://assets/photos/1-1-cat-start.jpg"
+			if not ResourceLoader.exists(cat_img):
+				cat_img = "res://assets/photos/1-cat-start.jpg"
+
+			if ResourceLoader.exists(cat_img):
+				EventBus.request_scene_change.emit(&"VIDEO", {
+					"image_path": cat_img,
+					"title": "ПРОЛОГ: ИЗГНАНИЕ КОТА ФЕЛИКСА",
+					"story_stage": 1,
 					"next_scene": &"EVENT",
-					"next_payload": hound_dtl_payload
-				}
-			}
-		elif ResourceLoader.exists("res://assets/videos/2-hound.ogv"):
-			after_cat_event = {
-				"next_scene": &"VIDEO",
-				"next_payload": {
-					"video_path": "res://assets/videos/2-hound.ogv",
-					"title": "H.O.U.N.D. — ОХРАННЫЙ ПАТРУЛЬНЫЙ ДРОИД",
+					"next_payload": cat_dtl_payload
+				})
+			elif ResourceLoader.exists("res://assets/videos/1-cat.ogv"):
+				EventBus.request_scene_change.emit(&"VIDEO", {
+					"video_path": "res://assets/videos/1-cat.ogv",
+					"title": "FELIX — СЕРВИСНЫЙ ЮНИТ-МУЗЫКАНТ",
 					"next_scene": &"EVENT",
-					"next_payload": hound_dtl_payload
-				}
-			}
+					"next_payload": cat_dtl_payload
+				})
+			else:
+				EventBus.request_scene_change.emit(&"EVENT", cat_dtl_payload)
 		else:
-			after_cat_event = {
-				"next_scene": &"EVENT",
-				"next_payload": hound_dtl_payload
-			}
-
-		var cat_dtl_payload: Dictionary = {
-			"timeline": "res://data/dialogues/story_intro_cat.dtl",
-			"title": "ПРОЛОГ: ИЗГНАНИЕ КОТА (ЧАСТЬ 1)",
-			"continue_text": "ДАЛЕЕ (ВСТРЕЧА С ПСОМ) ->"
-		}
-		cat_dtl_payload.merge(after_cat_event)
-
-		if ResourceLoader.exists("res://assets/photos/1-cat-start.jpg"):
-			EventBus.request_scene_change.emit(&"VIDEO", {
-				"image_path": "res://assets/photos/1-cat-start.jpg",
-				"title": "ПРОЛОГ: ИЗГНАНИЕ КОТА ФЕЛИКСА",
-				"story_stage": 1,
-				"next_scene": &"EVENT",
-				"next_payload": cat_dtl_payload
-			})
-		elif ResourceLoader.exists("res://assets/videos/1-cat.ogv"):
-			EventBus.request_scene_change.emit(&"VIDEO", {
-				"video_path": "res://assets/videos/1-cat.ogv",
-				"title": "FELIX — СЕРВИСНЫЙ ЮНИТ-МУЗЫКАНТ",
-				"next_scene": &"EVENT",
-				"next_payload": cat_dtl_payload
-			})
-		else:
-			EventBus.request_scene_change.emit(&"EVENT", cat_dtl_payload)
+			EventBus.request_scene_change.emit(&"MAP", {})
 	)
 	bot_hbox.add_child(new_run_btn)
 

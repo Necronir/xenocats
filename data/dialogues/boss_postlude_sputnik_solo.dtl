@@ -1,0 +1,19 @@
+# Dialogic 2 Timeline: boss_postlude_sputnik_solo — Спутник повержен, появление Кибер-Трубадура и катапультирование Кота
+[image path="res://assets/photos/1-4b-trubadur-apperiance.jpg"]
+[sound path="res://assets/audio/sfx/part_break.wav"]
+felix (battle): Есть! Спящий Спутник повержен, антенны искрят! Радиовышка «Бремен-4» открыта...
+felix (shocked): ...Постойте. Что это за оглушительный гитарный дисторшн сотрясает стены?!
+[sound path="res://assets/audio/sfx/dissonance.wav"]
+[image path="res://assets/photos/1-4b-trubadur-apperiance.jpg"]
+felix (glitch): Из темноты аппаратного зала выходит кибер-рокер со светящимся глазом и мощной электрогитарой!
+felix (battle): К-кто ты такой?!
+[image path="res://assets/photos/1-4b-trubadur-apperiance.jpg"]
+felix (battle): К его гитаре подключены четыре колоссальных генератора энергии — Синий, Красный, Жёлтый и Зелёный!
+[sound path="res://assets/audio/sfx/qte_hit.wav"]
+[image path="res://assets/photos/1-5b-trubadur-win.jpg"]
+felix (battle): Я молниеносно бью лазерными когтями и разношу Синий генератор!
+felix (shocked): Но остальные три генератора вспыхивают слепящим пламенем! Гитара ревёт, как авиационная турбина!
+[sound path="res://assets/audio/sfx/pyramid_siren.wav"]
+[image path="res://assets/photos/1-5a-trubadur-fail.jpg"]
+felix (damaged): «МУЗЫКА СЛИШКОМ СЛАБАЯ! ПРОСЛУШИВАНИЕ НЕ ПРОЙДЕНО! ВОН ИЗ ЭФИРА!»
+felix (damaged): Мощнейшая звуковая волна сметает меня в аварийный мусоропровод... Я лечу вниз, на далёкую свалку металлолома...

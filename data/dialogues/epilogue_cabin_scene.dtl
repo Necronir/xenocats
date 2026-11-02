@@ -1,16 +1,18 @@
 # Dialogic 2 Timeline: Акт 1 — Изба Разбойников (The Robbers' Cabin)
-[image path="res://assets/sprites/story/story_cabin_mega_pyramid.png"]
+[image path="res://assets/photos/6-1-fake-boss-apperiance.jpg"]
 [sfx path="pyramid_siren"]
 felix (battle): Внимание, банда! Впереди логово главарей мародёров — радиорубка на холме. По привычке — стыкуемся в боевую РОБО-МЕГА-ПИРАМИДУ!
+[image path="res://assets/photos/6-2-fake-boss-monster.jpg"]
 hound (battle): ГАВ! Стыковка завершена! Мощность на максимуме!
 mule (battle): И-а! Басовые сервоприводы готовы снести стену!
 cock (battle): КУ-КА-РЕ-КУ! Синтезатор наведения зафиксирован прямо на окне!
 felix (normal): ...Стоп. Подождите. Мы же просто хотели заглянуть в окно и узнать, кто там внутри? Кажется, мы переборщили? ("Wait... did we overdo it?")
 hound (normal): Ой... Мы же пятнадцатиметровый титан, мы сейчас всю хижину раздавим!
 [sfx path="comic_slide"]
-[image path="res://assets/sprites/story/story_bremen_window_pyramid.png"]
+[image path="res://assets/photos/6-3-fake-boss-piramide.jpg"]
 felix (happy): Отставить боевой режим! Быстро рассыпаемся и встаем в классическую живую пирамиду: Петух на Коте, Кот на Псе, Пёс на Осле!
 cock (happy): Раз-два! Классическая сказочная пирамида на подоконнике готова!
+[image path="res://assets/photos/6-4-fake-boss-win.jpg"]
 outlaw (shocked): *слышит шум, зажигает лучину и с ужасом выглядывает в тёмное окно радиорубки*
 outlaw (panic): КАРАУЛ! СПАСАЙТЕСЬ! Ох, в этой избе сидит страшная ведьма — она зашипела и исцарапала мне лицо длинными когтями! У двери чёрт с ножом пырнул меня в ногу, во дворе чёрное чудовище с дубиной, а на крыше грозный судья кричит нечеловеческим голосом: «Подайте мне вора сюда!» ("A terrible witch scratched me with claws, a devil bit my leg, a monster struck me with a club, and on the roof a judge shouted: 'Bring the rascal here!'")
 felix (normal): Ха-ха-ха! Глядите, как они сверкают пятками во тьму! Представляете, что бы с ними было, если бы они увидели робопетухокотопсоосла!? ("Imagine what would've happened if they saw the Robo-RoosterCatDogDonkey!?")

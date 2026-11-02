@@ -162,7 +162,9 @@ func _ready() -> void:
 		"res://data/dialogues/boss_prelude_sector3.dtl",
 		"res://data/dialogues/boss_postlude_sector1.dtl",
 		"res://data/dialogues/boss_postlude_sector2.dtl",
-		"res://data/dialogues/boss_postlude_sector3.dtl"
+		"res://data/dialogues/boss_postlude_sector3.dtl",
+		"res://data/dialogues/boss_prelude_sputnik_solo.dtl",
+		"res://data/dialogues/boss_postlude_sputnik_solo.dtl"
 	]
 	for tl_path: String in story_timelines:
 		assert(FileAccess.file_exists(tl_path), "Timeline missing: " + tl_path)
@@ -231,18 +233,34 @@ func _ready() -> void:
 	# 7.1 Verify Issue #24 Plot Photos, Video assets and VideoPlayerScene
 	var plot_photos: Array[String] = [
 		"res://assets/photos/0-battle-fail.jpg",
-		"res://assets/photos/1-cat-start.jpg",
-		"res://assets/photos/2-cat-and-hound-together.jpg",
-		"res://assets/photos/3-press-boss-appirance.jpg",
-		"res://assets/photos/4a-press-boss-win.jpg",
-		"res://assets/photos/4b-press-boss-fail.jpg",
-		"res://assets/photos/5-atamansha-boss-apperiance.jpg",
-		"res://assets/photos/6a-atamansha-boss-win.jpg",
-		"res://assets/photos/6b-atamansha-boss-fail.jpg",
-		"res://assets/photos/7-sputnik-boss-apperiance.jpg",
-		"res://assets/photos/8a-sputnik-boss-win.jpg",
-		"res://assets/photos/8b-sputnik-boss-fail.jpg",
-		"res://assets/photos/9-final.jpg"
+		"res://assets/photos/1-1-cat-start.jpg",
+		"res://assets/photos/1-2-sputnik-apperiance.jpg",
+		"res://assets/photos/1-3-cat-and-sputnik.jpg",
+		"res://assets/photos/1-4a-cat-and-sputnik-fail.jpg",
+		"res://assets/photos/1-4b-trubadur-apperiance.jpg",
+		"res://assets/photos/1-5a-trubadur-fail.jpg",
+		"res://assets/photos/1-5b-trubadur-win.jpg",
+		"res://assets/photos/2-1-cat-and-hound-together.jpg",
+		"res://assets/photos/2-2-press-boss-appirance.jpg",
+		"res://assets/photos/2-3a-press-boss-win.jpg",
+		"res://assets/photos/2-3b-press-boss-fail.jpg",
+		"res://assets/photos/3-1-atamansha-boss-apperiance.jpg",
+		"res://assets/photos/3-2a-atamansha-boss-win.jpg",
+		"res://assets/photos/3-2b-atamansha-boss-fail.jpg",
+		"res://assets/photos/4-1-sputnik-boss-apperiance.jpg",
+		"res://assets/photos/4-2a-sputnik-boss-win.jpg",
+		"res://assets/photos/4-2b-sputnik-boss-fail.jpg",
+		"res://assets/photos/5-1-trubadur-full.jpg",
+		"res://assets/photos/5-2-trubadur-blue.jpg",
+		"res://assets/photos/5-3-trubadur-red.jpg",
+		"res://assets/photos/5-3-trubadur-yellow.jpg",
+		"res://assets/photos/5-4-trubadur-win.jpg",
+		"res://assets/photos/5-4a-trubadur-fail.jpg",
+		"res://assets/photos/6-1-fake-boss-apperiance.jpg",
+		"res://assets/photos/6-2-fake-boss-monster.jpg",
+		"res://assets/photos/6-3-fake-boss-piramide.jpg",
+		"res://assets/photos/6-4-fake-boss-win.jpg",
+		"res://assets/photos/7-final.jpg"
 	]
 	for ppath: String in plot_photos:
 		assert(ResourceLoader.exists(ppath), "Plot photo missing: " + ppath)
@@ -1864,6 +1882,59 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	print("[20] Issue #34: Robbers' cabin fairy-tale cutscene, sprite switch, Grimm quotes & victory rock concert verified OK")
+
+	# =========================================================================
+	# 21. Verify Issue #41: Dynamic Loop Prologue, Sputnik Boss Duel, Trubadur Entrance and Deferred Hound Join
+	# =========================================================================
+	print("[21] Verifying Issue #41: Dynamic Loop Prologue, Sputnik Boss Duel, Trubadur Entrance and Deferred Hound Join...")
+
+	# 21.1 In CYCLE_0_SOLO_CAT, Cat enters Sector 1 alone (Hound does NOT join immediately)
+	SaveManager.set_story_phase(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT)
+	SaveManager.start_new_run(12345)
+	assert(SaveManager.party.size() == 1, "CYCLE_0_SOLO_CAT must start with solo Felix")
+	assert(SaveManager.party[0].cat_id == &"FELIX", "Party must contain only Felix")
+	assert(not SaveManager.has_party_member("HOUND"), "Hound must NOT be in party at start of prologue")
+	assert(SaveManager.current_sector == 1, "Prologue must start in Sector 1")
+
+	# 21.2 Sector 1 Boss in CYCLE_0_SOLO_CAT is Sputnik (Blue biome)
+	var p0_val: int = int(SaveManager.story_progression.current_phase)
+	var p0_theme: String = MapGenerator.get_sector_theme(1, p0_val)
+	assert(p0_theme == "BLUE", "CYCLE_0_SOLO_CAT Sector 1 theme must be BLUE")
+
+	# 21.3 Defeating Sputnik in Cycle 0 yields Hound rescue data, postlude_sputnik_solo, and triggers Trubadur entrance
+	var sputnik_defeat_res: Dictionary = SaveManager.handle_biome_boss_defeat("BLUE", "boss_satellite")
+	assert(sputnik_defeat_res["companion_id"] == "HOUND", "Cycle 0 Sputnik defeat must yield companion HOUND")
+	assert(sputnik_defeat_res["timeline_id"] == "boss_postlude_sputnik_solo", "Must route to boss_postlude_sputnik_solo timeline")
+	assert(sputnik_defeat_res["photo_path"] == "res://assets/photos/1-4b-trubadur-apperiance.jpg", "Photo must be 1-4b-trubadur-apperiance.jpg")
+	assert(SaveManager.story_progression.current_phase == StoryProgressionData.StoryPhase.CYCLE_1_DUO, "Must advance to CYCLE_1_DUO")
+	assert(SaveManager.story_progression.unlocked_party_members.has(&"HOUND"), "HOUND must be unlocked")
+	assert(SaveManager.is_fusion_tier_unlocked(1), "Fusion Tier 1 (ROBO_CATDOG) must be unlocked")
+
+	# 21.4 Advancing to next sector after Cycle 0 transition sets up Cycle 1 Duo at Sector 1
+	SaveManager.advance_to_next_sector()
+	assert(SaveManager.current_sector == 1, "Cycle 1 Duo must start at Sector 1 (Red Biome)")
+	assert(SaveManager.has_party_member("FELIX") and SaveManager.has_party_member("HOUND"), "Party must now have Felix and Hound")
+	assert(SaveManager.party.size() == 2, "Party must be exactly 2 members (MULE must not be recruited yet)")
+	assert(not SaveManager.has_party_member("MULE"), "MULE must not be recruited in Cycle 1 Sector 1")
+
+	# 21.5 Verify EventScene parses boss_prelude_sputnik_solo.dtl and boss_postlude_sputnik_solo.dtl
+	var ev_p0_prelude: EventScene = ev_scene_res.instantiate() as EventScene
+	ev_p0_prelude.setup_event({"timeline": "res://data/dialogues/boss_prelude_sputnik_solo.dtl"})
+	add_child(ev_p0_prelude)
+	await get_tree().process_frame
+	assert(ev_p0_prelude._lines.size() >= 3, "boss_prelude_sputnik_solo.dtl must parse into at least 3 lines")
+	ev_p0_prelude.queue_free()
+	await get_tree().process_frame
+
+	var ev_p0_postlude: EventScene = ev_scene_res.instantiate() as EventScene
+	ev_p0_postlude.setup_event({"timeline": "res://data/dialogues/boss_postlude_sputnik_solo.dtl"})
+	add_child(ev_p0_postlude)
+	await get_tree().process_frame
+	assert(ev_p0_postlude._lines.size() >= 7, "boss_postlude_sputnik_solo.dtl must parse into at least 7 lines")
+	ev_p0_postlude.queue_free()
+	await get_tree().process_frame
+
+	print("[21] Issue #41: Dynamic Loop Prologue, Sputnik Boss Duel, Trubadur Entrance and Deferred Hound Join verified OK")
 
 
 

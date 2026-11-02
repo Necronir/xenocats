@@ -132,6 +132,8 @@ func _build_visual_hierarchy() -> void:
 	_bg_rect.stretch_mode = TextureRect.STRETCH_SCALE
 	var sec: int = clampi(SaveManager.current_sector, 1, 4)
 	var bg_path: String = "res://assets/sprites/backgrounds/bg_sector" + str(sec) + ".png"
+	if _is_final_boss_battle() and ResourceLoader.exists("res://assets/photos/5-1-trubadur-full.jpg"):
+		bg_path = "res://assets/photos/5-1-trubadur-full.jpg"
 	if ResourceLoader.exists(bg_path):
 		_bg_rect.texture = load(bg_path) as Texture2D
 	add_child(_bg_rect)
@@ -342,12 +344,17 @@ func _init_combat_entities() -> void:
 		else:
 			var chosen_boss_ed: EnemyData = null
 			var b_override: String = String(_battle_payload.get("boss_id", ""))
+			var p_phase: int = int(SaveManager.story_progression.current_phase) if SaveManager.story_progression != null else -1
 			if b_override != "":
 				chosen_boss_ed = DataCatalog.get_enemy(b_override)
+			elif p_phase == int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT) or (th == "BLUE" and sec == 1):
+				chosen_boss_ed = DataCatalog.get_enemy("boss_satellite")
 			elif th == "YELLOW":
 				chosen_boss_ed = DataCatalog.get_enemy("boss_press")
 			elif th == "GREEN":
 				chosen_boss_ed = DataCatalog.get_enemy("boss_atamansha")
+			elif th == "BLUE" or sec >= 3:
+				chosen_boss_ed = DataCatalog.get_enemy("boss_satellite")
 
 			if chosen_boss_ed == null:
 				var bosses: Array[EnemyData] = DataCatalog.get_enemies_for_sector(sec, false, true)
@@ -355,7 +362,15 @@ func _init_combat_entities() -> void:
 					chosen_boss_ed = bosses[0]
 
 			if chosen_boss_ed != null:
-				_enemies.append(EnemyInstance.new(chosen_boss_ed))
+				var boss_einst: EnemyInstance = EnemyInstance.new(chosen_boss_ed)
+				if p_phase == int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT):
+					# Prologue balance: Solo Felix duels sleeping Satellite
+					boss_einst.body_hp = mini(boss_einst.body_hp, 140)
+					boss_einst.arms_hp = mini(boss_einst.arms_hp, 70)
+					boss_einst.legs_hp = mini(boss_einst.legs_hp, 60)
+					boss_einst.armor = 2
+					boss_einst.base_attack = 10
+				_enemies.append(boss_einst)
 	elif node_type == "ELITE":
 		var elites: Array[EnemyData] = DataCatalog.get_enemies_for_sector(sec, true, false)
 		if not elites.is_empty():
@@ -2184,6 +2199,9 @@ func _handle_victory() -> void:
 			var victory_stats: Dictionary = SaveManager.complete_run_victory()
 			_end_overlay.position = Vector2(60, 26)
 			_end_overlay.size = Vector2(520, 298)
+			if _end_art_rect != null and ResourceLoader.exists("res://assets/photos/5-4-trubadur-win.jpg"):
+				_end_art_rect.texture = ResourceLoader.load("res://assets/photos/5-4-trubadur-win.jpg") as Texture2D
+				_end_art_rect.visible = true
 			_end_title.text = "СИГНАЛ SOS БРЕМЕН-4 ПЕРЕДАН В ОТКРЫТЫЙ КОСМОС!"
 			_end_title.add_theme_font_size_override("font_size", 13)
 			_end_title.add_theme_color_override("font_color", Color(0.3, 1.0, 0.55))
@@ -2239,7 +2257,10 @@ func _handle_victory() -> void:
 			var photo_path: String = String(rescue_res.get("photo_path", ""))
 			var post_title: String = String(rescue_res.get("post_title", "СЕКТОР ЗАЧИЩЕН"))
 
-			if cid == "MULE":
+			if cid == "HOUND":
+				_end_title.text = "СПУТНИК ПОВЕРЖЕН! ПОЯВЛЕНИЕ КИБЕР-ТРУБАДУРА!"
+				_end_btn.text = "УЗНАТЬ, КТО ВЫШЕЛ ИЗ ТЕНИ ->"
+			elif cid == "MULE":
 				_end_title.text = "ХОЗЯИН МЕЛЬНИЦЫ ПОВЕРЖЕН! ОСЁЛ M.U.L.E. СПАСЁН!"
 				_end_btn.text = "СПАСТИ ОСЛА M.U.L.E. ->"
 			elif cid == "COCK":
@@ -2258,9 +2279,43 @@ func _handle_victory() -> void:
 				+ "\nРемонт +30% HP проведён для всего отряда! В отряде: " + str(SaveManager.party.size()) + " музыканта."
 			)
 
-			var next_btn_lbl: String = "В ПУТЬ ВТРОЁМ С ОСЛОМ (СЕКТОР 2) ->" if cid == "MULE" else ("В ПУТЬ КВАРТЕТОМ НА ВЕРШИНУ (СЕКТОР 3) ->" if cid == "COCK" else "ПЕРЕЙТИ В СЛЕДУЮЩИЙ СЕКТОР ->")
+			var next_btn_lbl: String = "ПРОДОЛЖИТЬ ПУТЬ СО СПСОМ (АКТ 1) ->" if cid == "HOUND" else ("В ПУТЬ ВТРОЁМ С ОСЛОМ (СЕКТОР 2) ->" if cid == "MULE" else ("В ПУТЬ КВАРТЕТОМ НА ВЕРШИНУ (СЕКТОР 3) ->" if cid == "COCK" else "ПЕРЕЙТИ В СЛЕДУЮЩИЙ СЕКТОР ->"))
 
 			_end_btn.pressed.connect(func() -> void:
+				if cid == "HOUND":
+					# Prologue defeat of Sputnik -> Cyber-Trubadur entrance & ejection -> Wake up on scrap heap & meet Hound
+					var hound_dialogue_payload: Dictionary = {
+						"timeline": "res://data/dialogues/story_intro_hound.dtl",
+						"timeline_name": "story_intro_hound",
+						"next_scene": &"MAP",
+						"next_payload": {},
+						"title": "АКТ 1: Встреча со Псом на свалке",
+						"continue_text": "ОТПРАВИТЬСЯ В ПУТЬ ВМЕСТЕ ->",
+						"action_on_complete": "advance_sector"
+					}
+					var hound_cutscene_payload: Dictionary = {
+						"image_path": "res://assets/photos/2-1-cat-and-hound-together.jpg",
+						"title": "АКТ 1: Пробуждение на свалке",
+						"story_stage": 2,
+						"next_scene": &"EVENT",
+						"next_payload": hound_dialogue_payload
+					}
+					var postlude_payload: Dictionary = {
+						"timeline": postlude_path,
+						"timeline_name": timeline_id,
+						"next_scene": &"VIDEO",
+						"next_payload": hound_cutscene_payload,
+						"title": post_title,
+						"continue_text": "ОЧНУТЬСЯ НА СВАЛКЕ ->"
+					}
+					EventBus.request_scene_change.emit(&"VIDEO", {
+						"image_path": "res://assets/photos/1-4b-trubadur-apperiance.jpg",
+						"title": "ПРОЛОГ: Владыка башни «Бремен-4»",
+						"story_stage": 1,
+						"next_scene": &"EVENT",
+						"next_payload": postlude_payload
+					})
+					return
 				var postlude_payload: Dictionary = {
 					"timeline": postlude_path,
 					"timeline_name": timeline_id,
@@ -2270,11 +2325,23 @@ func _handle_victory() -> void:
 					"continue_text": next_btn_lbl,
 					"action_on_complete": "advance_sector"
 				}
-				if cid == "MULE" and ResourceLoader.exists("res://assets/photos/4a-press-boss-win.jpg"):
+				var win_photo: String = photo_path
+				if cid == "MULE":
+					if ResourceLoader.exists("res://assets/photos/2-3a-press-boss-win.jpg"):
+						win_photo = "res://assets/photos/2-3a-press-boss-win.jpg"
+					elif ResourceLoader.exists("res://assets/photos/4a-press-boss-win.jpg"):
+						win_photo = "res://assets/photos/4a-press-boss-win.jpg"
+				elif cid == "COCK":
+					if ResourceLoader.exists("res://assets/photos/3-2a-atamansha-boss-win.jpg"):
+						win_photo = "res://assets/photos/3-2a-atamansha-boss-win.jpg"
+					elif ResourceLoader.exists("res://assets/photos/6a-atamansha-boss-win.jpg"):
+						win_photo = "res://assets/photos/6a-atamansha-boss-win.jpg"
+
+				if win_photo != "" and ResourceLoader.exists(win_photo):
 					EventBus.request_scene_change.emit(&"VIDEO", {
-						"image_path": "res://assets/photos/4a-press-boss-win.jpg",
+						"image_path": win_photo,
 						"title": post_title,
-						"story_stage": 3,
+						"story_stage": 3 if cid == "MULE" else 4,
 						"next_scene": &"EVENT",
 						"next_payload": postlude_payload
 					})
@@ -2282,22 +2349,6 @@ func _handle_victory() -> void:
 					EventBus.request_scene_change.emit(&"VIDEO", {
 						"video_path": "res://assets/videos/3-mule.ogv",
 						"title": "СЕКТОР 1: ОСВОБОЖДЕНИЕ ОСЛА M.U.L.E.",
-						"next_scene": &"EVENT",
-						"next_payload": postlude_payload
-					})
-				elif cid == "COCK" and ResourceLoader.exists("res://assets/photos/6a-atamansha-boss-win.jpg"):
-					EventBus.request_scene_change.emit(&"VIDEO", {
-						"image_path": "res://assets/photos/6a-atamansha-boss-win.jpg",
-						"title": post_title,
-						"story_stage": 4,
-						"next_scene": &"EVENT",
-						"next_payload": postlude_payload
-					})
-				elif photo_path != "" and ResourceLoader.exists(photo_path):
-					EventBus.request_scene_change.emit(&"VIDEO", {
-						"image_path": photo_path,
-						"title": post_title,
-						"story_stage": 3 if cid == "MULE" else 4,
 						"next_scene": &"EVENT",
 						"next_payload": postlude_payload
 					})
@@ -2332,19 +2383,39 @@ func _handle_defeat() -> void:
 
 	var def_art_path: String = "res://assets/photos/0-battle-fail.jpg"
 	var was_boss: bool = _is_boss_battle()
-	var current_sec: int = clampi(SaveManager.current_sector, 1, 3)
+	var current_sec: int = clampi(SaveManager.current_sector, 1, 4)
 	var defeat_custom_title: String = "КОРПУСА ВЫБИТЫ — ЭВАКУАЦИЯ ЯДЕР!"
+	var p_phase: int = int(SaveManager.story_progression.current_phase) if SaveManager.story_progression != null else -1
+
 	if was_boss:
-		match current_sec:
-			1:
-				def_art_path = "res://assets/photos/4b-press-boss-fail.jpg"
-				defeat_custom_title = "ХОЗЯИН МЕЛЬНИЦЫ РАЗДАВИЛ ВАШИ КОРПУСА!"
-			2:
-				def_art_path = "res://assets/photos/6b-atamansha-boss-fail.jpg"
+		if p_phase == int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT):
+			def_art_path = "res://assets/photos/1-4a-cat-and-sputnik-fail.jpg"
+			if not ResourceLoader.exists(def_art_path):
+				def_art_path = "res://assets/photos/1-4a-cand-and-sputnik-fail.jpg"
+			defeat_custom_title = "СПЯЩИЙ СПУТНИК НЕЙТРАЛИЗОВАЛ ФЕЛИКСА!"
+		elif _is_final_boss_battle():
+			def_art_path = "res://assets/photos/5-4a-trubadur-fail.jpg"
+			defeat_custom_title = "КИБЕР-ТРУБАДУР ПОДАВИЛ СИГНАЛ БУНТАРЕЙ!"
+		else:
+			var theme_str: String = MapGenerator.get_sector_theme(SaveManager.current_sector, p_phase)
+			if _battle_payload.has("biome_theme"):
+				theme_str = String(_battle_payload["biome_theme"]).to_upper()
+
+			if theme_str == "YELLOW":
+				def_art_path = "res://assets/photos/2-3b-press-boss-fail.jpg"
+				if not ResourceLoader.exists(def_art_path):
+					def_art_path = "res://assets/photos/4b-press-boss-fail.jpg"
+				defeat_custom_title = "ТРЁХГОЛОВЫЙ ПРЕСС СОКРУШИЛ ОТРЯД!"
+			elif theme_str == "GREEN":
+				def_art_path = "res://assets/photos/3-2b-atamansha-boss-fail.jpg"
+				if not ResourceLoader.exists(def_art_path):
+					def_art_path = "res://assets/photos/6b-atamansha-boss-fail.jpg"
 				defeat_custom_title = "АТАМАНША РАЗОБРАЛА ВАШИ КОРПУСА НА МЕТАЛЛОЛОМ!"
-			3:
-				def_art_path = "res://assets/photos/8b-sputnik-boss-fail.jpg"
-				defeat_custom_title = "СПЯЩИЙ СПУТНИК ЗАГЛУШИЛ АВАРИЙНУЮ ЧАСТОТУ!"
+			elif theme_str == "BLUE":
+				def_art_path = "res://assets/photos/4-2b-sputnik-boss-fail.jpg"
+				if not ResourceLoader.exists(def_art_path):
+					def_art_path = "res://assets/photos/8b-sputnik-boss-fail.jpg"
+				defeat_custom_title = "СПУТНИК ИСПЕПЕЛИЛ ОТРЯД ОРБИТАЛЬНЫМ ЛУЧОМ!"
 
 	_end_overlay.visible = true
 	_end_overlay.position = Vector2(80, 24)
@@ -2394,6 +2465,20 @@ func _start_ensemble_finisher(target_en: EnemyInstance) -> void:
 		_emit_spark_burst(boss_pos, 22)
 		_trigger_screenshake(8.0, 0.25)
 		AudioManager.play_sfx("qte_perfect")
+		if _bg_rect != null:
+			match beat_idx:
+				1:
+					if ResourceLoader.exists("res://assets/photos/5-2-trubadur-blue.jpg"):
+						_bg_rect.texture = ResourceLoader.load("res://assets/photos/5-2-trubadur-blue.jpg") as Texture2D
+				2:
+					if ResourceLoader.exists("res://assets/photos/5-3-trubadur-red.jpg"):
+						_bg_rect.texture = ResourceLoader.load("res://assets/photos/5-3-trubadur-red.jpg") as Texture2D
+				3:
+					if ResourceLoader.exists("res://assets/photos/5-3-trubadur-yellow.jpg"):
+						_bg_rect.texture = ResourceLoader.load("res://assets/photos/5-3-trubadur-yellow.jpg") as Texture2D
+				4:
+					if ResourceLoader.exists("res://assets/photos/5-4-trubadur-win.jpg"):
+						_bg_rect.texture = ResourceLoader.load("res://assets/photos/5-4-trubadur-win.jpg") as Texture2D
 		await get_tree().create_timer(0.3, false).timeout
 		if not is_inside_tree():
 			return

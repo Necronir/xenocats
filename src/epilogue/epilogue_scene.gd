@@ -54,7 +54,7 @@ const CABIN_LINES: Array[Dictionary] = [
 		"mood": "battle",
 		"text": "Внимание, банда! Впереди логово главарей мародёров на холме. По привычке — стыкуемся в боевую РОБО-МЕГА-ПИРАМИДУ!",
 		"sfx": "pyramid_siren",
-		"image": "res://assets/sprites/story/story_cabin_mega_pyramid.png"
+		"image": "res://assets/photos/6-1-fake-boss-apperiance.jpg"
 	},
 	{
 		"speaker": "hound",
@@ -62,7 +62,7 @@ const CABIN_LINES: Array[Dictionary] = [
 		"mood": "battle",
 		"text": "ГАВ! Стыковка завершена! Мощность на максимуме, орудийные пилоны взведены!",
 		"sfx": "",
-		"image": "res://assets/sprites/story/story_cabin_mega_pyramid.png"
+		"image": "res://assets/photos/6-1-fake-boss-apperiance.jpg"
 	},
 	{
 		"speaker": "mule",
@@ -70,7 +70,7 @@ const CABIN_LINES: Array[Dictionary] = [
 		"mood": "battle",
 		"text": "И-а! Басовые гидравлические сервоприводы готовы снести стену!",
 		"sfx": "",
-		"image": "res://assets/sprites/story/story_cabin_mega_pyramid.png"
+		"image": "res://assets/photos/6-1-fake-boss-apperiance.jpg"
 	},
 	{
 		"speaker": "cock",
@@ -78,7 +78,7 @@ const CABIN_LINES: Array[Dictionary] = [
 		"mood": "battle",
 		"text": "КУ-КА-РЕ-КУ! Синтезатор наведения зафиксирован прямо на окне радиорубки!",
 		"sfx": "",
-		"image": "res://assets/sprites/story/story_cabin_mega_pyramid.png"
+		"image": "res://assets/photos/6-2-fake-boss-monster.jpg"
 	},
 	{
 		"speaker": "felix",
@@ -86,7 +86,7 @@ const CABIN_LINES: Array[Dictionary] = [
 		"mood": "normal",
 		"text": "...Стоп. Подождите. Мы же просто хотели заглянуть в окно и узнать, кто там внутри? Кажется, мы переборщили? (\"Wait... did we overdo it?\")",
 		"sfx": "",
-		"image": "res://assets/sprites/story/story_cabin_mega_pyramid.png"
+		"image": "res://assets/photos/6-2-fake-boss-monster.jpg"
 	},
 	{
 		"speaker": "hound",
@@ -94,7 +94,7 @@ const CABIN_LINES: Array[Dictionary] = [
 		"mood": "normal",
 		"text": "Ой... Мы же пятнадцатиметровый боевой титан, мы сейчас всю хижину раздавим в пыль!",
 		"sfx": "",
-		"image": "res://assets/sprites/story/story_cabin_mega_pyramid.png"
+		"image": "res://assets/photos/6-2-fake-boss-monster.jpg"
 	},
 	{
 		"speaker": "felix",
@@ -102,7 +102,7 @@ const CABIN_LINES: Array[Dictionary] = [
 		"mood": "happy",
 		"text": "Отставить боевой режим! Быстро рассыпаемся и встаем в классическую живую пирамиду Братьев Гримм: Петух на Коте, Кот на Псе, Пёс на Осле!",
 		"sfx": "comic_slide",
-		"image": "res://assets/sprites/story/story_bremen_window_pyramid.png",
+		"image": "res://assets/photos/6-3-fake-boss-piramide.jpg",
 		"switch_pyramid": true
 	},
 	{
@@ -111,7 +111,7 @@ const CABIN_LINES: Array[Dictionary] = [
 		"mood": "happy",
 		"text": "Раз-два, прыг-скок! Классическая сказочная пирамида на подоконнике готова!",
 		"sfx": "",
-		"image": "res://assets/sprites/story/story_bremen_window_pyramid.png"
+		"image": "res://assets/photos/6-3-fake-boss-piramide.jpg"
 	},
 	{
 		"speaker": "outlaw",
@@ -119,7 +119,7 @@ const CABIN_LINES: Array[Dictionary] = [
 		"mood": "shocked",
 		"text": "*слышит грохот снаружи, зажигает лучину и с диким ужасом выглядывает в тёмное окно*",
 		"sfx": "dissonance",
-		"image": "res://assets/sprites/story/story_bremen_window_pyramid.png"
+		"image": "res://assets/photos/6-4-fake-boss-win.jpg"
 	},
 	{
 		"speaker": "outlaw",
@@ -127,7 +127,7 @@ const CABIN_LINES: Array[Dictionary] = [
 		"mood": "panic",
 		"text": "КАРАУЛ! СПАСАЙТЕСЬ! Ох, в этой избе сидит страшная ведьма — она зашипела и исцарапала мне лицо длинными когтями! У двери чёрт с ножом пырнул меня в ногу, во дворе чёрное чудовище с дубиной, а на крыше грозный судья кричит нечеловеческим голосом: «Подайте мне вора сюда!» (\"A terrible witch scratched me with claws, a devil bit my leg, a monster struck me with a club, and on the roof a judge shouted: 'Bring the rascal here!'\")",
 		"sfx": "",
-		"image": "res://assets/sprites/story/story_bremen_window_pyramid.png"
+		"image": "res://assets/photos/6-4-fake-boss-win.jpg"
 	},
 	{
 		"speaker": "felix",
@@ -135,7 +135,7 @@ const CABIN_LINES: Array[Dictionary] = [
 		"mood": "normal",
 		"text": "Ха-ха-ха! Глядите, как они сверкают пятками во тьму! Представляете, что бы с ними было, если бы они увидели робопетухокотопсоосла!? (\"Imagine what would've happened if they saw the Robo-RoosterCatDogDonkey!?\")",
 		"sfx": "",
-		"image": "res://assets/sprites/story/story_bremen_window_pyramid.png"
+		"image": "res://assets/photos/6-3-fake-boss-piramide.jpg"
 	},
 	{
 		"speaker": "hound",
@@ -143,7 +143,7 @@ const CABIN_LINES: Array[Dictionary] = [
 		"mood": "happy",
 		"text": "Разбойники в панике разбежались! Концертный зал Бремен-4 очищен и свободен для нашего великого победного рок-концерта!",
 		"sfx": "",
-		"image": "res://assets/sprites/story/story_bremen_window_pyramid.png"
+		"image": "res://assets/photos/6-3-fake-boss-piramide.jpg"
 	}
 ]
 
@@ -310,10 +310,10 @@ func start_act_1_cabin() -> void:
 
 	sprite_switched_to_animal_pyramid = false
 	last_comic_sfx = ""
-	current_cabin_sprite = "res://assets/sprites/story/story_cabin_mega_pyramid.png"
+	current_cabin_sprite = "res://assets/photos/6-2-fake-boss-monster.jpg"
 
 	# Начальный спрайт: Робо-Мега-Пирамида
-	_set_cabin_sprite("res://assets/sprites/story/story_cabin_mega_pyramid.png")
+	_set_cabin_sprite("res://assets/photos/6-2-fake-boss-monster.jpg")
 	AudioManager.play_pyramid_theme(4)
 	_render_act1_dialogue()
 
@@ -344,7 +344,7 @@ func _render_act1_dialogue() -> void:
 			sprite_switched_to_animal_pyramid = true
 			last_comic_sfx = "comic_slide"
 			AudioManager.play_sfx("comic_slide")
-			_set_cabin_sprite("res://assets/sprites/story/story_bremen_window_pyramid.png")
+			_set_cabin_sprite("res://assets/photos/6-3-fake-boss-piramide.jpg")
 	elif img_to_show != "" and img_to_show != current_cabin_sprite:
 		_set_cabin_sprite(img_to_show)
 
@@ -411,6 +411,8 @@ func _build_act2_ui() -> void:
 	_concert_bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_concert_bg.stretch_mode = TextureRect.STRETCH_SCALE
 	var bg_path: String = "res://assets/sprites/backgrounds/bg_sector4.png"
+	if ResourceLoader.exists("res://assets/photos/7-final.jpg"):
+		bg_path = "res://assets/photos/7-final.jpg"
 	if ResourceLoader.exists(bg_path):
 		_concert_bg.texture = load(bg_path) as Texture2D
 	_act2_root.add_child(_concert_bg)
