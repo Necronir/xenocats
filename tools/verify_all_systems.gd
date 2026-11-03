@@ -2532,7 +2532,55 @@ func _ready() -> void:
 	SaveManager.settings.touch_controls_enabled = true
 	SaveManager.settings.save_to_disk(SaveManager.SETTINGS_PATH)
 
-	print("[24] Issue #45: Gamepad & Mobile Touch support in Dodge Box & Combat verified OK")
+	# 24.11 MapScene Centering on Selectable Path & Gamepad Scrolling
+	SaveManager.start_new_run(555666)
+	var map_test: MapScene = map_packed.instantiate() as MapScene
+	add_child(map_test)
+	await get_tree().process_frame
+
+	assert(map_test._scroll != null, "MapScene must have a ScrollContainer")
+	assert(map_test._selectable_buttons.size() >= 1, "MapScene must have at least 1 selectable button at start")
+	assert(map_test._selectable_buttons[0].has_theme_stylebox_override("focus"), "Selectable map node button must have high-contrast focus stylebox")
+	assert(map_test._selectable_buttons[0].has_focus(), "First selectable map node must automatically receive focus on map open")
+
+	# Test right analog stick horizontal scroll
+	var map_initial_scroll: int = map_test._scroll.scroll_horizontal
+	var r_stick_map: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	r_stick_map.axis = JOY_AXIS_RIGHT_X
+	r_stick_map.axis_value = 1.0
+	map_test._unhandled_input(r_stick_map)
+	assert(map_test._scroll.scroll_horizontal > map_initial_scroll, "Right analog stick right must scroll map to the right")
+
+	# Test RB bumper page scroll
+	var before_rb: int = map_test._scroll.scroll_horizontal
+	var rb_map: InputEventJoypadButton = InputEventJoypadButton.new()
+	rb_map.button_index = JOY_BUTTON_RIGHT_SHOULDER
+	rb_map.pressed = true
+	map_test._unhandled_input(rb_map)
+	assert(map_test._scroll.scroll_horizontal > before_rb, "RB button must scroll map to the right")
+
+	# Test [Y] button re-center on selectable path
+	var y_map: InputEventJoypadButton = InputEventJoypadButton.new()
+	y_map.button_index = JOY_BUTTON_Y
+	y_map.pressed = true
+	map_test._unhandled_input(y_map)
+	assert(map_test._scroll.scroll_horizontal == map_initial_scroll or map_test._scroll_tween != null, "Y button must re-center on selectable path")
+
+	# Test centering on a middle floor
+	for n_map: Dictionary in SaveManager.map_graph:
+		if int(n_map.get("floor", 0)) == 5:
+			SaveManager.current_node_id = int(n_map.get("id", -1))
+			SaveManager.current_floor = 5
+			if not SaveManager.completed_node_ids.has(SaveManager.current_node_id):
+				SaveManager.completed_node_ids.append(SaveManager.current_node_id)
+			break
+	map_test._populate_map_nodes()
+	assert(map_test._scroll.scroll_horizontal > 0, "MapScene on floor 5/6 must be centered with scroll_horizontal > 0")
+
+	map_test.queue_free()
+	await get_tree().process_frame
+
+	print("[24] Issue #45: Gamepad & Mobile Touch support in Dodge Box, Combat & Map verified OK")
 
 	AudioManager.stop_music()
 	await get_tree().process_frame
