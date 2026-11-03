@@ -2282,13 +2282,104 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var focused_action: Control = combat_test.get_viewport().gui_get_focus_owner()
 	assert(focused_action != null and focused_action is Button, "First action button must automatically grab focus on player turn for gamepad")
+	assert((focused_action as Button).has_theme_stylebox_override("focus"), "Combat action button must have high-contrast focus stylebox")
 
-	# Test Target Box focus
+	# Test focus reclaim when focus is lost in action menu
+	combat_test.get_viewport().gui_release_focus()
+	assert(combat_test.get_viewport().gui_get_focus_owner() == null, "Focus should be cleared")
+	var stick_nav: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	stick_nav.axis = JOY_AXIS_LEFT_Y
+	stick_nav.axis_value = 0.8
+	combat_test._unhandled_input(stick_nav)
+	await get_tree().process_frame
+	var reclaimed_action: Control = combat_test.get_viewport().gui_get_focus_owner()
+	assert(reclaimed_action != null and reclaimed_action is Button, "Stick movement must reclaim focus in action menu when lost")
+
+	# Test Modular Enemy Target Box with Vertical Part Buttons and Circular Navigation
+	var modular_ed: EnemyData = DataCatalog.get_enemy("elite_crusher")
+	assert(modular_ed != null, "elite_crusher must exist")
+	var modular_en: EnemyInstance = EnemyInstance.new(modular_ed)
+	assert(modular_en.is_modular(), "elite_crusher must be modular")
+	combat_test._enemies = [modular_en]
+	combat_test._turn_queue = [
+		{"is_player": true, "index": 0, "score": 20},
+		{"is_player": false, "index": 0, "score": 15}
+	]
+	combat_test._turn_cursor = 0
+
 	var test_sk: SkillData = DataCatalog.get_skill("felix_laser_claws")
 	combat_test._on_skill_chosen(test_sk)
 	await get_tree().process_frame
+
 	var focused_target: Control = combat_test.get_viewport().gui_get_focus_owner()
 	assert(focused_target != null and focused_target is Button, "First target button must automatically grab focus on targeting for gamepad")
+	assert((focused_target as Button).has_theme_stylebox_override("focus"), "Target button must have high-contrast focus stylebox")
+
+	# Find Body, Arms, Legs, and Back buttons in _target_box
+	var body_btn: Button = null
+	var arms_btn: Button = null
+	var legs_btn: Button = null
+	var back_btn: Button = null
+
+	for child: Node in combat_test._target_box.get_children():
+		if child is Button:
+			var btn: Button = child as Button
+			var txt: String = btn.text.to_upper()
+			if "КОРПУС" in txt:
+				body_btn = btn
+			elif "ОРУЖИЕ" in txt:
+				arms_btn = btn
+			elif "ШАССИ" in txt:
+				legs_btn = btn
+			elif "НАЗАД" in txt:
+				back_btn = btn
+
+	assert(body_btn != null, "Target box must have full-width Body button")
+	assert(arms_btn != null, "Target box must have full-width Arms button")
+	assert(legs_btn != null, "Target box must have full-width Legs button")
+	assert(back_btn != null, "Target box must have Back button")
+
+	# Verify circular focus neighbor chain (Body <-> Arms <-> Legs <-> Back <-> Body)
+	assert(body_btn.get_node(body_btn.focus_neighbor_bottom) == arms_btn, "Body down must lead to Arms")
+	assert(arms_btn.get_node(arms_btn.focus_neighbor_bottom) == legs_btn, "Arms down must lead to Legs")
+	assert(legs_btn.get_node(legs_btn.focus_neighbor_bottom) == back_btn, "Legs down must lead to Back")
+	assert(back_btn.get_node(back_btn.focus_neighbor_bottom) == body_btn, "Back down must wrap to Body")
+
+	assert(body_btn.get_node(body_btn.focus_neighbor_top) == back_btn, "Body up must wrap to Back")
+	assert(back_btn.get_node(back_btn.focus_neighbor_top) == legs_btn, "Back up must lead to Legs")
+	assert(legs_btn.get_node(legs_btn.focus_neighbor_top) == arms_btn, "Legs up must lead to Arms")
+	assert(arms_btn.get_node(arms_btn.focus_neighbor_top) == body_btn, "Arms up must lead to Body")
+
+	# Verify broken part is disabled and skipped by circular chain
+	modular_en.get_part(PartData.PartSlot.ARMS).current_hp = 0
+	assert(modular_en.get_part(PartData.PartSlot.ARMS).is_broken())
+	combat_test._on_skill_chosen(test_sk)
+	await get_tree().process_frame
+
+	var body_btn2: Button = null
+	var arms_btn2: Button = null
+	var legs_btn2: Button = null
+	for child2: Node in combat_test._target_box.get_children():
+		if child2 is Button:
+			var btn2: Button = child2 as Button
+			if "КОРПУС" in btn2.text.to_upper():
+				body_btn2 = btn2
+			elif "ОРУЖИЕ" in btn2.text.to_upper():
+				arms_btn2 = btn2
+			elif "ШАССИ" in btn2.text.to_upper():
+				legs_btn2 = btn2
+
+	assert(arms_btn2 != null and arms_btn2.disabled, "Broken arms part button must be disabled")
+	assert(body_btn2 != null and legs_btn2 != null)
+	assert(body_btn2.get_node(body_btn2.focus_neighbor_bottom) == legs_btn2, "Body down must skip broken Arms and lead directly to Legs")
+
+	# Test Joypad B button cancel returning to action box
+	var b_ev: InputEventJoypadButton = InputEventJoypadButton.new()
+	b_ev.button_index = JOY_BUTTON_B
+	b_ev.pressed = true
+	combat_test._unhandled_input(b_ev)
+	await get_tree().process_frame
+	assert(combat_test._action_box.visible and not combat_test._target_box.visible, "Joypad B must return to action menu")
 
 	combat_test.queue_free()
 	await get_tree().process_frame
