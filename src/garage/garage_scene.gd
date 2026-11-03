@@ -13,6 +13,7 @@ var _exit_btn: Button = null
 var _cat_tabs_box: HBoxContainer = null
 var _cat_details_box: VBoxContainer = null
 var _inventory_box: VBoxContainer = null
+var _right_scroll: ScrollContainer = null
 var _preview_body: Sprite2D = null
 var _preview_arms: Sprite2D = null
 var _preview_legs: Sprite2D = null
@@ -45,8 +46,53 @@ func _ready() -> void:
 		_exit_btn.grab_focus()
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
+	# Нажатие B на геймпаде или ESC - выход
+	var is_b_pressed: bool = (
+		event is InputEventJoypadButton
+		and (event as InputEventJoypadButton).pressed
+		and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B
+	)
+	if event.is_action_pressed("ui_cancel") or is_b_pressed:
 		_on_exit_pressed()
+		get_viewport().set_input_as_handled()
+		return
+
+	# Переключение котов бамперами LB / RB (L1 / R1)
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).pressed:
+		var jb: int = (event as InputEventJoypadButton).button_index
+		if jb == JOY_BUTTON_LEFT_SHOULDER:
+			_change_cat_tab(-1)
+			get_viewport().set_input_as_handled()
+			return
+		elif jb == JOY_BUTTON_RIGHT_SHOULDER:
+			_change_cat_tab(1)
+			get_viewport().set_input_as_handled()
+			return
+
+	# Прокрутка склада правым аналоговым стиком
+	if event is InputEventJoypadMotion:
+		var jm: InputEventJoypadMotion = event as InputEventJoypadMotion
+		if jm.axis == JOY_AXIS_RIGHT_Y and abs(jm.axis_value) > 0.2:
+			if _right_scroll != null:
+				_right_scroll.scroll_vertical += int(jm.axis_value * 16.0)
+				get_viewport().set_input_as_handled()
+				return
+
+	# Автоматический возврат фокуса при потере
+	if get_viewport().gui_get_focus_owner() == null:
+		var is_joy_btn: bool = (event is InputEventJoypadButton and (event as InputEventJoypadButton).pressed)
+		var is_joy_stick: bool = (event is InputEventJoypadMotion and abs((event as InputEventJoypadMotion).axis_value) > 0.35)
+		var is_ui_nav: bool = (
+			event.is_action_pressed(&"ui_up")
+			or event.is_action_pressed(&"ui_down")
+			or event.is_action_pressed(&"ui_left")
+			or event.is_action_pressed(&"ui_right")
+			or event.is_action_pressed(&"ui_accept")
+		)
+		if is_joy_btn or is_joy_stick or is_ui_nav:
+			_reclaim_garage_focus()
+			get_viewport().set_input_as_handled()
+			return
 
 func _build_ui() -> void:
 	var bg: TextureRect = TextureRect.new()
@@ -92,6 +138,7 @@ func _build_ui() -> void:
 	_repair_all_btn = Button.new()
 	_repair_all_btn.text = "Починить всех (35 Лома)"
 	_repair_all_btn.add_theme_font_size_override("font_size", 9)
+	_style_garage_button(_repair_all_btn, &"default")
 	_repair_all_btn.pressed.connect(_on_repair_all_pressed)
 	top_hbox.add_child(_repair_all_btn)
 
@@ -99,13 +146,15 @@ func _build_ui() -> void:
 	_exit_btn.text = "← ВЫХОД НА КАРТУ"
 	_exit_btn.add_theme_font_size_override("font_size", 10)
 	_exit_btn.add_theme_color_override("font_color", Color(1.0, 0.9, 0.35))
-	_exit_btn.tooltip_text = "Вернуться на карту (Esc)"
+	_exit_btn.tooltip_text = "Вернуться на карту (Esc / B)"
+	_style_garage_button(_exit_btn, &"default")
 	_exit_btn.pressed.connect(_on_exit_pressed)
 	top_hbox.add_child(_exit_btn)
 
 	var pause_btn: Button = Button.new()
 	pause_btn.text = "⏸ МЕНЮ"
 	pause_btn.add_theme_font_size_override("font_size", 9)
+	_style_garage_button(pause_btn, &"default")
 	pause_btn.pressed.connect(func() -> void:
 		AudioManager.play_sfx("ui_click")
 		Input.action_press(&"pause")
@@ -135,6 +184,7 @@ func _build_ui() -> void:
 			_selected_cat_idx = i
 			_refresh_view()
 		)
+		_style_garage_button(tab_btn, &"default")
 		_cat_tabs_box.add_child(tab_btn)
 
 	# Левая панель: 3 установленных слота (Body, Arms, Legs) + превью меха
@@ -194,14 +244,23 @@ func _build_ui() -> void:
 	right_panel.add_theme_stylebox_override("panel", st)
 	add_child(right_panel)
 
-	var right_scroll: ScrollContainer = ScrollContainer.new()
-	right_scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
-	right_panel.add_child(right_scroll)
+	_right_scroll = ScrollContainer.new()
+	_right_scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	right_panel.add_child(_right_scroll)
 
 	_inventory_box = VBoxContainer.new()
 	_inventory_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_inventory_box.add_theme_constant_override("separation", 4)
-	right_scroll.add_child(_inventory_box)
+	_right_scroll.add_child(_inventory_box)
+
+	var hint_lbl: Label = Label.new()
+	hint_lbl.position = Vector2(8, 342)
+	hint_lbl.size = Vector2(624, 16)
+	var is_touch_g: bool = (SaveManager.settings != null and SaveManager.settings.touch_controls_enabled)
+	hint_lbl.text = "🎮 [LB/RB] Выбор героя  |  [D-Pad] Навигация  |  [A] Установить/Починить  |  [R-Стик] Прокрутка  |  [B] Назад" + ("  |  👆 Тач" if is_touch_g else "")
+	hint_lbl.add_theme_font_size_override("font_size", 7)
+	hint_lbl.add_theme_color_override("font_color", Color(0.45, 0.75, 0.9, 0.85))
+	add_child(hint_lbl)
 
 func _refresh_view() -> void:
 	_scrap_label.text = "Лом: " + str(SaveManager.run_scrap)
@@ -331,6 +390,7 @@ func _refresh_view() -> void:
 		warn_lbl.text = "⚠️ Внимание: Штраф -" + str(penalty_pct) + "% к скорости и инициативе в бою!"
 		weight_box.add_child(warn_lbl)
 
+	var repair_buttons: Array[Button] = []
 	for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
 		var part: PartInstance = cat.get_part(slot)
 		var slot_card: VBoxContainer = VBoxContainer.new()
@@ -370,6 +430,7 @@ func _refresh_view() -> void:
 		)
 		rep_btn.disabled = missing_hp <= 0 or SaveManager.run_scrap < 12
 		rep_btn.add_theme_font_size_override("font_size", 8)
+		_style_garage_button(rep_btn, &"default")
 		rep_btn.pressed.connect(func() -> void:
 			if SaveManager.run_scrap >= 12:
 				SaveManager.add_run_scrap(-12)
@@ -379,11 +440,13 @@ func _refresh_view() -> void:
 				_refresh_view()
 		)
 		slot_card.add_child(rep_btn)
+		repair_buttons.append(rep_btn)
 
 	# Перестраиваем склад запчастей
 	for child2: Node in _inventory_box.get_children():
 		child2.queue_free()
 
+	var inv_buttons: Array[Button] = []
 	var inv_title: Label = Label.new()
 	inv_title.text = "СКЛАД ЗАПЧАСТЕЙ (" + str(SaveManager.spare_parts_inventory.size()) + "):"
 	inv_title.add_theme_font_size_override("font_size", 10)
@@ -449,10 +512,24 @@ func _refresh_view() -> void:
 		else:
 			eq_btn.text = "Установить на " + cat.display_name + " (" + str(proj_w) + "/" + str(proj_cap) + " т)"
 		eq_btn.add_theme_font_size_override("font_size", 8)
+		_style_garage_button(eq_btn, &"equip")
+		eq_btn.focus_entered.connect(func() -> void:
+			if _right_scroll != null:
+				_right_scroll.ensure_control_visible(eq_btn)
+		)
 		eq_btn.pressed.connect(func() -> void:
 			_equip_inventory_part(inv_idx, pdata, display_hp)
 		)
 		item_box.add_child(eq_btn)
+		inv_buttons.append(eq_btn)
+
+	_link_button_focus_neighbors(inv_buttons)
+	if not inv_buttons.is_empty():
+		for ibtn: Button in inv_buttons:
+			if not repair_buttons.is_empty():
+				ibtn.focus_neighbor_left = ibtn.get_path_to(repair_buttons[0])
+		for rbtn: Button in repair_buttons:
+			rbtn.focus_neighbor_right = rbtn.get_path_to(inv_buttons[0])
 
 func _equip_inventory_part(inv_index: int, new_pdata: PartData, saved_hp: int = -1) -> void:
 	var cat: CatMechInstance = SaveManager.party[_selected_cat_idx]
@@ -506,3 +583,122 @@ func _get_exit_target_scene() -> StringName:
 		return &"MAP"
 	return &"HUB"
 
+
+
+func _change_cat_tab(delta: int) -> void:
+	if SaveManager.party.is_empty():
+		return
+	var p_size: int = SaveManager.party.size()
+	_selected_cat_idx = (_selected_cat_idx + delta + p_size) % p_size
+	AudioManager.play_sfx("ui_click")
+	_refresh_view()
+
+func _reclaim_garage_focus() -> void:
+	if not is_inside_tree():
+		return
+	if _inventory_box != null:
+		for child: Node in _inventory_box.get_children():
+			if child is VBoxContainer:
+				for sub: Node in child.get_children():
+					if sub is Button and not (sub as Button).disabled:
+						(sub as Button).grab_focus()
+						return
+	if _cat_details_box != null:
+		for child2: Node in _cat_details_box.get_children():
+			if child2 is VBoxContainer:
+				for sub2: Node in child2.get_children():
+					if sub2 is Button and not (sub2 as Button).disabled:
+						(sub2 as Button).grab_focus()
+						return
+	if _repair_all_btn != null and not _repair_all_btn.disabled:
+		_repair_all_btn.grab_focus()
+		return
+	if _exit_btn != null:
+		_exit_btn.grab_focus()
+
+func _link_button_focus_neighbors(buttons: Array[Button]) -> void:
+	if buttons.is_empty():
+		return
+	if buttons.size() == 1:
+		var b0: Button = buttons[0]
+		b0.focus_neighbor_top = b0.get_path()
+		b0.focus_neighbor_bottom = b0.get_path()
+		return
+	for i: int in range(buttons.size()):
+		var cur: Button = buttons[i]
+		var prev: Button = buttons[(i - 1 + buttons.size()) % buttons.size()]
+		var nxt: Button = buttons[(i + 1) % buttons.size()]
+		cur.focus_neighbor_top = cur.get_path_to(prev)
+		cur.focus_neighbor_bottom = cur.get_path_to(nxt)
+
+func _style_garage_button(btn: Button, style_variant: StringName = &"default") -> void:
+	if btn == null:
+		return
+	btn.clip_text = true
+	btn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	btn.focus_mode = Control.FOCUS_ALL
+
+	var normal_box: StyleBoxFlat = StyleBoxFlat.new()
+	var hover_box: StyleBoxFlat = StyleBoxFlat.new()
+	var focus_box: StyleBoxFlat = StyleBoxFlat.new()
+	var pressed_box: StyleBoxFlat = StyleBoxFlat.new()
+	var disabled_box: StyleBoxFlat = StyleBoxFlat.new()
+
+	for box: StyleBoxFlat in [normal_box, hover_box, focus_box, pressed_box, disabled_box]:
+		box.set_corner_radius_all(3)
+		box.content_margin_left = 6
+		box.content_margin_right = 6
+		box.content_margin_top = 3
+		box.content_margin_bottom = 3
+
+	if style_variant == &"equip":
+		normal_box.bg_color = Color(0.1, 0.15, 0.22, 0.92)
+		normal_box.border_color = Color(0.3, 0.6, 0.85, 0.85)
+		normal_box.set_border_width_all(1)
+
+		hover_box.bg_color = Color(0.18, 0.28, 0.42, 0.98)
+		hover_box.border_color = Color(0.4, 0.85, 1.0, 1.0)
+		hover_box.set_border_width_all(2)
+
+		focus_box.bg_color = Color(0.2, 0.35, 0.55, 1.0)
+		focus_box.border_color = Color(0.35, 0.95, 1.0, 1.0)
+		focus_box.set_border_width_all(2)
+		focus_box.set_expand_margin_all(2)
+
+		pressed_box.bg_color = Color(0.3, 0.5, 0.75, 1.0)
+		pressed_box.border_color = Color(1.0, 1.0, 1.0, 1.0)
+		pressed_box.set_border_width_all(2)
+
+		btn.add_theme_color_override("font_color", Color(0.88, 0.94, 1.0))
+		btn.add_theme_color_override("font_focus_color", Color(1.0, 1.0, 0.35))
+		btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 0.55))
+	else:
+		normal_box.bg_color = Color(0.08, 0.11, 0.16, 0.92)
+		normal_box.border_color = Color(0.25, 0.45, 0.65, 0.8)
+		normal_box.set_border_width_all(1)
+
+		hover_box.bg_color = Color(0.15, 0.22, 0.32, 0.98)
+		hover_box.border_color = Color(0.4, 0.8, 1.0, 1.0)
+		hover_box.set_border_width_all(2)
+
+		focus_box.bg_color = Color(0.18, 0.3, 0.48, 1.0)
+		focus_box.border_color = Color(0.35, 0.95, 1.0, 1.0)
+		focus_box.set_border_width_all(2)
+		focus_box.set_expand_margin_all(2)
+
+		pressed_box.bg_color = Color(0.25, 0.42, 0.65, 1.0)
+		pressed_box.border_color = Color(0.9, 0.95, 1.0, 1.0)
+		pressed_box.set_border_width_all(2)
+
+		btn.add_theme_color_override("font_focus_color", Color(1.0, 1.0, 0.35))
+
+	disabled_box.bg_color = Color(0.05, 0.07, 0.1, 0.6)
+	disabled_box.border_color = Color(0.2, 0.22, 0.26, 0.4)
+	disabled_box.set_border_width_all(1)
+	btn.add_theme_color_override("font_disabled_color", Color(0.45, 0.48, 0.52, 0.65))
+
+	btn.add_theme_stylebox_override("normal", normal_box)
+	btn.add_theme_stylebox_override("hover", hover_box)
+	btn.add_theme_stylebox_override("focus", focus_box)
+	btn.add_theme_stylebox_override("pressed", pressed_box)
+	btn.add_theme_stylebox_override("disabled", disabled_box)

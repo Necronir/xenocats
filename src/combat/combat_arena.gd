@@ -1756,16 +1756,18 @@ func _on_skill_chosen(sk: SkillData) -> void:
 			has_modular_enemy = true
 			if living_enemies_count > 1:
 				var m_hdr: Label = Label.new()
-				m_hdr.text = "► " + en.data.enemy_name + (" [ЭЛИТА]" if en.is_elite else "") + ":"
+				m_hdr.text = "► " + str(e_idx + 1) + ". " + en.data.enemy_name + (" [ЭЛИТА]" if (en.data != null and en.data.is_elite) else "") + ":"
 				m_hdr.add_theme_font_size_override("font_size", 8)
 				m_hdr.add_theme_color_override("font_color", Color(0.95, 0.8, 0.4))
 				_target_box.add_child(m_hdr)
 
-			var prefix: String = (en.data.enemy_name + " - ") if living_enemies_count > 1 else ""
+			var prefix: String = (str(e_idx + 1) + ". ") if living_enemies_count > 1 else ""
 
 			# Вертикальные полноразмерные кнопки для частей мехов (Front Mission)
 			for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
 				var p: PartInstance = en.get_part(slot)
+				if p == null:
+					continue
 				var p_btn: Button = Button.new()
 				p_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 				p_btn.add_theme_font_size_override("font_size", 8)
@@ -1774,6 +1776,7 @@ func _on_skill_chosen(sk: SkillData) -> void:
 					s_name = "ОРУЖИЕ / РУКИ"
 				elif slot == PartData.PartSlot.LEGS:
 					s_name = "ШАССИ / НОГИ"
+				var max_h: int = p.get_max_hp()
 				if p.is_broken() and slot != PartData.PartSlot.BODY:
 					p_btn.text = prefix + s_name + " [ОТСТРЕЛЕНО]"
 					p_btn.disabled = true
@@ -1781,7 +1784,7 @@ func _on_skill_chosen(sk: SkillData) -> void:
 					_style_combat_button(p_btn, &"default")
 					_target_box.add_child(p_btn)
 				else:
-					p_btn.text = prefix + s_name + " (" + str(p.current_hp) + "/" + str(p.data.max_hp) + " HP)"
+					p_btn.text = prefix + s_name + " (" + str(p.current_hp) + "/" + str(max_h) + " HP)"
 					if slot == PartData.PartSlot.BODY:
 						p_btn.tooltip_text = "КОРПУС: При HP=0 враг полностью выводится из строя!"
 					elif slot == PartData.PartSlot.ARMS:
@@ -1800,7 +1803,8 @@ func _on_skill_chosen(sk: SkillData) -> void:
 		else:
 			var e_btn: Button = Button.new()
 			e_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			e_btn.text = en.data.enemy_name + " (HP: " + str(en.current_hp) + "/" + str(en.data.max_hp) + ")"
+			var mob_prefix: String = ("► " + str(e_idx + 1) + ". ") if living_enemies_count > 1 else ""
+			e_btn.text = mob_prefix + en.data.enemy_name + " (HP: " + str(en.current_hp) + "/" + str(en.data.max_hp) + ")"
 			e_btn.add_theme_font_size_override("font_size", 9)
 			_style_combat_button(e_btn, &"default")
 			e_btn.pressed.connect(func() -> void:

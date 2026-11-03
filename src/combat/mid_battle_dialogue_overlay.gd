@@ -121,6 +121,26 @@ func _build_ui() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _closing:
 		return
+
+	# Автоматический перехват и возврат фокуса в диалоге при потере
+	var cur_focus: Control = get_viewport().gui_get_focus_owner()
+	var is_focus_valid: bool = cur_focus != null and (
+		cur_focus == _continue_btn or (_choices_box != null and _choices_box.is_ancestor_of(cur_focus))
+	)
+	if not is_focus_valid:
+		var is_joy_btn: bool = (event is InputEventJoypadButton and (event as InputEventJoypadButton).pressed)
+		var is_joy_stick: bool = (event is InputEventJoypadMotion and abs((event as InputEventJoypadMotion).axis_value) > 0.35)
+		var is_ui_nav: bool = (
+			event.is_action_pressed(&"ui_up")
+			or event.is_action_pressed(&"ui_down")
+			or event.is_action_pressed(&"ui_left")
+			or event.is_action_pressed(&"ui_right")
+		)
+		if is_joy_btn or is_joy_stick or is_ui_nav:
+			_reclaim_choice_focus()
+			get_viewport().set_input_as_handled()
+			return
+
 	if (
 		event.is_action_pressed("ui_accept")
 		or (event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER])
@@ -135,11 +155,22 @@ func advance() -> bool:
 	if _continue_btn != null and _continue_btn.visible:
 		_on_continue_pressed()
 		return true
-	elif _choices_box != null and _choices_box.get_child_count() == 1:
-		var btn: Button = _choices_box.get_child(0) as Button
-		if btn != null and btn.visible:
-			btn.emit_signal("pressed")
+	elif _choices_box != null:
+		var buttons: Array[Button] = []
+		for child: Node in _choices_box.get_children():
+			if child is Button and not (child as Button).disabled:
+				buttons.append(child as Button)
+		if buttons.size() == 1:
+			buttons[0].emit_signal("pressed")
 			return true
+		elif buttons.size() > 1:
+			var focused: Control = get_viewport().gui_get_focus_owner()
+			if focused is Button and buttons.has(focused as Button):
+				(focused as Button).emit_signal("pressed")
+				return true
+			else:
+				buttons[0].grab_focus()
+				return true
 	return false
 
 func _parse_dtl_timeline(path: String) -> void:
@@ -227,6 +258,7 @@ func _parse_dtl_timeline(path: String) -> void:
 
 func _render_dialogue_state() -> void:
 	for child: Node in _choices_box.get_children():
+		_choices_box.remove_child(child)
 		child.queue_free()
 
 	if _line_cursor < _lines.size():
@@ -252,6 +284,7 @@ func _render_dialogue_state() -> void:
 			var next_btn: Button = Button.new()
 			next_btn.text = "Далее (" + str(_line_cursor + 1) + "/" + str(_lines.size()) + ") ->"
 			next_btn.add_theme_font_size_override("font_size", 9)
+			_style_dialogue_button(next_btn)
 			next_btn.pressed.connect(func() -> void:
 				AudioManager.play_sfx("ui_click")
 				_line_cursor += 1
@@ -259,30 +292,120 @@ func _render_dialogue_state() -> void:
 			)
 			_choices_box.add_child(next_btn)
 			next_btn.grab_focus()
+			call_deferred("_reclaim_choice_focus")
 			return
 
 	# Реплики текущего списка прочитаны: если есть развилки, отображаем кнопки выбора
 	if not _choices.is_empty():
+		var choice_buttons: Array[Button] = []
 		for idx: int in range(_choices.size()):
 			var ch: Dictionary = _choices[idx]
 			var btn: Button = Button.new()
 			btn.name = "ChoiceButton_" + str(idx)
 			btn.text = "▸ " + String(ch["label"])
 			btn.add_theme_font_size_override("font_size", 9)
+			_style_dialogue_button(btn)
 			var choice_idx: int = idx
 			btn.pressed.connect(func() -> void:
 				select_choice(choice_idx)
 			)
 			_choices_box.add_child(btn)
-		for b_child: Node in _choices_box.get_children():
-			if b_child is Button and not (b_child as Button).disabled:
-				(b_child as Button).grab_focus()
-				break
+			choice_buttons.append(btn)
+
+		var hint_lbl: Label = Label.new()
+		var is_touch: bool = (SaveManager.settings != null and SaveManager.settings.touch_controls_enabled)
+		hint_lbl.text = "🎮 [D-Pad/Стик] Выбор ответа  |  [A / ПРОБЕЛ] Ответить" + ("  |  👆 Тач" if is_touch else "")
+		hint_lbl.add_theme_font_size_override("font_size", 7)
+		hint_lbl.add_theme_color_override("font_color", Color(0.95, 0.82, 0.4, 0.8))
+		_choices_box.add_child(hint_lbl)
+
+		_link_button_focus_neighbors(choice_buttons)
+		if not choice_buttons.is_empty():
+			choice_buttons[0].grab_focus()
+			call_deferred("_reclaim_choice_focus")
 		return
 
 	# Нет развилок либо ветка уже пройдена — кнопка продолжения боя
 	_continue_btn.visible = true
+	_style_dialogue_button(_continue_btn)
 	_continue_btn.grab_focus()
+	call_deferred("_reclaim_choice_focus")
+
+func _link_button_focus_neighbors(buttons: Array[Button]) -> void:
+	if buttons.is_empty():
+		return
+	if buttons.size() == 1:
+		var b0: Button = buttons[0]
+		b0.focus_neighbor_top = b0.get_path()
+		b0.focus_neighbor_bottom = b0.get_path()
+		b0.focus_neighbor_left = b0.get_path()
+		b0.focus_neighbor_right = b0.get_path()
+		return
+	for i: int in range(buttons.size()):
+		var cur: Button = buttons[i]
+		var prev: Button = buttons[(i - 1 + buttons.size()) % buttons.size()]
+		var nxt: Button = buttons[(i + 1) % buttons.size()]
+		cur.focus_neighbor_top = cur.get_path_to(prev)
+		cur.focus_neighbor_bottom = cur.get_path_to(nxt)
+		cur.focus_neighbor_left = cur.get_path_to(prev)
+		cur.focus_neighbor_right = cur.get_path_to(nxt)
+
+func _reclaim_choice_focus() -> void:
+	if not is_inside_tree() or _closing:
+		return
+	if _continue_btn != null and _continue_btn.visible and not _continue_btn.disabled:
+		_continue_btn.grab_focus()
+		return
+	if _choices_box != null:
+		for child: Node in _choices_box.get_children():
+			if child is Button and not (child as Button).disabled:
+				(child as Button).grab_focus()
+				return
+
+func _style_dialogue_button(btn: Button) -> void:
+	if btn == null:
+		return
+	btn.clip_text = true
+	btn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	btn.focus_mode = Control.FOCUS_ALL
+
+	var normal_box: StyleBoxFlat = StyleBoxFlat.new()
+	var hover_box: StyleBoxFlat = StyleBoxFlat.new()
+	var focus_box: StyleBoxFlat = StyleBoxFlat.new()
+	var pressed_box: StyleBoxFlat = StyleBoxFlat.new()
+
+	for box: StyleBoxFlat in [normal_box, hover_box, focus_box, pressed_box]:
+		box.set_corner_radius_all(3)
+		box.content_margin_left = 8
+		box.content_margin_right = 8
+		box.content_margin_top = 4
+		box.content_margin_bottom = 4
+
+	normal_box.bg_color = Color(0.08, 0.12, 0.2, 0.95)
+	normal_box.border_color = Color(0.7, 0.6, 0.25, 0.8)
+	normal_box.set_border_width_all(1)
+
+	hover_box.bg_color = Color(0.18, 0.24, 0.38, 1.0)
+	hover_box.border_color = Color(1.0, 0.85, 0.35, 1.0)
+	hover_box.set_border_width_all(2)
+
+	focus_box.bg_color = Color(0.24, 0.34, 0.52, 1.0)
+	focus_box.border_color = Color(1.0, 0.95, 0.4, 1.0)
+	focus_box.set_border_width_all(2)
+	focus_box.set_expand_margin_all(2)
+
+	pressed_box.bg_color = Color(0.35, 0.45, 0.65, 1.0)
+	pressed_box.border_color = Color(1.0, 1.0, 1.0, 1.0)
+	pressed_box.set_border_width_all(2)
+
+	btn.add_theme_color_override("font_color", Color(0.95, 0.92, 0.82))
+	btn.add_theme_color_override("font_focus_color", Color(1.0, 1.0, 0.3))
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 0.55))
+
+	btn.add_theme_stylebox_override("normal", normal_box)
+	btn.add_theme_stylebox_override("hover", hover_box)
+	btn.add_theme_stylebox_override("focus", focus_box)
+	btn.add_theme_stylebox_override("pressed", pressed_box)
 
 func select_choice(index: int) -> void:
 	if index < 0 or index >= _choices.size():

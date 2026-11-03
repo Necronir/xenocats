@@ -2381,10 +2381,150 @@ func _ready() -> void:
 	await get_tree().process_frame
 	assert(combat_test._action_box.visible and not combat_test._target_box.visible, "Joypad B must return to action menu")
 
+	# Test Elite + Regular Mob targeting (No black menu, both targets selectable)
+	var reg_ed: EnemyData = DataCatalog.get_enemy("drone_scout")
+	if reg_ed == null:
+		var sec1_regs: Array[EnemyData] = DataCatalog.get_enemies_for_sector(1, false, false)
+		assert(not sec1_regs.is_empty())
+		reg_ed = sec1_regs[0]
+	var reg_en: EnemyInstance = EnemyInstance.new(reg_ed)
+	var modular_en3: EnemyInstance = EnemyInstance.new(modular_ed)
+	combat_test._enemies = [modular_en3, reg_en]
+	combat_test._turn_queue = [
+		{"is_player": true, "index": 0, "score": 20},
+		{"is_player": false, "index": 0, "score": 15},
+		{"is_player": false, "index": 1, "score": 10}
+	]
+	combat_test._turn_cursor = 0
+	combat_test._on_skill_chosen(test_sk)
+	await get_tree().process_frame
+
+	assert(combat_test._target_box.visible, "Target box must be visible")
+	var elite_part_count: int = 0
+	var mob_btn_found: bool = false
+	for ch_e: Node in combat_test._target_box.get_children():
+		if ch_e is Button:
+			var bt: Button = ch_e as Button
+			var btxt: String = bt.text.to_upper()
+			if "КОРПУС" in btxt or "ОРУЖИЕ" in btxt or "ШАССИ" in btxt:
+				elite_part_count += 1
+			elif reg_ed.enemy_name.to_upper() in btxt:
+				mob_btn_found = true
+
+	assert(elite_part_count >= 3, "Elite parts must all be present when targeting elite + mob")
+	assert(mob_btn_found, "Regular mob button must be present alongside elite parts")
+
 	combat_test.queue_free()
 	await get_tree().process_frame
 
-	# 24.7 GameSettings Touch Controls Persistence
+	# 24.7 Mid-Battle Dialogue & Hound Question Gamepad Navigation
+	var mid_dlg: MidBattleDialogueOverlay = MidBattleDialogueOverlay.new()
+	add_child(mid_dlg)
+	mid_dlg.setup_timeline("res://data/dialogues/timeline_first_fusion.dtl")
+	await get_tree().process_frame
+
+	mid_dlg._line_cursor = mid_dlg._lines.size() - 1
+	mid_dlg._render_dialogue_state()
+	await get_tree().process_frame
+
+	var choice_btns: Array[Button] = []
+	for ch_d: Node in mid_dlg._choices_box.get_children():
+		if ch_d is Button:
+			choice_btns.append(ch_d as Button)
+
+	assert(choice_btns.size() >= 2, "Hound question must have at least 2 choice buttons")
+	assert(choice_btns[0].has_theme_stylebox_override("focus"), "Choice button must have high-contrast focus stylebox")
+	assert(choice_btns[0].get_node(choice_btns[0].focus_neighbor_bottom) == choice_btns[1], "Down on choice 0 must lead to choice 1")
+	assert(choice_btns[1].get_node(choice_btns[1].focus_neighbor_top) == choice_btns[0], "Up on choice 1 must lead to choice 0")
+
+	mid_dlg.get_viewport().gui_release_focus()
+	assert(mid_dlg.get_viewport().gui_get_focus_owner() == null)
+	var dlg_nav: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	dlg_nav.axis = JOY_AXIS_LEFT_Y
+	dlg_nav.axis_value = 0.7
+	mid_dlg._unhandled_input(dlg_nav)
+	await get_tree().process_frame
+	assert(mid_dlg.get_viewport().gui_get_focus_owner() != null, "Joypad navigation must reclaim focus on dialogue choices")
+
+	choice_btns[0].grab_focus()
+	var choice_advanced: bool = mid_dlg.advance()
+	assert(choice_advanced, "Advance on focused choice button must select that choice")
+
+	mid_dlg.close_dialogue()
+	await get_tree().process_frame
+
+	# 24.8 Event Scene Gamepad Choice Navigation
+	var ev_scene: EventScene = load("res://src/event/event_scene.tscn").instantiate() as EventScene
+	add_child(ev_scene)
+	ev_scene.setup_event({"timeline": "res://data/dialogues/event_overloaded_core.dtl"})
+	await get_tree().process_frame
+
+	ev_scene._line_cursor = ev_scene._lines.size() - 1
+	ev_scene._render_dialogue_state()
+	await get_tree().process_frame
+
+	var ev_choice_btns: Array[Button] = []
+	for ch_ev: Node in ev_scene._choices_box.get_children():
+		if ch_ev is Button:
+			ev_choice_btns.append(ch_ev as Button)
+
+	assert(ev_choice_btns.size() >= 2, "Event must display choice buttons")
+	assert(ev_choice_btns[0].has_theme_stylebox_override("focus"), "Event choice button must have high-contrast focus stylebox")
+	assert(ev_choice_btns[0].get_node(ev_choice_btns[0].focus_neighbor_bottom) == ev_choice_btns[1], "Down on event choice 0 must lead to choice 1")
+
+	ev_choice_btns[1].grab_focus()
+	var ev_advanced: bool = ev_scene._advance_dialogue_or_continue()
+	assert(ev_advanced, "Advance on focused event choice button must activate that choice")
+
+	ev_scene.queue_free()
+	await get_tree().process_frame
+
+	# 24.9 Garage Parts List Gamepad Navigation & Scrolling
+	var garage_test: GarageScene = load("res://src/garage/garage_scene.tscn").instantiate() as GarageScene
+	SaveManager.spare_parts_inventory = [
+		{"part_id": "titan_body", "current_hp": 80},
+		{"part_id": "titan_arms", "current_hp": 60},
+		{"part_id": "titan_legs", "current_hp": 50},
+		{"part_id": "titan_body", "current_hp": 80},
+		{"part_id": "titan_arms", "current_hp": 60},
+		{"part_id": "titan_legs", "current_hp": 50},
+		{"part_id": "titan_body", "current_hp": 80},
+		{"part_id": "titan_arms", "current_hp": 60},
+		{"part_id": "titan_legs", "current_hp": 50}
+	]
+	add_child(garage_test)
+	await get_tree().process_frame
+
+	assert(garage_test._right_scroll != null, "Garage must have ScrollContainer for spare parts")
+	var garage_eq_btns: Array[Button] = []
+	for inv_c: Node in garage_test._inventory_box.get_children():
+		if inv_c is VBoxContainer:
+			for sub_b: Node in inv_c.get_children():
+				if sub_b is Button:
+					garage_eq_btns.append(sub_b as Button)
+
+	assert(garage_eq_btns.size() >= 3, "Garage must have equip buttons for all inventory items")
+	assert(garage_eq_btns[0].has_theme_stylebox_override("focus"), "Equip button must have high-contrast focus stylebox")
+	assert(garage_eq_btns[0].get_node(garage_eq_btns[0].focus_neighbor_bottom) == garage_eq_btns[1], "Down on part 0 must lead to part 1")
+	assert(garage_eq_btns[1].get_node(garage_eq_btns[1].focus_neighbor_bottom) == garage_eq_btns[2], "Down on part 1 must lead to part 2")
+
+	var r_stick: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	r_stick.axis = JOY_AXIS_RIGHT_Y
+	r_stick.axis_value = 1.0
+	garage_test._unhandled_input(r_stick)
+	assert(garage_test.get_viewport().is_input_handled(), "Right analog stick motion must be handled by garage scroll")
+
+	var initial_cat_idx: int = garage_test._selected_cat_idx
+	var rb_ev: InputEventJoypadButton = InputEventJoypadButton.new()
+	rb_ev.button_index = JOY_BUTTON_RIGHT_SHOULDER
+	rb_ev.pressed = true
+	garage_test._unhandled_input(rb_ev)
+	assert(garage_test._selected_cat_idx != initial_cat_idx or SaveManager.party.size() <= 1, "RB must cycle selected cat in garage")
+
+	garage_test.queue_free()
+	await get_tree().process_frame
+
+	# 24.10 GameSettings Touch Controls Persistence
 	SaveManager.settings.touch_controls_enabled = false
 	SaveManager.settings.save_to_disk(SaveManager.SETTINGS_PATH)
 	SaveManager.settings.load_from_disk(SaveManager.SETTINGS_PATH)
