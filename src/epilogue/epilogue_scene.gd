@@ -84,7 +84,7 @@ const CABIN_LINES: Array[Dictionary] = [
 		"speaker": "felix",
 		"speaker_name": "FELIX (Бродячий Кот-Музыкант)",
 		"mood": "normal",
-		"text": "...Стоп. Подождите. Мы же просто хотели заглянуть в окно и узнать, кто там внутри? Кажется, мы переборщили? (\"Wait... did we overdo it?\")",
+		"text": "...Стоп. Подождите. Мы же просто хотели заглянуть в окно и узнать, кто там внутри? Кажется, мы переборщили?",
 		"sfx": "",
 		"image": "res://assets/photos/6-2-fake-boss-monster.jpg"
 	},
@@ -125,7 +125,7 @@ const CABIN_LINES: Array[Dictionary] = [
 		"speaker": "outlaw",
 		"speaker_name": "ГЛАВАРЬ РАЗБОЙНИКОВ (Мародёр из Избы)",
 		"mood": "panic",
-		"text": "КАРАУЛ! СПАСАЙТЕСЬ! Ох, в этой избе сидит страшная ведьма — она зашипела и исцарапала мне лицо длинными когтями! У двери чёрт с ножом пырнул меня в ногу, во дворе чёрное чудовище с дубиной, а на крыше грозный судья кричит нечеловеческим голосом: «Подайте мне вора сюда!» (\"A terrible witch scratched me with claws, a devil bit my leg, a monster struck me with a club, and on the roof a judge shouted: 'Bring the rascal here!'\")",
+		"text": "КАРАУЛ! СПАСАЙТЕСЬ! Ох, в этой избе сидит страшная ведьма — она зашипела и исцарапала мне лицо длинными когтями! У двери чёрт с ножом пырнул меня в ногу, во дворе чёрное чудовище с дубиной, а на крыше грозный судья кричит нечеловеческим голосом: «Подайте мне вора сюда!»",
 		"sfx": "",
 		"image": "res://assets/photos/6-4-fake-boss-win.jpg"
 	},
@@ -133,7 +133,7 @@ const CABIN_LINES: Array[Dictionary] = [
 		"speaker": "felix",
 		"speaker_name": "FELIX (Бродячий Кот-Музыкант)",
 		"mood": "normal",
-		"text": "Ха-ха-ха! Глядите, как они сверкают пятками во тьму! Представляете, что бы с ними было, если бы они увидели робопетухокотопсоосла!? (\"Imagine what would've happened if they saw the Robo-RoosterCatDogDonkey!?\")",
+		"text": "Ха-ха-ха! Глядите, как они сверкают пятками во тьму! Представляете, что бы с ними было, если бы они увидели робопетухокотопсоосла!?",
 		"sfx": "",
 		"image": "res://assets/photos/6-3-fake-boss-piramide.jpg"
 	},
