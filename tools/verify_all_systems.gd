@@ -2708,7 +2708,100 @@ func _ready() -> void:
 	root_48.queue_free()
 	await get_tree().process_frame
 
-	# 25.3 Verify font glyphs (DodgeArena D-Pad and UI buttons)
+	# 25.3 Verify Gamepad Controls (All device IDs, JOY_BUTTON_START, JOY_BUTTON_A, JOY_BUTTON_B, HUB pause)
+	# 25.3.1 Ensure InputMap actions match events regardless of joypad device ID (device 0, 1, 2)
+	for dev_id: int in [0, 1, 2]:
+		var test_start: InputEventJoypadButton = InputEventJoypadButton.new()
+		test_start.button_index = JOY_BUTTON_START
+		test_start.pressed = true
+		test_start.device = dev_id
+		assert(InputMap.event_is_action(test_start, &"pause"), "pause action must match JOY_BUTTON_START from device " + str(dev_id))
+
+		var test_back: InputEventJoypadButton = InputEventJoypadButton.new()
+		test_back.button_index = JOY_BUTTON_BACK
+		test_back.pressed = true
+		test_back.device = dev_id
+		assert(InputMap.event_is_action(test_back, &"pause"), "pause action must match JOY_BUTTON_BACK from device " + str(dev_id))
+
+		var test_a: InputEventJoypadButton = InputEventJoypadButton.new()
+		test_a.button_index = JOY_BUTTON_A
+		test_a.pressed = true
+		test_a.device = dev_id
+		assert(InputMap.event_is_action(test_a, &"ui_accept"), "ui_accept action must match JOY_BUTTON_A from device " + str(dev_id))
+		assert(InputMap.event_is_action(test_a, &"ui_select"), "ui_select action must match JOY_BUTTON_A from device " + str(dev_id))
+
+		var test_b: InputEventJoypadButton = InputEventJoypadButton.new()
+		test_b.button_index = JOY_BUTTON_B
+		test_b.pressed = true
+		test_b.device = dev_id
+		assert(InputMap.event_is_action(test_b, &"ui_cancel"), "ui_cancel action must match JOY_BUTTON_B from device " + str(dev_id))
+
+	# 25.3.2 Test opening PauseMenu with Gamepad START in HUB, BATTLE, MAP, GARAGE
+	var root_joy: SceneManager = SceneManager.new()
+	add_child(root_joy)
+	await get_tree().process_frame
+
+	# Test in HUB: START button opens SettingsPanel
+	root_joy.change_scene(&"HUB", {})
+	await get_tree().process_frame
+	assert(not root_joy._pause_menu.allowed, "PauseMenu must remain disallowed in HUB per ADR-001")
+	var hub_scene: HubScene = root_joy._current_scene as HubScene
+	assert(hub_scene != null, "Current scene must be HubScene")
+	var joy_start_ev: InputEventJoypadButton = InputEventJoypadButton.new()
+	joy_start_ev.button_index = JOY_BUTTON_START
+	joy_start_ev.pressed = true
+	joy_start_ev.device = 1
+	hub_scene._unhandled_input(joy_start_ev)
+	await get_tree().process_frame
+	assert(hub_scene._settings_panel != null and hub_scene._settings_panel.visible, "Gamepad START on device 1 must open SettingsPanel in HUB")
+
+	# Test closing SettingsPanel with Gamepad B in HUB
+	var joy_b_ev: InputEventJoypadButton = InputEventJoypadButton.new()
+	joy_b_ev.button_index = JOY_BUTTON_B
+	joy_b_ev.pressed = true
+	joy_b_ev.device = 1
+	hub_scene._settings_panel._unhandled_input(joy_b_ev)
+	await get_tree().process_frame
+	assert(not hub_scene._settings_panel.visible, "Gamepad B must close SettingsPanel in HUB")
+
+	# Test opening PauseMenu with Gamepad START in BATTLE
+	root_joy.change_scene(&"BATTLE", {"is_boss": false, "sector": 1})
+	await get_tree().process_frame
+	assert(root_joy._pause_menu.allowed, "PauseMenu must be allowed in BATTLE")
+	root_joy._pause_menu._input(joy_start_ev)
+	await get_tree().process_frame
+	assert(root_joy._pause_menu.is_open and get_tree().paused, "Gamepad START on device 1 must open PauseMenu in BATTLE")
+
+	# Test closing PauseMenu with Gamepad B
+	root_joy._pause_menu._input(joy_b_ev)
+	await get_tree().process_frame
+	assert(not root_joy._pause_menu.is_open and not get_tree().paused, "Gamepad B on device 1 must close PauseMenu")
+
+	# Test opening PauseMenu with Gamepad BACK in MAP
+	root_joy.change_scene(&"MAP", {})
+	await get_tree().process_frame
+	var joy_back_ev: InputEventJoypadButton = InputEventJoypadButton.new()
+	joy_back_ev.button_index = JOY_BUTTON_BACK
+	joy_back_ev.pressed = true
+	joy_back_ev.device = 2
+	root_joy._pause_menu._input(joy_back_ev)
+	await get_tree().process_frame
+	assert(root_joy._pause_menu.is_open and get_tree().paused, "Gamepad BACK on device 2 must open PauseMenu in MAP")
+	root_joy._pause_menu.close()
+
+	# 25.3.3 Verify SettingsPanel closing with Gamepad B
+	var sp_joy: SettingsPanel = SettingsPanel.new()
+	add_child(sp_joy)
+	sp_joy.open_panel()
+	assert(sp_joy.visible, "SettingsPanel must be open")
+	sp_joy._unhandled_input(joy_b_ev)
+	assert(not sp_joy.visible, "Gamepad B must close SettingsPanel")
+	sp_joy.queue_free()
+
+	root_joy.queue_free()
+	await get_tree().process_frame
+
+	# 25.4 Verify font glyphs (DodgeArena D-Pad and UI buttons)
 	var da_48: DodgeArena = DodgeArena.new()
 	add_child(da_48)
 	await get_tree().process_frame

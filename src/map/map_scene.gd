@@ -42,8 +42,13 @@ func _ready() -> void:
 		center_on_selectable_path(false)
 
 func _process(delta: float) -> void:
-	# Плавная непрерывная прокрутка карты правым аналоговым стиком
-	var right_stick_x: float = Input.get_joy_axis(0, JOY_AXIS_RIGHT_X)
+	# Плавная непрерывная прокрутка карты правым аналоговым стиком (любой подключенный геймпад)
+	var right_stick_x: float = 0.0
+	for joy_id: int in Input.get_connected_joypads():
+		var rx: float = Input.get_joy_axis(joy_id, JOY_AXIS_RIGHT_X)
+		if absf(rx) > 0.18:
+			right_stick_x = rx
+			break
 	if absf(right_stick_x) > 0.18:
 		_kill_scroll_tween()
 		var speed: float = 720.0
@@ -95,6 +100,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	# Автоматический возврат фокуса при потере
 	if focus_owner == null:
+		if event.is_action(&"pause"):
+			return
+		if event is InputEventJoypadButton:
+			var jb_btn: int = (event as InputEventJoypadButton).button_index
+			if jb_btn in [JOY_BUTTON_START, JOY_BUTTON_BACK, JOY_BUTTON_GUIDE]:
+				return
 		var is_joy_btn: bool = (event is InputEventJoypadButton and (event as InputEventJoypadButton).pressed)
 		var is_joy_stick: bool = (event is InputEventJoypadMotion and absf((event as InputEventJoypadMotion).axis_value) > 0.35)
 		var is_ui_nav: bool = (
@@ -203,11 +214,7 @@ func _build_ui() -> void:
 	top_hbox.add_child(pause_btn)
 
 	_top_bar_buttons = [_fast_boss_btn, garage_btn, hub_btn, pause_btn]
-	for i: int in range(_top_bar_buttons.size()):
-		var left_idx: int = (i - 1 + _top_bar_buttons.size()) % _top_bar_buttons.size()
-		var right_idx: int = (i + 1) % _top_bar_buttons.size()
-		_top_bar_buttons[i].focus_neighbor_left = _top_bar_buttons[left_idx].get_path()
-		_top_bar_buttons[i].focus_neighbor_right = _top_bar_buttons[right_idx].get_path()
+	_link_top_bar_neighbors()
 
 	# Горизонтальный скролл графа на 15 этажей
 	var map_panel: PanelContainer = PanelContainer.new()
@@ -274,6 +281,18 @@ func _sync_dev_visibility() -> void:
 		_dev_menu_bar.visible = dev_on
 	if _fast_boss_btn != null:
 		_fast_boss_btn.visible = dev_on
+	_link_top_bar_neighbors()
+
+func _link_top_bar_neighbors() -> void:
+	var visible_btns: Array[Button] = []
+	for b: Button in _top_bar_buttons:
+		if is_instance_valid(b) and b.visible:
+			visible_btns.append(b)
+	for i: int in range(visible_btns.size()):
+		var left_idx: int = (i - 1 + visible_btns.size()) % visible_btns.size()
+		var right_idx: int = (i + 1) % visible_btns.size()
+		visible_btns[i].focus_neighbor_left = visible_btns[left_idx].get_path()
+		visible_btns[i].focus_neighbor_right = visible_btns[right_idx].get_path()
 
 func _populate_map_nodes() -> void:
 	for child: Node in _graph_canvas.get_children():
@@ -350,17 +369,23 @@ func _populate_map_nodes() -> void:
 			var next_i: int = (i + 1) % _selectable_buttons.size()
 			_selectable_buttons[i].focus_neighbor_top = _selectable_buttons[prev_i].get_path()
 			_selectable_buttons[i].focus_neighbor_bottom = _selectable_buttons[next_i].get_path()
-	elif _selectable_buttons.size() == 1:
-		if is_instance_valid(_fast_boss_btn):
-			_selectable_buttons[0].focus_neighbor_top = _fast_boss_btn.get_path()
+
+	# Находим первую видимую кнопку верхнего бара для перехода вверх с карты
+	var top_nav_target: Button = null
+	for tb_btn: Button in _top_bar_buttons:
+		if is_instance_valid(tb_btn) and tb_btn.visible:
+			top_nav_target = tb_btn
+			break
+	if top_nav_target != null and not _selectable_buttons.is_empty():
+		_selectable_buttons[0].focus_neighbor_top = top_nav_target.get_path()
+		for tb_btn: Button in _top_bar_buttons:
+			if is_instance_valid(tb_btn):
+				tb_btn.focus_neighbor_bottom = _selectable_buttons[0].get_path()
 
 	# Автоматическое центрование карты по выбираемому пути
 	center_on_selectable_path(false)
 
 	if not _selectable_buttons.is_empty():
-		for tb_btn: Button in _top_bar_buttons:
-			if is_instance_valid(tb_btn):
-				tb_btn.focus_neighbor_bottom = _selectable_buttons[0].get_path()
 		_selectable_buttons[0].grab_focus()
 
 func _get_selectable_node_ids() -> Array[int]:

@@ -34,10 +34,20 @@ func _ensure_input_actions() -> void:
 		InputMap.add_action(&"pause")
 		var ev_esc: InputEventKey = InputEventKey.new()
 		ev_esc.keycode = KEY_ESCAPE
+		ev_esc.device = -1
 		InputMap.action_add_event(&"pause", ev_esc)
 		var ev_joy: InputEventJoypadButton = InputEventJoypadButton.new()
 		ev_joy.button_index = JOY_BUTTON_START
+		ev_joy.device = -1
 		InputMap.action_add_event(&"pause", ev_joy)
+		var ev_back: InputEventJoypadButton = InputEventJoypadButton.new()
+		ev_back.button_index = JOY_BUTTON_BACK
+		ev_back.device = -1
+		InputMap.action_add_event(&"pause", ev_back)
+		var ev_guide: InputEventJoypadButton = InputEventJoypadButton.new()
+		ev_guide.button_index = JOY_BUTTON_GUIDE
+		ev_guide.device = -1
+		InputMap.action_add_event(&"pause", ev_guide)
 
 	if not InputMap.has_action(&"toggle_fullscreen"):
 		InputMap.add_action(&"toggle_fullscreen")
@@ -188,7 +198,7 @@ func _on_pause_requested() -> void:
 		AudioManager.play_sfx("ui_click")
 		open()
 
-func _unhandled_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"toggle_fullscreen"):
 		if SaveManager.settings != null:
 			SaveManager.settings.set_fullscreen(not SaveManager.settings.fullscreen)
@@ -198,23 +208,40 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
-	if not event.is_action_pressed(&"pause"):
+	# Прямой опрос кнопок геймпада (Start, Back/Select, Guide/Home) для надежного вызова меню
+	var is_joy_pause: bool = false
+	if event is InputEventJoypadButton and event.is_pressed():
+		var btn: int = (event as InputEventJoypadButton).button_index
+		if btn == JOY_BUTTON_START or btn == JOY_BUTTON_BACK or btn == JOY_BUTTON_GUIDE:
+			is_joy_pause = true
+
+	var is_pause_pressed: bool = event.is_action_pressed(&"pause") or is_joy_pause
+
+	if is_open:
+		var is_joy_b: bool = (
+			event is InputEventJoypadButton
+			and event.is_pressed()
+			and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B
+		)
+		if is_pause_pressed or event.is_action_pressed(&"ui_cancel") or is_joy_b:
+			AudioManager.play_sfx("ui_click")
+			if _settings_panel != null and _settings_panel.visible:
+				_settings_panel.close_panel()
+			elif _tutorials_panel != null and _tutorials_panel.visible:
+				_close_tutorials_subpanel()
+			else:
+				close()
+			get_viewport().set_input_as_handled()
+			return
+
+	if not is_pause_pressed:
 		return
 
-	# Если открыто модальное окно обучения — не перехватываем Esc под меню паузы
+	# Если открыто модальное окно обучения — не перехватываем Esc / Start под меню паузы
 	if not get_tree().get_nodes_in_group(&"modal_overlay").is_empty():
 		return
 
-	if is_open:
-		AudioManager.play_sfx("ui_click")
-		if _settings_panel != null and _settings_panel.visible:
-			_settings_panel.close_panel()
-		elif _tutorials_panel != null and _tutorials_panel.visible:
-			_close_tutorials_subpanel()
-		else:
-			close()
-		get_viewport().set_input_as_handled()
-	elif can_open_pause():
+	if can_open_pause():
 		AudioManager.play_sfx("ui_click")
 		open()
 		get_viewport().set_input_as_handled()
@@ -244,6 +271,7 @@ func open() -> bool:
 	_settings_panel.visible = false
 	_tutorials_panel.visible = false
 	_retry_battle_btn.visible = (mode == &"BATTLE")
+	_hub_btn.visible = (mode != &"HUB")
 
 	get_tree().paused = true
 	AudioManager.set_pause_duck(true)

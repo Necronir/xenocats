@@ -60,6 +60,7 @@ signal mid_battle_dialogue_completed(timeline: String)
 # UI узлы
 var _top_bar_label: Label = null
 var _sync_bar: ProgressBar = null
+var _pause_btn: Button = null
 var _dev_boss_btn: Button = null
 var _dev_win_btn: Button = null
 var _log_label: Label = null
@@ -192,8 +193,8 @@ func _build_visual_hierarchy() -> void:
 	pause_btn.pressed.connect(func() -> void:
 		AudioManager.play_sfx("ui_click")
 		EventBus.pause_requested.emit()
-
 	)
+	_pause_btn = pause_btn
 	top_hbox.add_child(pause_btn)
 
 	_dev_boss_btn = Button.new()
@@ -1409,6 +1410,9 @@ func _begin_player_turn(cat_index: int) -> void:
 	_action_box.add_child(hint_lbl)
 
 	_link_button_focus_neighbors(enabled_action_buttons)
+	if _pause_btn != null and not enabled_action_buttons.is_empty():
+		enabled_action_buttons[0].focus_neighbor_top = _pause_btn.get_path()
+		_pause_btn.focus_neighbor_bottom = enabled_action_buttons[0].get_path()
 	_focus_first_action_button()
 	call_deferred("_reclaim_combat_menu_focus")
 
@@ -1924,6 +1928,8 @@ func _reclaim_combat_menu_focus() -> void:
 func _is_node_in_combat_menu(ctrl: Control) -> bool:
 	if ctrl == null:
 		return false
+	if ctrl == _pause_btn:
+		return true
 	if _target_box != null and _target_box.visible and _target_box.is_ancestor_of(ctrl):
 		return true
 	if _action_box != null and _action_box.visible and _action_box.is_ancestor_of(ctrl):
@@ -2047,6 +2053,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	):
 		var current_focus: Control = get_viewport().gui_get_focus_owner()
 		if current_focus == null or (not _is_node_in_combat_menu(current_focus)):
+			if event.is_action(&"pause"):
+				return
+			if event is InputEventJoypadButton:
+				var jb_btn: int = (event as InputEventJoypadButton).button_index
+				if jb_btn in [JOY_BUTTON_START, JOY_BUTTON_BACK, JOY_BUTTON_GUIDE]:
+					return
 			var is_joy_btn: bool = (event is InputEventJoypadButton and (event as InputEventJoypadButton).pressed)
 			var is_joy_stick: bool = (event is InputEventJoypadMotion and abs((event as InputEventJoypadMotion).axis_value) > 0.35)
 			var is_ui_nav: bool = (
