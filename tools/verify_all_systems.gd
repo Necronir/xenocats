@@ -1990,7 +1990,162 @@ func _ready() -> void:
 
 	print("[21] Issue #41: Dynamic Loop Prologue, Sputnik Boss Duel, Trubadur Entrance and Deferred Hound Join verified OK")
 
+	# 22. Issue #43: Arts Compression & Preview Aspect Ratio in Dialogues
+	print("--- [22] VERIFYING ISSUE #43: ARTS COMPRESSION & PREVIEW IN DIALOGUES ---")
+	var ev_test_43: EventScene = ev_scene_res.instantiate() as EventScene
+	ev_test_43.setup_event({"timeline": "res://data/dialogues/story_intro_cat.dtl"})
+	add_child(ev_test_43)
+	await get_tree().process_frame
+	assert(ev_test_43._illustration_rect.texture_filter == CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS, "Illustration rect must use TEXTURE_FILTER_LINEAR_WITH_MIPMAPS")
+	assert(ev_test_43._illustration_rect.custom_minimum_size.x == 256 and ev_test_43._illustration_rect.custom_minimum_size.y == 144, "16:9 illustration must be 256x144, not cramped 280x100")
+	var ev_aspect: float = ev_test_43._illustration_rect.custom_minimum_size.x / ev_test_43._illustration_rect.custom_minimum_size.y
+	assert(abs(ev_aspect - (16.0 / 9.0)) < 0.05, "Illustration aspect ratio must be 16:9")
 
+	# Verify dynamic adaptation for wide sprite
+	if ResourceLoader.exists("res://assets/sprites/story/story_cat_exile.png"):
+		ev_test_43._update_illustration(load("res://assets/sprites/story/story_cat_exile.png") as Texture2D)
+		assert(ev_test_43._illustration_rect.custom_minimum_size.x == 280 and ev_test_43._illustration_rect.custom_minimum_size.y == 99, "Wide sprite must scale to 280x99 preserving aspect")
+	ev_test_43.queue_free()
+	await get_tree().process_frame
+
+	# Verify EpilogueScene cabin illustration
+	var ep_test_43_packed: PackedScene = load("res://src/epilogue/epilogue_scene.tscn") as PackedScene
+	var ep_test_43: EpilogueScene = ep_test_43_packed.instantiate() as EpilogueScene
+	ep_test_43.setup_epilogue({"act": 1})
+	add_child(ep_test_43)
+	await get_tree().process_frame
+	assert(ep_test_43._cabin_illustration_rect.texture_filter == CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS, "Cabin illustration rect must use TEXTURE_FILTER_LINEAR_WITH_MIPMAPS")
+	assert(ep_test_43._cabin_illustration_rect.custom_minimum_size.x == 256 and ep_test_43._cabin_illustration_rect.custom_minimum_size.y == 144, "Cabin 16:9 photo must be 256x144")
+	ep_test_43.queue_free()
+	await get_tree().process_frame
+
+	# Verify VideoPlayerScene photo filter
+	var vid_test_43_packed: PackedScene = load("res://src/core/video_player_scene.tscn") as PackedScene
+	var vid_test_43: VideoPlayerScene = vid_test_43_packed.instantiate() as VideoPlayerScene
+	add_child(vid_test_43)
+	await get_tree().process_frame
+	assert(vid_test_43._photo_rect.texture_filter == CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS, "Video player photo rect must use TEXTURE_FILTER_LINEAR_WITH_MIPMAPS")
+	vid_test_43.queue_free()
+	await get_tree().process_frame
+
+	print("[22] Issue #43: Arts compression & dialogue preview aspect ratio verified OK")
+
+	# 23. Elimination of Duplicate Robbers' Cabin Scene & Routing to Epilogue Rock Concert
+	print("\n--- [23] VERIFYING ELIMINATION OF DUPLICATE CABIN SCENE & ROCK CONCERT ROUTING ---")
+	SaveManager.start_new_run()
+	SaveManager.current_sector = 2
+	SaveManager.recruit_cat("HOUND")
+	SaveManager.recruit_cat("MULE")
+	SaveManager.recruit_cat("COCK")
+	assert(SaveManager.party.size() == 4, "Party must have all 4 members for quartet finale test")
+
+	# 23.1 Test Quartet defeat of Sputnik transition chain in CombatArena
+	var arena_23_packed: PackedScene = load("res://src/combat/combat_arena.tscn") as PackedScene
+	var test_arena: CombatArena = arena_23_packed.instantiate() as CombatArena
+	test_arena.setup_battle({"node_id": 88, "node_type": "BOSS", "boss_id": "boss_satellite", "biome_theme": "BLUE"})
+	add_child(test_arena)
+	await get_tree().process_frame
+
+	var captured_scene_23: Array[StringName] = [&""]
+	var captured_payload_23: Array[Dictionary] = [{}]
+	var on_scene_change: Callable = func(sn: StringName, sp: Dictionary) -> void:
+		captured_scene_23[0] = sn
+		captured_payload_23[0] = sp
+
+	EventBus.request_scene_change.connect(on_scene_change)
+	test_arena._enemies[0].body_part.current_hp = 0
+	test_arena._handle_victory()
+	test_arena._end_btn.pressed.emit()
+	await get_tree().process_frame
+
+	assert(captured_scene_23[0] == &"VIDEO", "Must transition to VIDEO player for 5-1-trubadur-full.jpg")
+	assert(captured_payload_23[0]["image_path"] == "res://assets/photos/5-1-trubadur-full.jpg", "Must show 5-1-trubadur-full.jpg")
+
+	# Step 1: Trubadur postlude payload
+	var p1_trubadur: Dictionary = captured_payload_23[0]["next_payload"] as Dictionary
+	assert(p1_trubadur["timeline_name"] == "boss_postlude_trubadur_quartet", "Must route to boss_postlude_trubadur_quartet")
+	assert(captured_payload_23[0]["next_scene"] == &"EVENT", "Next scene after video must be EVENT")
+
+	# Step 2: Cabin exterior cutscene payload
+	var p2_cabin_cutscene: Dictionary = p1_trubadur["next_payload"] as Dictionary
+	assert(p1_trubadur["next_scene"] == &"VIDEO", "Next scene after quartet postlude must be VIDEO")
+	assert(p2_cabin_cutscene["image_path"] == "res://assets/photos/6-1-fake-boss-apperiance.jpg", "Must show 6-1-fake-boss-apperiance.jpg")
+
+	# Step 3: Cabin dialogue payload (played ONCE as boss_postlude_sector3)
+	var p3_cabin_dialogue: Dictionary = p2_cabin_cutscene["next_payload"] as Dictionary
+	assert(p2_cabin_cutscene["next_scene"] == &"EVENT", "Next scene after cabin photo must be EVENT")
+	assert(p3_cabin_dialogue["timeline_name"] == "boss_postlude_sector3", "Cabin dialogue must run boss_postlude_sector3")
+
+	# Step 4: Epilogue concert cutscene payload
+	var p4_concert_cutscene: Dictionary = p3_cabin_dialogue["next_payload"] as Dictionary
+	assert(p3_cabin_dialogue["next_scene"] == &"VIDEO", "Next scene after cabin dialogue must be VIDEO")
+	assert(p4_concert_cutscene["image_path"] == "res://assets/photos/7-final.jpg", "Must show 7-final.jpg for grand rock concert")
+
+	# Step 5: Epilogue rock concert scene (NOT a duplicate cabin scene, and NOT directly HUB!)
+	assert(p4_concert_cutscene["next_scene"] == &"EPILOGUE", "7-final.jpg must route directly to EPILOGUE scene")
+	var p5_concert: Dictionary = p4_concert_cutscene["next_payload"] as Dictionary
+	assert(int(p5_concert.get("act", 0)) == 2, "EPILOGUE payload must launch Act 2 (Rock Concert)")
+	assert(p4_concert_cutscene.get("action_on_complete", "") == "finish_run", "Must mark action_on_complete as finish_run")
+
+	# Verify that duplicate epilogue_cabin_scene.dtl is completely absent from the entire payload tree
+	var serialized_payload: String = str(captured_payload_23[0])
+	assert(not serialized_payload.contains("epilogue_cabin_scene"), "Duplicate epilogue_cabin_scene must NOT be present in transition chain")
+
+	EventBus.request_scene_change.disconnect(on_scene_change)
+	test_arena.queue_free()
+	await get_tree().process_frame
+
+	# 23.2 Test boss_censor transition chain in CombatArena
+	var censor_arena: CombatArena = arena_23_packed.instantiate() as CombatArena
+	censor_arena.setup_battle({"node_id": 89, "node_type": "BOSS", "boss_id": "boss_censor", "biome_theme": "BLUE"})
+	add_child(censor_arena)
+	await get_tree().process_frame
+
+	EventBus.request_scene_change.connect(on_scene_change)
+	censor_arena._enemies[0].body_part.current_hp = 0
+	censor_arena._handle_victory()
+	censor_arena._end_btn.pressed.emit()
+	await get_tree().process_frame
+
+	assert(captured_scene_23[0] == &"VIDEO", "Censor defeat must transition to VIDEO")
+	assert(captured_payload_23[0]["image_path"] == "res://assets/photos/6-4-fake-boss-win.jpg", "Must show 6-4-fake-boss-win.jpg")
+	var censor_post: Dictionary = captured_payload_23[0]["next_payload"] as Dictionary
+	assert(censor_post["timeline_name"] == "boss_postlude_sector3", "Must route to boss_postlude_sector3")
+	var censor_concert_cut: Dictionary = censor_post["next_payload"] as Dictionary
+	assert(censor_concert_cut["image_path"] == "res://assets/photos/7-final.jpg", "Must show 7-final.jpg")
+	assert(censor_concert_cut["next_scene"] == &"EPILOGUE", "Censor 7-final.jpg must route directly to EPILOGUE scene")
+	var censor_concert_payload: Dictionary = censor_concert_cut["next_payload"] as Dictionary
+	assert(int(censor_concert_payload.get("act", 0)) == 2, "Must launch Act 2 (Rock Concert)")
+	assert(not str(captured_payload_23[0]).contains("epilogue_cabin_scene"), "Duplicate epilogue_cabin_scene must not be present for Censor")
+
+	EventBus.request_scene_change.disconnect(on_scene_change)
+	censor_arena.queue_free()
+	await get_tree().process_frame
+
+	# 23.3 Verify EpilogueScene starting directly in Act 2 (Rock Concert)
+	var ep_direct_packed: PackedScene = load("res://src/epilogue/epilogue_scene.tscn") as PackedScene
+	var ep_direct: EpilogueScene = ep_direct_packed.instantiate() as EpilogueScene
+	ep_direct.setup_epilogue({"act": 2, "source": "final_boss_victory"})
+	add_child(ep_direct)
+	await get_tree().process_frame
+
+	assert(ep_direct.get_current_act() == EpilogueScene.Act.CONCERT, "Must start directly at Act 2: CONCERT")
+	assert(ep_direct._act1_root.visible == false, "Cabin Act 1 must be invisible")
+	assert(ep_direct._act2_root.visible == true, "Concert Act 2 must be visible")
+	assert(ep_direct.is_polyphonic_track_playing() == true, "4-instrument polyphonic concert music must play")
+	assert(ep_direct.are_lights_and_pyro_active() == true, "Stage lights and pyrotechnics must be active")
+	assert(SaveManager.story_progression.concert_hall_liberated == true, "Concert hall must be marked liberated")
+	assert(SaveManager.unlocked_tapes.has("tape_bremen_triumph"), "tape_bremen_triumph must be unlocked")
+
+	# Verify return to hub from concert deletes active run save
+	SaveManager.has_active_run = true
+	ep_direct.skip_to_hub()
+	await get_tree().process_frame
+	assert(not SaveManager.has_active_run, "Returning to HUB from epilogue concert must delete active run save")
+	ep_direct.queue_free()
+	await get_tree().process_frame
+
+	print("[23] Elimination of duplicate robbers' cabin scene & routing to epilogue rock concert verified OK")
 
 	AudioManager.stop_music()
 	await get_tree().process_frame

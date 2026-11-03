@@ -84,7 +84,7 @@ const CABIN_LINES: Array[Dictionary] = [
 		"speaker": "felix",
 		"speaker_name": "FELIX (Бродячий Кот-Музыкант)",
 		"mood": "normal",
-		"text": "...Стоп. Подождите. Мы же просто хотели заглянуть в окно и узнать, кто там внутри? Кажется, мы переборщили? (\"Wait... did we overdo it?\")",
+		"text": "...Стоп. Подождите. Мы же просто хотели заглянуть в окно и узнать, кто там внутри? Кажется, мы переборщили?",
 		"sfx": "",
 		"image": "res://assets/photos/6-2-fake-boss-monster.jpg"
 	},
@@ -125,7 +125,7 @@ const CABIN_LINES: Array[Dictionary] = [
 		"speaker": "outlaw",
 		"speaker_name": "ГЛАВАРЬ РАЗБОЙНИКОВ (Мародёр из Избы)",
 		"mood": "panic",
-		"text": "КАРАУЛ! СПАСАЙТЕСЬ! Ох, в этой избе сидит страшная ведьма — она зашипела и исцарапала мне лицо длинными когтями! У двери чёрт с ножом пырнул меня в ногу, во дворе чёрное чудовище с дубиной, а на крыше грозный судья кричит нечеловеческим голосом: «Подайте мне вора сюда!» (\"A terrible witch scratched me with claws, a devil bit my leg, a monster struck me with a club, and on the roof a judge shouted: 'Bring the rascal here!'\")",
+		"text": "КАРАУЛ! СПАСАЙТЕСЬ! Ох, в этой избе сидит страшная ведьма — она зашипела и исцарапала мне лицо длинными когтями! У двери чёрт с ножом пырнул меня в ногу, во дворе чёрное чудовище с дубиной, а на крыше грозный судья кричит нечеловеческим голосом: «Подайте мне вора сюда!»",
 		"sfx": "",
 		"image": "res://assets/photos/6-4-fake-boss-win.jpg"
 	},
@@ -133,7 +133,7 @@ const CABIN_LINES: Array[Dictionary] = [
 		"speaker": "felix",
 		"speaker_name": "FELIX (Бродячий Кот-Музыкант)",
 		"mood": "normal",
-		"text": "Ха-ха-ха! Глядите, как они сверкают пятками во тьму! Представляете, что бы с ними было, если бы они увидели робопетухокотопсоосла!? (\"Imagine what would've happened if they saw the Robo-RoosterCatDogDonkey!?\")",
+		"text": "Ха-ха-ха! Глядите, как они сверкают пятками во тьму! Представляете, что бы с ними было, если бы они увидели робопетухокотопсоосла!?",
 		"sfx": "",
 		"image": "res://assets/photos/6-3-fake-boss-piramide.jpg"
 	},
@@ -246,10 +246,10 @@ func _build_act1_ui() -> void:
 	root_vbox.add_child(_cabin_illustration_panel)
 
 	_cabin_illustration_rect = TextureRect.new()
-	_cabin_illustration_rect.custom_minimum_size = Vector2(290, 110)
+	_cabin_illustration_rect.custom_minimum_size = Vector2(256, 144)
 	_cabin_illustration_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_cabin_illustration_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_cabin_illustration_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_cabin_illustration_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	_cabin_illustration_panel.add_child(_cabin_illustration_rect)
 
 	# Портрет и диалоговая панель
@@ -319,10 +319,25 @@ func start_act_1_cabin() -> void:
 
 func _set_cabin_sprite(path: String) -> void:
 	current_cabin_sprite = path
+	var tex: Texture2D = null
 	if ResourceLoader.exists(path):
-		_cabin_illustration_rect.texture = load(path) as Texture2D
+		tex = load(path) as Texture2D
 	elif ResourceLoader.exists("res://assets/sprites/cats/bremen_pyramid.png"):
-		_cabin_illustration_rect.texture = load("res://assets/sprites/cats/bremen_pyramid.png") as Texture2D
+		tex = load("res://assets/sprites/cats/bremen_pyramid.png") as Texture2D
+
+	if tex != null:
+		_cabin_illustration_rect.texture = tex
+		var tw: float = float(tex.get_width())
+		var th: float = float(tex.get_height())
+		var aspect: float = tw / maxf(th, 1.0)
+		var max_w: float = 280.0
+		var max_h: float = 144.0
+		var target_w: float = max_w
+		var target_h: float = round(target_w / aspect)
+		if target_h > max_h:
+			target_h = max_h
+			target_w = round(target_h * aspect)
+		_cabin_illustration_rect.custom_minimum_size = Vector2(target_w, target_h)
 
 func _render_act1_dialogue() -> void:
 	if _line_cursor < 0 or _line_cursor >= _lines.size():
@@ -770,6 +785,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _on_return_to_hub() -> void:
 	AudioManager.play_sfx("ui_click")
 	AudioManager.sync_music_to_party(SaveManager.party)
+	SaveManager.delete_run_save()
 	EventBus.request_scene_change.emit(&"HUB", {})
 
 # =============================================================================
