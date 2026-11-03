@@ -36,7 +36,7 @@ func _build_ui() -> void:
 	_photo_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_photo_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_photo_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_photo_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_photo_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	_photo_rect.visible = false
 	add_child(_photo_rect)
 
@@ -110,6 +110,7 @@ func _start_media() -> void:
 			if FileAccess.file_exists(gpath) or FileAccess.file_exists(img_path):
 				var img: Image = Image.load_from_file(gpath if FileAccess.file_exists(gpath) else img_path)
 				if img != null and not img.is_empty():
+					img.generate_mipmaps()
 					tex = ImageTexture.create_from_image(img)
 		if tex != null:
 			_video_player.visible = false

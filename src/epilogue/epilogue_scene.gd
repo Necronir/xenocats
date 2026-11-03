@@ -246,10 +246,10 @@ func _build_act1_ui() -> void:
 	root_vbox.add_child(_cabin_illustration_panel)
 
 	_cabin_illustration_rect = TextureRect.new()
-	_cabin_illustration_rect.custom_minimum_size = Vector2(290, 110)
+	_cabin_illustration_rect.custom_minimum_size = Vector2(256, 144)
 	_cabin_illustration_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_cabin_illustration_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_cabin_illustration_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_cabin_illustration_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	_cabin_illustration_panel.add_child(_cabin_illustration_rect)
 
 	# Портрет и диалоговая панель
@@ -319,10 +319,25 @@ func start_act_1_cabin() -> void:
 
 func _set_cabin_sprite(path: String) -> void:
 	current_cabin_sprite = path
+	var tex: Texture2D = null
 	if ResourceLoader.exists(path):
-		_cabin_illustration_rect.texture = load(path) as Texture2D
+		tex = load(path) as Texture2D
 	elif ResourceLoader.exists("res://assets/sprites/cats/bremen_pyramid.png"):
-		_cabin_illustration_rect.texture = load("res://assets/sprites/cats/bremen_pyramid.png") as Texture2D
+		tex = load("res://assets/sprites/cats/bremen_pyramid.png") as Texture2D
+
+	if tex != null:
+		_cabin_illustration_rect.texture = tex
+		var tw: float = float(tex.get_width())
+		var th: float = float(tex.get_height())
+		var aspect: float = tw / maxf(th, 1.0)
+		var max_w: float = 280.0
+		var max_h: float = 144.0
+		var target_w: float = max_w
+		var target_h: float = round(target_w / aspect)
+		if target_h > max_h:
+			target_h = max_h
+			target_w = round(target_h * aspect)
+		_cabin_illustration_rect.custom_minimum_size = Vector2(target_w, target_h)
 
 func _render_act1_dialogue() -> void:
 	if _line_cursor < 0 or _line_cursor >= _lines.size():

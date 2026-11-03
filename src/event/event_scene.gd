@@ -91,8 +91,8 @@ func _build_ui() -> void:
 	st.set_content_margin_all(6)
 
 	var main_panel: PanelContainer = PanelContainer.new()
-	main_panel.position = Vector2(20, 30)
-	main_panel.size = Vector2(600, 324)
+	main_panel.position = Vector2(20, 24)
+	main_panel.size = Vector2(600, 328)
 	main_panel.add_theme_stylebox_override("panel", st)
 	add_child(main_panel)
 
@@ -118,10 +118,10 @@ func _build_ui() -> void:
 	root_vbox.add_child(_illustration_panel)
 
 	_illustration_rect = TextureRect.new()
-	_illustration_rect.custom_minimum_size = Vector2(280, 100)
+	_illustration_rect.custom_minimum_size = Vector2(256, 144)
 	_illustration_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_illustration_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_illustration_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_illustration_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	_illustration_panel.add_child(_illustration_rect)
 
 	# Портрет говорящего персонажа + Диалоговое окно
@@ -203,6 +203,29 @@ func _on_continue_pressed() -> void:
 	var next_pl: Dictionary = _payload.get("next_payload", {})
 	EventBus.request_scene_change.emit(next_sc, next_pl)
 
+func _update_illustration(tex: Texture2D) -> void:
+	if tex == null:
+		_illustration_panel.visible = false
+		return
+
+	_illustration_rect.texture = tex
+	_illustration_panel.visible = true
+
+	var tw: float = float(tex.get_width())
+	var th: float = float(tex.get_height())
+	var aspect: float = tw / maxf(th, 1.0)
+
+	var max_w: float = 280.0
+	var max_h: float = 144.0
+
+	var target_w: float = max_w
+	var target_h: float = round(target_w / aspect)
+	if target_h > max_h:
+		target_h = max_h
+		target_w = round(target_h * aspect)
+
+	_illustration_rect.custom_minimum_size = Vector2(target_w, target_h)
+
 func _parse_dtl_timeline(path: String) -> void:
 	_lines.clear()
 	_choices.clear()
@@ -234,7 +257,7 @@ func _parse_dtl_timeline(path: String) -> void:
 	file.close()
 
 	var current_choice: Dictionary = {}
-	var current_image: String = ""
+	var current_image: String = String(_payload.get("image_path", _payload.get("image", _payload.get("photo_path", ""))))
 	var current_sfx: String = ""
 	for raw: String in raw_lines:
 		var line: String = raw.strip_edges()
@@ -304,10 +327,10 @@ func _render_dialogue_state() -> void:
 				if FileAccess.file_exists(gpath) or FileAccess.file_exists(img_path):
 					var img: Image = Image.load_from_file(gpath if FileAccess.file_exists(gpath) else img_path)
 					if img != null and not img.is_empty():
+						img.generate_mipmaps()
 						tex = ImageTexture.create_from_image(img)
 			if tex != null:
-				_illustration_rect.texture = tex
-				_illustration_panel.visible = true
+				_update_illustration(tex)
 			else:
 				_illustration_panel.visible = (_illustration_rect.texture != null)
 		else:

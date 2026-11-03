@@ -1990,7 +1990,45 @@ func _ready() -> void:
 
 	print("[21] Issue #41: Dynamic Loop Prologue, Sputnik Boss Duel, Trubadur Entrance and Deferred Hound Join verified OK")
 
+	# 22. Issue #43: Arts Compression & Preview Aspect Ratio in Dialogues
+	print("--- [22] VERIFYING ISSUE #43: ARTS COMPRESSION & PREVIEW IN DIALOGUES ---")
+	var ev_test_43: EventScene = ev_scene_res.instantiate() as EventScene
+	ev_test_43.setup_event({"timeline": "res://data/dialogues/story_intro_cat.dtl"})
+	add_child(ev_test_43)
+	await get_tree().process_frame
+	assert(ev_test_43._illustration_rect.texture_filter == CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS, "Illustration rect must use TEXTURE_FILTER_LINEAR_WITH_MIPMAPS")
+	assert(ev_test_43._illustration_rect.custom_minimum_size.x == 256 and ev_test_43._illustration_rect.custom_minimum_size.y == 144, "16:9 illustration must be 256x144, not cramped 280x100")
+	var ev_aspect: float = ev_test_43._illustration_rect.custom_minimum_size.x / ev_test_43._illustration_rect.custom_minimum_size.y
+	assert(abs(ev_aspect - (16.0 / 9.0)) < 0.05, "Illustration aspect ratio must be 16:9")
 
+	# Verify dynamic adaptation for wide sprite
+	if ResourceLoader.exists("res://assets/sprites/story/story_cat_exile.png"):
+		ev_test_43._update_illustration(load("res://assets/sprites/story/story_cat_exile.png") as Texture2D)
+		assert(ev_test_43._illustration_rect.custom_minimum_size.x == 280 and ev_test_43._illustration_rect.custom_minimum_size.y == 99, "Wide sprite must scale to 280x99 preserving aspect")
+	ev_test_43.queue_free()
+	await get_tree().process_frame
+
+	# Verify EpilogueScene cabin illustration
+	var ep_test_43_packed: PackedScene = load("res://src/epilogue/epilogue_scene.tscn") as PackedScene
+	var ep_test_43: EpilogueScene = ep_test_43_packed.instantiate() as EpilogueScene
+	ep_test_43.setup_epilogue({"act": 1})
+	add_child(ep_test_43)
+	await get_tree().process_frame
+	assert(ep_test_43._cabin_illustration_rect.texture_filter == CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS, "Cabin illustration rect must use TEXTURE_FILTER_LINEAR_WITH_MIPMAPS")
+	assert(ep_test_43._cabin_illustration_rect.custom_minimum_size.x == 256 and ep_test_43._cabin_illustration_rect.custom_minimum_size.y == 144, "Cabin 16:9 photo must be 256x144")
+	ep_test_43.queue_free()
+	await get_tree().process_frame
+
+	# Verify VideoPlayerScene photo filter
+	var vid_test_43_packed: PackedScene = load("res://src/core/video_player_scene.tscn") as PackedScene
+	var vid_test_43: VideoPlayerScene = vid_test_43_packed.instantiate() as VideoPlayerScene
+	add_child(vid_test_43)
+	await get_tree().process_frame
+	assert(vid_test_43._photo_rect.texture_filter == CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS, "Video player photo rect must use TEXTURE_FILTER_LINEAR_WITH_MIPMAPS")
+	vid_test_43.queue_free()
+	await get_tree().process_frame
+
+	print("[22] Issue #43: Arts compression & dialogue preview aspect ratio verified OK")
 
 	AudioManager.stop_music()
 	await get_tree().process_frame

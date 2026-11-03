@@ -265,10 +265,10 @@ func _build_visual_hierarchy() -> void:
 	_end_overlay.add_child(end_vbox)
 
 	_end_art_rect = TextureRect.new()
-	_end_art_rect.custom_minimum_size = Vector2(280, 110)
+	_end_art_rect.custom_minimum_size = Vector2(256, 144)
 	_end_art_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_end_art_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_end_art_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_end_art_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	_end_art_rect.visible = false
 	end_vbox.add_child(_end_art_rect)
 
