@@ -58,12 +58,12 @@ func _ready() -> void:
 	vbox.add_child(bottom_row)
 
 	_hint_label = Label.new()
-	_hint_label.text = "Нажмите [ПРОБЕЛ] или кнопку в жёлто-бирюзовой зоне!"
+	_hint_label.text = "Нажмите [ПРОБЕЛ / A / ТАЧ] для удара!"
 	_hint_label.add_theme_font_size_override("font_size", 9)
 	bottom_row.add_child(_hint_label)
 
 	_strike_btn = Button.new()
-	_strike_btn.text = "УДАР!"
+	_strike_btn.text = "УДАР! [ТАЧ/A]"
 	_strike_btn.add_theme_font_size_override("font_size", 10)
 	_strike_btn.pressed.connect(trigger_strike)
 	bottom_row.add_child(_strike_btn)
@@ -77,6 +77,8 @@ func start_qte(skill_name: String, speed_scale: float = 1.0) -> void:
 	_resolved = false
 	_active = true
 	visible = true
+	if _strike_btn != null:
+		_strike_btn.grab_focus()
 	_bar_area.queue_redraw()
 
 func _process(delta: float) -> void:
@@ -98,11 +100,35 @@ func _process(delta: float) -> void:
 func _input(event: InputEvent) -> void:
 	if not _active or _resolved:
 		return
-	if event is InputEventKey:
+	var is_strike: bool = false
+	if event.is_action_pressed(&"qte_strike") or event.is_action_pressed(&"ui_accept"):
+		is_strike = true
+	elif event is InputEventKey:
 		var k: InputEventKey = event as InputEventKey
-		if k.pressed and not k.echo and (k.keycode == KEY_SPACE or k.keycode == KEY_ENTER or k.keycode == KEY_Z):
-			get_viewport().set_input_as_handled()
-			trigger_strike()
+
+		if k.pressed and not k.echo and (k.keycode in [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER, KEY_Z]):
+			is_strike = true
+	elif event is InputEventJoypadButton:
+		var jb: InputEventJoypadButton = event as InputEventJoypadButton
+		if jb.pressed and jb.button_index in [JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_X, JOY_BUTTON_Y, JOY_BUTTON_RIGHT_SHOULDER, JOY_BUTTON_START]:
+			is_strike = true
+	elif event is InputEventScreenTouch:
+		var st: InputEventScreenTouch = event as InputEventScreenTouch
+		if st.pressed:
+			is_strike = true
+	elif event is InputEventMouseButton:
+		var mb: InputEventMouseButton = event as InputEventMouseButton
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			is_strike = true
+
+	if is_strike:
+		get_viewport().set_input_as_handled()
+		trigger_strike()
+
+
+
+
+
 
 func trigger_strike() -> void:
 	if not _active or _resolved:

@@ -112,6 +112,16 @@ func _build_ui() -> void:
 	)
 	top_hbox.add_child(hub_btn)
 
+	var pause_btn: Button = Button.new()
+	pause_btn.text = "⏸ МЕНЮ"
+	pause_btn.add_theme_font_size_override("font_size", 9)
+	pause_btn.pressed.connect(func() -> void:
+		AudioManager.play_sfx("ui_click")
+		Input.action_press(&"pause")
+		Input.action_release(&"pause")
+	)
+	top_hbox.add_child(pause_btn)
+
 	# Горизонтальный скролл графа на 15 этажей
 	var map_panel: PanelContainer = PanelContainer.new()
 	map_panel.position = Vector2(8, 60)
@@ -201,6 +211,12 @@ func _populate_map_nodes() -> void:
 		_graph_canvas.add_child(btn)
 
 	_graph_canvas.queue_redraw()
+
+	# Focus first selectable node button for gamepad navigation
+	for child: Node in _graph_canvas.get_children():
+		if child is Button and not (child as Button).disabled:
+			(child as Button).grab_focus()
+			break
 
 	# Автопрокрутка к текущему этажу
 	await get_tree().process_frame

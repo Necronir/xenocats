@@ -171,10 +171,13 @@ func _build_ui() -> void:
 	root_vbox.add_child(_continue_btn)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_accept") or (event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_SPACE or event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER)):
-		if _advance_dialogue_or_continue():
-			get_viewport().set_input_as_handled()
-	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+	if (
+		event.is_action_pressed("ui_accept")
+		or (event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER])
+		or (event is InputEventJoypadButton and event.pressed and event.button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_START])
+		or (event is InputEventScreenTouch and event.pressed)
+		or (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT)
+	):
 		if _advance_dialogue_or_continue():
 			get_viewport().set_input_as_handled()
 
@@ -403,12 +406,14 @@ func _render_dialogue_state() -> void:
 				_render_dialogue_state()
 			)
 			_choices_box.add_child(next_btn)
+			next_btn.grab_focus()
 			return
 
 	# Если в диалоге нет развилок (чисто сюжетная кат-сцена / прелюдия / постлюдия)
 	if _choices.is_empty():
 		_continue_btn.text = String(_payload.get("continue_text", "ПРОДОЛЖИТЬ ->"))
 		_continue_btn.visible = true
+		_continue_btn.grab_focus()
 		return
 
 	# Отображаем варианты выбора из таймлайна Dialogic 2
@@ -422,6 +427,11 @@ func _render_dialogue_state() -> void:
 			_on_choice_selected(ch_ref)
 		)
 		_choices_box.add_child(c_btn)
+
+	for ch_node: Node in _choices_box.get_children():
+		if ch_node is Button and not (ch_node as Button).disabled:
+			(ch_node as Button).grab_focus()
+			break
 
 func _on_choice_selected(ch: Dictionary) -> void:
 	var sig_arg: String = String(ch.get("signal", ""))

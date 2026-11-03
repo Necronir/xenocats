@@ -12,6 +12,7 @@ var _sfx_val_label: Label = null
 var _music_slider: HSlider = null
 var _music_val_label: Label = null
 var _fullscreen_check: CheckButton = null
+var _touch_controls_check: CheckButton = null
 var _tutorials_check: CheckButton = null
 var _reset_tutorials_btn: Button = null
 var _reset_progress_btn: Button = null
@@ -21,9 +22,9 @@ var _status_hint_label: Label = null
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	custom_minimum_size = Vector2(360, 260)
-	size = Vector2(360, 260)
-	position = Vector2((640.0 - 360.0) * 0.5, (360.0 - 260.0) * 0.5)
+	custom_minimum_size = Vector2(360, 275)
+	size = Vector2(360, 275)
+	position = Vector2((640.0 - 360.0) * 0.5, (360.0 - 275.0) * 0.5)
 
 	var st: StyleBoxFlat = StyleBoxFlat.new()
 	st.bg_color = Color(0.06, 0.08, 0.14, 0.98)
@@ -73,6 +74,17 @@ func _ready() -> void:
 			SaveManager.settings.save_to_disk(SaveManager.SETTINGS_PATH)
 	)
 	vbox.add_child(_fullscreen_check)
+
+	_touch_controls_check = CheckButton.new()
+	_touch_controls_check.text = "Сенсорное управление (D-Pad / Тач)"
+	_touch_controls_check.add_theme_font_size_override("font_size", 9)
+	_touch_controls_check.toggled.connect(func(pressed: bool) -> void:
+		AudioManager.play_sfx("ui_click")
+		if SaveManager.settings != null:
+			SaveManager.settings.touch_controls_enabled = pressed
+			SaveManager.settings.save_to_disk(SaveManager.SETTINGS_PATH)
+	)
+	vbox.add_child(_touch_controls_check)
 
 	# 5. Tutorials CheckButton + Reset Button
 	var tut_row: HBoxContainer = HBoxContainer.new()
@@ -210,6 +222,8 @@ func refresh_from_settings() -> void:
 		_fullscreen_check.set_pressed_no_signal(s.fullscreen)
 	if _tutorials_check != null:
 		_tutorials_check.set_pressed_no_signal(s.tutorials_enabled)
+	if _touch_controls_check != null:
+		_touch_controls_check.set_pressed_no_signal(s.touch_controls_enabled)
 	if _status_hint_label != null:
 		_status_hint_label.text = ""
 

@@ -158,10 +158,19 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _is_finishing:
 		return
-	if event is InputEventKey and event.pressed and not event.echo:
+	if event.is_action_pressed("ui_accept") or event.is_action_pressed("ui_cancel") or event.is_action_pressed("pause"):
+		get_viewport().set_input_as_handled()
+		_on_skip_pressed()
+	elif event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode in [KEY_ESCAPE, KEY_SPACE, KEY_ENTER]:
 			get_viewport().set_input_as_handled()
 			_on_skip_pressed()
+	elif event is InputEventJoypadButton and event.pressed:
+		get_viewport().set_input_as_handled()
+		_on_skip_pressed()
+	elif event is InputEventScreenTouch and event.pressed:
+		get_viewport().set_input_as_handled()
+		_on_skip_pressed()
 	elif event is InputEventMouseButton and event.pressed:
 		_on_skip_pressed()
 

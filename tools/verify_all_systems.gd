@@ -3,6 +3,7 @@ extends Node
 func _ready() -> void:
 	print("=== XENOCATS: BREMEN-4 AUTOMATED VERIFICATION ===")
 	DataCatalog.ensure_loaded()
+	SaveManager.hard_reset_all_progress()
 	if SaveManager.settings != null:
 		SaveManager.settings.tutorials_enabled = false
 
@@ -2146,6 +2147,161 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	print("[23] Elimination of duplicate robbers' cabin scene & routing to epilogue rock concert verified OK")
+
+	print("\n--- [24] VERIFYING ISSUE #45: GAMEPAD & MOBILE TOUCH SUPPORT ---")
+
+	# 24.1 Input Actions Registration
+	assert(InputMap.has_action(&"dodge_left"), "dodge_left action must be registered")
+	assert(InputMap.has_action(&"dodge_right"), "dodge_right action must be registered")
+	assert(InputMap.has_action(&"dodge_up"), "dodge_up action must be registered")
+	assert(InputMap.has_action(&"dodge_down"), "dodge_down action must be registered")
+	assert(InputMap.has_action(&"qte_strike"), "qte_strike action must be registered")
+	assert(InputMap.has_action(&"pause"), "pause action must be registered")
+
+	var dodge_l_events: Array[InputEvent] = InputMap.action_get_events(&"dodge_left")
+	var has_joy_dodge: bool = false
+	for ev: InputEvent in dodge_l_events:
+		if ev is InputEventJoypadButton or ev is InputEventJoypadMotion:
+			has_joy_dodge = true
+			break
+	assert(has_joy_dodge, "dodge_left must have gamepad joypad event mapped")
+
+	var qte_events: Array[InputEvent] = InputMap.action_get_events(&"qte_strike")
+	var has_joy_qte: bool = false
+	for ev: InputEvent in qte_events:
+		if ev is InputEventJoypadButton:
+			has_joy_qte = true
+			break
+	assert(has_joy_qte, "qte_strike must have gamepad joypad button event mapped")
+
+	# 24.2 DodgeArena Mobile Touch D-Pad & Boundaries
+	var da: DodgeArena = DodgeArena.new()
+	add_child(da)
+	await get_tree().process_frame
+	da.start_dodge("TEST_MOBILE", &"saw_sweep", 10, 1.0, 5.0)
+
+	var start_pos: Vector2 = da._avatar_root.position
+	# Simulate left button press
+	da._touch_btn_left.emit_signal("button_down")
+	assert(da._dpad_dir.x < -0.9, "Left D-pad button down must set negative X direction")
+	da._process(0.2)
+	assert(da._avatar_root.position.x < start_pos.x, "Avatar must move left when left touch D-pad is held")
+	da._touch_btn_left.emit_signal("button_up")
+	assert(da._dpad_dir == Vector2.ZERO, "Releasing touch D-pad button must reset direction")
+
+	# Simulate up button press
+	var pos_before_up: Vector2 = da._avatar_root.position
+	da._touch_btn_up.emit_signal("button_down")
+	da._process(0.2)
+	assert(da._avatar_root.position.y < pos_before_up.y, "Avatar must move up when up touch D-pad is held")
+	da._touch_btn_up.emit_signal("button_up")
+
+	# 24.3 DodgeArena Floating Virtual Joystick (Touch)
+	var touch_down: InputEventScreenTouch = InputEventScreenTouch.new()
+	touch_down.index = 1
+	touch_down.pressed = true
+	touch_down.position = da.global_position + Vector2(-50.0, 50.0)
+	da._unhandled_input(touch_down)
+	assert(da._virtual_stick_active, "Touch outside arena box must activate floating virtual joystick")
+
+	var touch_drag: InputEventScreenDrag = InputEventScreenDrag.new()
+	touch_drag.index = 1
+	touch_drag.position = touch_down.position + Vector2(25.0, 0.0)
+	da._unhandled_input(touch_drag)
+	assert(da._virtual_dir.x > 0.5, "Dragging right on virtual joystick must steer avatar right")
+
+	var pos_before_joy: Vector2 = da._avatar_root.position
+	da._process(0.2)
+	assert(da._avatar_root.position.x > pos_before_joy.x, "Avatar must move right from floating virtual stick")
+
+	var touch_up: InputEventScreenTouch = InputEventScreenTouch.new()
+	touch_up.index = 1
+	touch_up.pressed = false
+	touch_up.position = touch_drag.position
+	da._unhandled_input(touch_up)
+	assert(not da._virtual_stick_active, "Releasing touch must deactivate floating virtual stick")
+	assert(da._virtual_dir == Vector2.ZERO, "Releasing touch must reset virtual direction to ZERO")
+
+	# 24.4 DodgeArena Direct/Relative Touch Drag Inside Box
+	var drag_touch_down: InputEventScreenTouch = InputEventScreenTouch.new()
+	drag_touch_down.index = 2
+	drag_touch_down.pressed = true
+	drag_touch_down.position = da.global_position + da._box_origin + Vector2(20.0, 20.0)
+	da._unhandled_input(drag_touch_down)
+	assert(da._touch_drag_active, "Touching inside arena box must activate touch drag mode")
+
+	var drag_touch_move: InputEventScreenDrag = InputEventScreenDrag.new()
+	drag_touch_move.index = 2
+	drag_touch_move.position = drag_touch_down.position + Vector2(15.0, 15.0)
+	da._unhandled_input(drag_touch_move)
+	assert(da._pending_drag_delta.x > 10.0, "Dragging inside box must record drag delta")
+
+	var pos_before_drag: Vector2 = da._avatar_root.position
+	da._process(0.016)
+	assert(da._avatar_root.position.x > pos_before_drag.x, "Avatar must move from direct touch drag")
+
+	# Test box boundaries clamping
+	da._avatar_root.position = Vector2(9999.0, 9999.0)
+	da._clamp_avatar_position()
+	assert(da._avatar_root.position.x <= da._box_origin.x + da.BOX_W - 11.0, "Clamping must prevent avatar exceeding right boundary")
+	assert(da._avatar_root.position.y <= da._box_origin.y + da.BOX_H - 12.0, "Clamping must prevent avatar exceeding bottom boundary")
+
+	da.queue_free()
+	await get_tree().process_frame
+
+	# 24.5 QTE Controller Gamepad and Touch Strike
+	var qte: QTEController = QTEController.new()
+	add_child(qte)
+	await get_tree().process_frame
+
+	# Test Joypad Button strike
+	qte.start_qte("TEST_SKILL", 1.0)
+	assert(qte._active and not qte._resolved, "QTE must start active")
+	var joy_btn_ev: InputEventJoypadButton = InputEventJoypadButton.new()
+	joy_btn_ev.button_index = JOY_BUTTON_A
+	joy_btn_ev.pressed = true
+	qte._input(joy_btn_ev)
+	assert(qte._resolved, "Gamepad JOY_BUTTON_A must trigger QTE strike")
+
+	# Test Touch Screen tap strike
+	qte.start_qte("TEST_SKILL_TOUCH", 1.0)
+	assert(qte._active and not qte._resolved, "QTE must start active")
+	var screen_touch_ev: InputEventScreenTouch = InputEventScreenTouch.new()
+	screen_touch_ev.pressed = true
+	qte._input(screen_touch_ev)
+	assert(qte._resolved, "Screen touch tap must trigger QTE strike")
+
+	qte.queue_free()
+	await get_tree().process_frame
+
+	# 24.6 UI Focus Navigation for Gamepad in Combat Arena
+	var combat_test: CombatArena = load("res://src/combat/combat_arena.tscn").instantiate() as CombatArena
+	add_child(combat_test)
+	await get_tree().process_frame
+	combat_test._begin_player_turn(0)
+	await get_tree().process_frame
+	var focused_action: Control = combat_test.get_viewport().gui_get_focus_owner()
+	assert(focused_action != null and focused_action is Button, "First action button must automatically grab focus on player turn for gamepad")
+
+	# Test Target Box focus
+	var test_sk: SkillData = DataCatalog.get_skill("felix_laser_claws")
+	combat_test._on_skill_chosen(test_sk)
+	await get_tree().process_frame
+	var focused_target: Control = combat_test.get_viewport().gui_get_focus_owner()
+	assert(focused_target != null and focused_target is Button, "First target button must automatically grab focus on targeting for gamepad")
+
+	combat_test.queue_free()
+	await get_tree().process_frame
+
+	# 24.7 GameSettings Touch Controls Persistence
+	SaveManager.settings.touch_controls_enabled = false
+	SaveManager.settings.save_to_disk(SaveManager.SETTINGS_PATH)
+	SaveManager.settings.load_from_disk(SaveManager.SETTINGS_PATH)
+	assert(not SaveManager.settings.touch_controls_enabled, "touch_controls_enabled false must persist to settings.cfg")
+	SaveManager.settings.touch_controls_enabled = true
+	SaveManager.settings.save_to_disk(SaveManager.SETTINGS_PATH)
+
+	print("[24] Issue #45: Gamepad & Mobile Touch support in Dodge Box & Combat verified OK")
 
 	AudioManager.stop_music()
 	await get_tree().process_frame

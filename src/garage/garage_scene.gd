@@ -39,6 +39,10 @@ func _ready() -> void:
 	_build_ui()
 	AudioManager.sync_music_to_party(SaveManager.party)
 	_refresh_view()
+	if _repair_all_btn != null and not _repair_all_btn.disabled:
+		_repair_all_btn.grab_focus()
+	elif _exit_btn != null:
+		_exit_btn.grab_focus()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
@@ -98,6 +102,16 @@ func _build_ui() -> void:
 	_exit_btn.tooltip_text = "Вернуться на карту (Esc)"
 	_exit_btn.pressed.connect(_on_exit_pressed)
 	top_hbox.add_child(_exit_btn)
+
+	var pause_btn: Button = Button.new()
+	pause_btn.text = "⏸ МЕНЮ"
+	pause_btn.add_theme_font_size_override("font_size", 9)
+	pause_btn.pressed.connect(func() -> void:
+		AudioManager.play_sfx("ui_click")
+		Input.action_press(&"pause")
+		Input.action_release(&"pause")
+	)
+	top_hbox.add_child(pause_btn)
 
 	# Кнопки переключения между 4 котами
 	var tabs_panel: PanelContainer = PanelContainer.new()
