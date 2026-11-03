@@ -8,6 +8,7 @@ var _res_label: Label = null
 var _shuttle_box: VBoxContainer = null
 var _perks_box: VBoxContainer = null
 var _tapes_box: VBoxContainer = null
+var _new_run_btn: Button = null
 var _continue_run_btn: Button = null
 var _settings_btn: Button = null
 var _settings_backdrop: ColorRect = null
@@ -164,7 +165,8 @@ func _build_ui() -> void:
 	bot_hbox.add_theme_constant_override("separation", 12)
 	bot_panel.add_child(bot_hbox)
 
-	var new_run_btn: Button = Button.new()
+	_new_run_btn = Button.new()
+	var new_run_btn: Button = _new_run_btn
 	new_run_btn.custom_minimum_size = Vector2(260, 34)
 	new_run_btn.text = "★ НОВЫЙ ЗАБЕГ К ВЫШКЕ БРЕМЕН-4 ★"
 	new_run_btn.add_theme_font_size_override("font_size", 11)
@@ -359,3 +361,8 @@ func _refresh_hub() -> void:
 		)
 	else:
 		_continue_run_btn.visible = false
+
+	if _continue_run_btn != null and _continue_run_btn.visible:
+		_continue_run_btn.grab_focus()
+	elif _new_run_btn != null and _new_run_btn.visible:
+		_new_run_btn.grab_focus()

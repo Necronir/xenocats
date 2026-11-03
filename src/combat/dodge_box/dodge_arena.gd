@@ -39,6 +39,24 @@ var _status_label: Label = null
 var _legend_label: Label = null
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
+# Управление геймпадом и сенсорным экраном (Issue #45)
+var _virtual_stick_active: bool = false
+var _virtual_stick_touch_id: int = -1
+var _virtual_stick_origin: Vector2 = Vector2.ZERO
+var _virtual_stick_current: Vector2 = Vector2.ZERO
+var _virtual_dir: Vector2 = Vector2.ZERO
+var _dpad_dir: Vector2 = Vector2.ZERO
+var _touch_drag_active: bool = false
+var _touch_drag_id: int = -1
+var _touch_drag_last_pos: Vector2 = Vector2.ZERO
+var _pending_drag_delta: Vector2 = Vector2.ZERO
+var _touch_controls_container: Control = null
+var _touch_btn_left: Button = null
+var _touch_btn_up: Button = null
+var _touch_btn_down: Button = null
+var _touch_btn_right: Button = null
+var _is_mobile_or_touch: bool = false
+
 # Набор активных снарядов: Array[Dictionary]
 var _bullets: Array[Dictionary] = []
 
@@ -60,8 +78,8 @@ var _tex_pulse: Texture2D = null
 
 func _ready() -> void:
 	_rng.randomize()
-	custom_minimum_size = Vector2(220, 156)
-	size = Vector2(220, 156)
+	custom_minimum_size = Vector2(220, 172)
+	size = Vector2(220, 172)
 	visible = false
 
 	_tex_top = load("res://assets/sprites/ui/dodge_top.png") as Texture2D
@@ -77,7 +95,7 @@ func _ready() -> void:
 	_tex_satellite_bomb = load("res://assets/sprites/ui/bullet_satellite_bomb.png") as Texture2D
 	_tex_pulse = load("res://assets/sprites/ui/bullet_pulse.png") as Texture2D
 
-	_box_origin = Vector2((size.x - BOX_W) * 0.5, 22.0)
+	_box_origin = Vector2((size.x - BOX_W) * 0.5, 20.0)
 
 	_status_label = Label.new()
 	_status_label.position = Vector2(0, 2)
@@ -92,7 +110,7 @@ func _ready() -> void:
 	_legend_label.size = Vector2(size.x, 18)
 	_legend_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_legend_label.add_theme_font_size_override("font_size", 8)
-	_legend_label.text = "[WASD/Стрелки] Верх:РУКИ | Центр:КОРПУС | Низ:НОГИ"
+	_legend_label.text = "[WASD/Стик/Тач] Верх:РУКИ | Центр:КОРПУС | Низ:НОГИ"
 	_legend_label.add_theme_color_override("font_color", Color(0.78, 0.88, 0.98))
 	add_child(_legend_label)
 
@@ -100,6 +118,8 @@ func _ready() -> void:
 	add_child(_bullets_root)
 
 	_build_segmented_avatar()
+	_detect_touch_mode()
+	_build_touch_dpad()
 
 func _build_segmented_avatar() -> void:
 	_avatar_root = Node2D.new()
@@ -138,6 +158,184 @@ func _create_segment_area(offset: Vector2, box_size: Vector2, tex: Texture2D, sl
 	)
 	return area
 
+func _build_touch_dpad() -> void:
+	_touch_controls_container = HBoxContainer.new()
+	_touch_controls_container.position = Vector2(0, _box_origin.y + BOX_H + 16.0)
+	_touch_controls_container.size = Vector2(size.x, 20.0)
+	_touch_controls_container.alignment = BoxContainer.ALIGNMENT_CENTER
+	_touch_controls_container.add_theme_constant_override("separation", 6)
+	add_child(_touch_controls_container)
+
+	_touch_btn_left = _create_dpad_button("◄", Vector2(-1.0, 0.0))
+	_touch_btn_up = _create_dpad_button("▲", Vector2(0.0, -1.0))
+	_touch_btn_down = _create_dpad_button("▼", Vector2(0.0, 1.0))
+	_touch_btn_right = _create_dpad_button("►", Vector2(1.0, 0.0))
+
+	_touch_controls_container.add_child(_touch_btn_left)
+	_touch_controls_container.add_child(_touch_btn_up)
+	_touch_controls_container.add_child(_touch_btn_down)
+	_touch_controls_container.add_child(_touch_btn_right)
+
+	_update_touch_controls_visibility()
+
+func _create_dpad_button(btn_text: String, move_dir: Vector2) -> Button:
+	var btn: Button = Button.new()
+	btn.text = btn_text
+	btn.custom_minimum_size = Vector2(44, 18)
+	btn.add_theme_font_size_override("font_size", 10)
+	btn.focus_mode = Control.FOCUS_NONE
+
+	var normal_sb: StyleBoxFlat = StyleBoxFlat.new()
+	normal_sb.bg_color = Color(0.08, 0.12, 0.22, 0.85)
+	normal_sb.border_color = Color(0.35, 0.85, 1.0, 0.85)
+	normal_sb.set_border_width_all(1)
+	normal_sb.set_corner_radius_all(3)
+	normal_sb.set_content_margin_all(2)
+	btn.add_theme_stylebox_override("normal", normal_sb)
+
+	var pressed_sb: StyleBoxFlat = StyleBoxFlat.new()
+	pressed_sb.bg_color = Color(0.25, 0.55, 0.85, 0.95)
+	pressed_sb.border_color = Color(1.0, 0.9, 0.35, 1.0)
+	pressed_sb.set_border_width_all(1)
+	pressed_sb.set_corner_radius_all(3)
+	pressed_sb.set_content_margin_all(2)
+	btn.add_theme_stylebox_override("pressed", pressed_sb)
+
+	btn.button_down.connect(func() -> void:
+		_dpad_dir += move_dir
+	)
+	btn.button_up.connect(func() -> void:
+		_dpad_dir -= move_dir
+		if _dpad_dir.length_squared() < 0.01:
+			_dpad_dir = Vector2.ZERO
+	)
+	return btn
+
+func _detect_touch_mode() -> void:
+	if DisplayServer.is_touchscreen_available():
+		_is_mobile_or_touch = true
+	elif OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios"):
+		_is_mobile_or_touch = true
+	elif SaveManager.settings != null and SaveManager.settings.touch_controls_enabled:
+		_is_mobile_or_touch = true
+	_update_touch_controls_visibility()
+
+func _update_touch_controls_visibility() -> void:
+	if _touch_controls_container != null:
+		var enabled_in_settings: bool = true
+		if SaveManager.settings != null:
+			enabled_in_settings = SaveManager.settings.touch_controls_enabled
+		_touch_controls_container.visible = _is_mobile_or_touch and enabled_in_settings
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not _active:
+		return
+
+	# 1. Screen touch (Mobile / Tablet)
+	if event is InputEventScreenTouch:
+		_is_mobile_or_touch = true
+		_update_touch_controls_visibility()
+		var st: InputEventScreenTouch = event as InputEventScreenTouch
+		if st.pressed:
+			var local_pos: Vector2 = (st.position - global_position)
+			var box_rect: Rect2 = Rect2(_box_origin, Vector2(BOX_W, BOX_H))
+			if box_rect.has_point(local_pos):
+				_touch_drag_active = true
+				_touch_drag_id = st.index
+				_touch_drag_last_pos = st.position
+			else:
+				_virtual_stick_active = true
+				_virtual_stick_touch_id = st.index
+				_virtual_stick_origin = local_pos
+				_virtual_stick_current = local_pos
+				_virtual_dir = Vector2.ZERO
+				queue_redraw()
+		else:
+			if st.index == _touch_drag_id:
+				_touch_drag_active = false
+				_touch_drag_id = -1
+			if st.index == _virtual_stick_touch_id:
+				_virtual_stick_active = false
+				_virtual_stick_touch_id = -1
+				_virtual_dir = Vector2.ZERO
+				queue_redraw()
+
+	# 2. Screen drag
+	elif event is InputEventScreenDrag:
+		var sd: InputEventScreenDrag = event as InputEventScreenDrag
+		if _touch_drag_active and sd.index == _touch_drag_id:
+			var delta_drag: Vector2 = sd.position - _touch_drag_last_pos
+			_touch_drag_last_pos = sd.position
+			_pending_drag_delta += delta_drag
+		elif _virtual_stick_active and sd.index == _virtual_stick_touch_id:
+			_virtual_stick_current = (sd.position - global_position)
+			var diff: Vector2 = _virtual_stick_current - _virtual_stick_origin
+			var dist: float = diff.length()
+			if dist > 3.0:
+				_virtual_dir = diff.normalized() * clampf((dist - 3.0) / 24.0, 0.0, 1.0)
+			else:
+				_virtual_dir = Vector2.ZERO
+			if dist > 32.0:
+				_virtual_stick_origin = _virtual_stick_current - diff.normalized() * 32.0
+			queue_redraw()
+
+	# 3. Mouse input emulation (for web / desktop testing)
+	elif event is InputEventMouseButton:
+		var mb: InputEventMouseButton = event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_LEFT:
+			var local_pos: Vector2 = (mb.position - global_position)
+			var box_rect: Rect2 = Rect2(_box_origin, Vector2(BOX_W, BOX_H))
+			if mb.pressed:
+				if box_rect.has_point(local_pos):
+					_touch_drag_active = true
+					_touch_drag_id = -99
+					_touch_drag_last_pos = mb.position
+				else:
+					_virtual_stick_active = true
+					_virtual_stick_touch_id = -99
+					_virtual_stick_origin = local_pos
+					_virtual_stick_current = local_pos
+					_virtual_dir = Vector2.ZERO
+					queue_redraw()
+			else:
+				_touch_drag_active = false
+				_touch_drag_id = -1
+				_virtual_stick_active = false
+				_virtual_stick_touch_id = -1
+				_virtual_dir = Vector2.ZERO
+				queue_redraw()
+
+	elif event is InputEventMouseMotion:
+		var mm: InputEventMouseMotion = event as InputEventMouseMotion
+		if _touch_drag_active and _touch_drag_id == -99:
+			var delta_drag: Vector2 = mm.position - _touch_drag_last_pos
+			_touch_drag_last_pos = mm.position
+			_pending_drag_delta += delta_drag
+		elif _virtual_stick_active and _virtual_stick_touch_id == -99:
+			_virtual_stick_current = (mm.position - global_position)
+			var diff: Vector2 = _virtual_stick_current - _virtual_stick_origin
+			var dist: float = diff.length()
+			if dist > 3.0:
+				_virtual_dir = diff.normalized() * clampf((dist - 3.0) / 24.0, 0.0, 1.0)
+			else:
+				_virtual_dir = Vector2.ZERO
+			if dist > 32.0:
+				_virtual_stick_origin = _virtual_stick_current - diff.normalized() * 32.0
+			queue_redraw()
+
+func _clamp_avatar_position() -> void:
+	_avatar_root.position.x = clampf(
+		_avatar_root.position.x,
+		_box_origin.x + 11.0,
+		_box_origin.x + BOX_W - 11.0
+	)
+	_avatar_root.position.y = clampf(
+		_avatar_root.position.y,
+		_box_origin.y + 12.0,
+		_box_origin.y + BOX_H - 12.0
+	)
+
+
 ## Запуск фазы уворота. Поддерживает StringName, String, или Array волн (Issue #10)
 func start_dodge(
 	defender_name: String,
@@ -153,6 +351,14 @@ func start_dodge(
 	_time_left = _total_duration
 	_invuln_timer = 0.0
 	_total_hits = 0
+	_virtual_stick_active = false
+	_virtual_stick_touch_id = -1
+	_virtual_dir = Vector2.ZERO
+	_dpad_dir = Vector2.ZERO
+	_touch_drag_active = false
+	_touch_drag_id = -1
+	_pending_drag_delta = Vector2.ZERO
+	_detect_touch_mode()
 
 	_parse_pattern_sequence(pattern_data)
 	_current_wave_index = 0
@@ -206,6 +412,13 @@ func force_finish() -> void:
 	if not _active:
 		return
 	_active = false
+	_virtual_stick_active = false
+	_virtual_stick_touch_id = -1
+	_virtual_dir = Vector2.ZERO
+	_dpad_dir = Vector2.ZERO
+	_touch_drag_active = false
+	_touch_drag_id = -1
+	_pending_drag_delta = Vector2.ZERO
 	_clear_bullets()
 	visible = false
 	dodge_finished.emit(_total_hits)
@@ -247,8 +460,18 @@ func _process(delta: float) -> void:
 		_avatar_root.modulate.a = 1.0
 
 	# Управление аватаром (WASD / Стрелки)
+	# Управление аватаром (Gamepad Stick/D-Pad, WASD, Стрелки, Тач)
 	var dir: Vector2 = Vector2.ZERO
+
+	# 1. Action vector (Gamepad stick, D-Pad, Arrow keys, WASD)
+	if InputMap.has_action(&"dodge_left") and InputMap.has_action(&"dodge_right") and InputMap.has_action(&"dodge_up") and InputMap.has_action(&"dodge_down"):
+		dir = Input.get_vector(&"dodge_left", &"dodge_right", &"dodge_up", &"dodge_down")
+	else:
+		dir = Input.get_vector(&"ui_left", &"ui_right", &"ui_up", &"ui_down")
+
+	# 2. Keyboard keys fallback
 	if Input.is_key_pressed(KEY_LEFT) or Input.is_key_pressed(KEY_A):
+
 		dir.x -= 1.0
 	if Input.is_key_pressed(KEY_RIGHT) or Input.is_key_pressed(KEY_D):
 		dir.x += 1.0
@@ -257,23 +480,45 @@ func _process(delta: float) -> void:
 	if Input.is_key_pressed(KEY_DOWN) or Input.is_key_pressed(KEY_S):
 		dir.y += 1.0
 
-	if dir.length_squared() > 0.0:
+	# 3. Direct joypad axis & button fallback for all connected controllers
+	for joy_id: int in Input.get_connected_joypads():
+		var jx: float = Input.get_joy_axis(joy_id, JOY_AXIS_LEFT_X)
+		var jy: float = Input.get_joy_axis(joy_id, JOY_AXIS_LEFT_Y)
+		if absf(jx) > 0.18:
+			dir.x += jx
+		if absf(jy) > 0.18:
+			dir.y += jy
+		if Input.is_joy_button_pressed(joy_id, JOY_BUTTON_DPAD_LEFT):
+			dir.x -= 1.0
+		if Input.is_joy_button_pressed(joy_id, JOY_BUTTON_DPAD_RIGHT):
+			dir.x += 1.0
+		if Input.is_joy_button_pressed(joy_id, JOY_BUTTON_DPAD_UP):
+			dir.y -= 1.0
+		if Input.is_joy_button_pressed(joy_id, JOY_BUTTON_DPAD_DOWN):
+			dir.y += 1.0
+
+	# 4. Touch D-Pad buttons
+	if _dpad_dir.length_squared() > 0.0:
+		dir += _dpad_dir
+
+	# 5. Virtual floating joystick
+	if _virtual_dir.length_squared() > 0.0:
+		dir += _virtual_dir
+
+	if dir.length_squared() > 1.0:
 		dir = dir.normalized()
+
+	if dir.length_squared() > 0.0:
 		var move_spd: float = BASE_AVATAR_SPEED * _speed_multiplier
 		_avatar_root.position += dir * move_spd * delta
 
-	# Ограничение внутри бокса
-	_avatar_root.position.x = clampf(
-		_avatar_root.position.x,
-		_box_origin.x + 11.0,
-		_box_origin.x + BOX_W - 11.0
-	)
-	_avatar_root.position.y = clampf(
-		_avatar_root.position.y,
-		_box_origin.y + 12.0,
-		_box_origin.y + BOX_H - 12.0
-	)
+	# 6. Direct / relative touch drag
+	if _pending_drag_delta.length_squared() > 0.0:
+		_avatar_root.position += _pending_drag_delta * _speed_multiplier
+		_pending_drag_delta = Vector2.ZERO
 
+	# Ограничение внутри бокса
+	_clamp_avatar_position()
 	# Обработка активных маркеров телеграфа (Telegraphing)
 	for i: int in range(_telegraphs.size() - 1, -1, -1):
 		var tg: Dictionary = _telegraphs[i]
@@ -725,4 +970,15 @@ func _draw() -> void:
 
 	# Полоска оставшегося времени уворота над боксом
 	var ratio: float = clampf(_time_left / maxf(0.1, _total_duration), 0.0, 1.0)
+	
 	draw_rect(Rect2(_box_origin.x, _box_origin.y - 4.0, BOX_W * ratio, 2.0), Color(0.3, 0.95, 1.0, 1.0), true)
+
+	# Виртуальный плавающий джойстик при таче (Floating Virtual Stick)
+	if _virtual_stick_active:
+		var ring_col: Color = Color(0.2, 0.8, 1.0, 0.35)
+		var knob_col: Color = Color(0.35, 0.95, 1.0, 0.75)
+		draw_circle(_virtual_stick_origin, 26.0, Color(ring_col.r, ring_col.g, ring_col.b, 0.12))
+		draw_arc(_virtual_stick_origin, 26.0, 0.0, TAU, 28, ring_col, 2.0)
+		var nub_pos: Vector2 = _virtual_stick_origin + (_virtual_stick_current - _virtual_stick_origin).limit_length(26.0)
+		draw_circle(nub_pos, 10.0, knob_col)
+		draw_line(_virtual_stick_origin, nub_pos, Color(1.0, 1.0, 1.0, 0.5), 1.5)

@@ -123,7 +123,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if (
 		event.is_action_pressed("ui_accept")
-		or (event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_SPACE or event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER))
+		or (event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER])
+		or (event is InputEventJoypadButton and event.pressed and event.button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_START])
+		or (event is InputEventScreenTouch and event.pressed)
 		or (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT)
 	):
 		if advance():
@@ -256,6 +258,7 @@ func _render_dialogue_state() -> void:
 				_render_dialogue_state()
 			)
 			_choices_box.add_child(next_btn)
+			next_btn.grab_focus()
 			return
 
 	# Реплики текущего списка прочитаны: если есть развилки, отображаем кнопки выбора
@@ -271,10 +274,15 @@ func _render_dialogue_state() -> void:
 				select_choice(choice_idx)
 			)
 			_choices_box.add_child(btn)
+		for b_child: Node in _choices_box.get_children():
+			if b_child is Button and not (b_child as Button).disabled:
+				(b_child as Button).grab_focus()
+				break
 		return
 
 	# Нет развилок либо ветка уже пройдена — кнопка продолжения боя
 	_continue_btn.visible = true
+	_continue_btn.grab_focus()
 
 func select_choice(index: int) -> void:
 	if index < 0 or index >= _choices.size():

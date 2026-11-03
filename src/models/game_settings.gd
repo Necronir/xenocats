@@ -13,6 +13,7 @@ var sfx_volume: float = 0.90
 var fullscreen: bool = false
 var tutorials_enabled: bool = true
 var strict_weight_limit: bool = false
+var touch_controls_enabled: bool = true
 var seen_tutorials: Array[String] = []
 
 func load_from_disk(path: String = DEFAULT_PATH) -> bool:
@@ -27,6 +28,7 @@ func load_from_disk(path: String = DEFAULT_PATH) -> bool:
 	fullscreen = bool(cfg.get_value("display", "fullscreen", false))
 	tutorials_enabled = bool(cfg.get_value("tutorial", "enabled", true))
 	strict_weight_limit = bool(cfg.get_value("gameplay", "strict_weight_limit", false))
+	touch_controls_enabled = bool(cfg.get_value("gameplay", "touch_controls", true))
 
 	seen_tutorials.clear()
 	var raw_seen: Variant = cfg.get_value("tutorial", "seen", [])
@@ -45,6 +47,7 @@ func save_to_disk(path: String = DEFAULT_PATH) -> bool:
 	cfg.set_value("display", "fullscreen", fullscreen)
 	cfg.set_value("tutorial", "enabled", tutorials_enabled)
 	cfg.set_value("gameplay", "strict_weight_limit", strict_weight_limit)
+	cfg.set_value("gameplay", "touch_controls", touch_controls_enabled)
 	cfg.set_value("tutorial", "seen", seen_tutorials.duplicate())
 	return cfg.save(path) == OK
 

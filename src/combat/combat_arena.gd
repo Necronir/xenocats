@@ -174,6 +174,16 @@ func _build_visual_hierarchy() -> void:
 	_sync_bar.show_percentage = true
 	top_hbox.add_child(_sync_bar)
 
+	var pause_btn: Button = Button.new()
+	pause_btn.text = "⏸ МЕНЮ"
+	pause_btn.add_theme_font_size_override("font_size", 8)
+	pause_btn.pressed.connect(func() -> void:
+		AudioManager.play_sfx("ui_click")
+		Input.action_press(&"pause")
+		Input.action_release(&"pause")
+	)
+	top_hbox.add_child(pause_btn)
+
 	_dev_boss_btn = Button.new()
 	_dev_boss_btn.text = "DEV: К БОССУ"
 	_dev_boss_btn.add_theme_font_size_override("font_size", 8)
@@ -250,7 +260,7 @@ func _build_visual_hierarchy() -> void:
 
 	# 7. Undertale Dodge Box (по центру арены)
 	_dodge_arena = DodgeArena.new()
-	_dodge_arena.position = Vector2(210, 66)
+	_dodge_arena.position = Vector2(210, 56)
 	_dodge_arena.part_hit.connect(_on_dodge_part_hit)
 	_dodge_arena.dodge_finished.connect(_on_dodge_finished)
 	add_child(_dodge_arena)
@@ -1351,6 +1361,11 @@ func _begin_player_turn(cat_index: int) -> void:
 		)
 		_action_box.add_child(btn)
 
+	for child: Node in _action_box.get_children():
+		if child is Button and not (child as Button).disabled:
+			(child as Button).grab_focus()
+			break
+
 func get_pyramid_current_hp() -> int:
 	if _pyramid_active:
 		return _pyramid_current_hp
@@ -1748,9 +1763,27 @@ func _on_skill_chosen(sk: SkillData) -> void:
 		_begin_player_turn(_active_cat_index)
 	)
 	_target_box.add_child(back_btn)
+	_focus_first_target_button()
 
 	if has_modular_enemy:
 		await TutorialOverlay.show_if_needed(self, &"elite_targeting")
+
+func _focus_first_target_button() -> void:
+	for child: Node in _target_box.get_children():
+		if child is Button and not (child as Button).disabled:
+			(child as Button).grab_focus()
+			return
+		elif child is HBoxContainer:
+			for sub: Node in child.get_children():
+				if sub is Button and not (sub as Button).disabled:
+					(sub as Button).grab_focus()
+					return
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _target_box != null and _target_box.visible and event.is_action_pressed(&"ui_cancel"):
+		AudioManager.play_sfx("ui_click")
+		_begin_player_turn(_active_cat_index)
+		get_viewport().set_input_as_handled()
 
 func _start_player_qte() -> void:
 	_action_box.visible = false
@@ -2189,6 +2222,7 @@ func _handle_victory() -> void:
 
 	_end_overlay.visible = true
 	_epilogue_btn.visible = false
+	call_deferred("_focus_end_overlay_btn")
 	for conn: Dictionary in _end_btn.pressed.get_connections():
 		_end_btn.pressed.disconnect(conn["callable"] as Callable)
 	for econn: Dictionary in _epilogue_btn.pressed.get_connections():
@@ -2629,6 +2663,13 @@ func _handle_defeat() -> void:
 	_end_btn.pressed.connect(func() -> void:
 		EventBus.request_scene_change.emit(&"HUB", {})
 	)
+	call_deferred("_focus_end_overlay_btn")
+
+func _focus_end_overlay_btn() -> void:
+	if _epilogue_btn != null and _epilogue_btn.visible and not _epilogue_btn.disabled:
+		_epilogue_btn.grab_focus()
+	elif _end_btn != null and _end_btn.visible and not _end_btn.disabled:
+		_end_btn.grab_focus()
 
 func _start_ensemble_finisher(target_en: EnemyInstance) -> void:
 	var fbc: FinalBossController = target_en.final_boss_controller

@@ -769,17 +769,24 @@ func _draw() -> void:
 			draw_colored_polygon(beam_poly, draw_col)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode in [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER, KEY_ESCAPE]:
-			if current_act == Act.CABIN:
-				advance_cabin_dialogue()
-				get_viewport().set_input_as_handled()
-			elif current_act == Act.CONCERT:
-				_on_return_to_hub()
-				get_viewport().set_input_as_handled()
+	var should_advance: bool = false
+	if event.is_action_pressed("ui_accept") or event.is_action_pressed("ui_cancel"):
+		should_advance = true
+	elif event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER, KEY_ESCAPE]:
+		should_advance = true
+	elif event is InputEventJoypadButton and event.pressed and event.button_index in [JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_X, JOY_BUTTON_START]:
+		should_advance = true
+	elif event is InputEventScreenTouch and event.pressed:
+		should_advance = true
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		should_advance = true
+
+	if should_advance:
 		if current_act == Act.CABIN:
 			advance_cabin_dialogue()
+			get_viewport().set_input_as_handled()
+		elif current_act == Act.CONCERT:
+			_on_return_to_hub()
 			get_viewport().set_input_as_handled()
 
 func _on_return_to_hub() -> void:
