@@ -9,7 +9,7 @@ var _pause_menu: PauseMenu = null
 var current_scene_key: StringName = &""
 var current_payload: Dictionary = {}
 
-const PAUSABLE_SCENES: Array[StringName] = [&"BATTLE", &"MAP"]
+const PAUSABLE_SCENES: Array[StringName] = [&"BATTLE", &"MAP", &"GARAGE"]
 
 const SCENE_PATHS: Dictionary = {
 	"HUB": "res://src/hub/hub_scene.tscn",

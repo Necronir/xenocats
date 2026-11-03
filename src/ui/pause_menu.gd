@@ -26,6 +26,8 @@ func _ready() -> void:
 	visible = false
 	_ensure_input_actions()
 	_build_ui()
+	if not EventBus.pause_requested.is_connected(_on_pause_requested):
+		EventBus.pause_requested.connect(_on_pause_requested)
 
 func _ensure_input_actions() -> void:
 	if not InputMap.has_action(&"pause"):
@@ -69,7 +71,7 @@ func _build_ui() -> void:
 	_main_panel.add_child(vbox)
 
 	var title_lbl: Label = Label.new()
-	title_lbl.text = "⏸ ПАУЗА // ЧАСТОТА БРЕМЕН-4"
+	title_lbl.text = "|| ПАУЗА // ЧАСТОТА БРЕМЕН-4"
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_lbl.add_theme_font_size_override("font_size", 12)
 	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.35))
@@ -88,16 +90,16 @@ func _build_ui() -> void:
 	)
 	vbox.add_child(_settings_btn)
 
-	_tutorials_btn = _make_menu_button("📖 СПРАВОЧНИК ОБУЧЕНИЯ", Color(0.95, 0.88, 0.45), func() -> void:
+	_tutorials_btn = _make_menu_button("★ СПРАВОЧНИК ОБУЧЕНИЯ", Color(0.95, 0.88, 0.45), func() -> void:
 		AudioManager.play_sfx("ui_click")
 		_open_tutorials_subpanel()
 	)
 	vbox.add_child(_tutorials_btn)
 
-	_retry_battle_btn = _make_menu_button("↻ ПЕРЕИГРАТЬ БОЙ С НАЧАЛА", Color(1.0, 0.78, 0.35), retry_current_battle)
+	_retry_battle_btn = _make_menu_button("<> ПЕРЕИГРАТЬ БОЙ С НАЧАЛА", Color(1.0, 0.78, 0.35), retry_current_battle)
 	vbox.add_child(_retry_battle_btn)
 
-	_hub_btn = _make_menu_button("⌂ В ЛАГЕРЬ БРОДЯГ (ХАБ)", Color(1.0, 0.55, 0.55), return_to_hub)
+	_hub_btn = _make_menu_button("<- В ЛАГЕРЬ БРОДЯГ (ХАБ)", Color(1.0, 0.55, 0.55), return_to_hub)
 	vbox.add_child(_hub_btn)
 
 	# 2. Вложенная панель настроек
@@ -123,7 +125,7 @@ func _build_ui() -> void:
 	_tutorials_panel.add_child(tut_vbox)
 
 	var tut_title: Label = Label.new()
-	tut_title.text = "📖 СПРАВОЧНИК МЕХАНИК БРЕМЕН-4"
+	tut_title.text = "★ СПРАВОЧНИК МЕХАНИК БРЕМЕН-4"
 	tut_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tut_title.add_theme_font_size_override("font_size", 11)
 	tut_title.add_theme_color_override("font_color", Color(1.0, 0.88, 0.35))
@@ -168,6 +170,23 @@ func _close_tutorials_subpanel() -> void:
 	_main_panel.visible = true
 	if _tutorials_btn != null:
 		_tutorials_btn.grab_focus()
+
+func _on_pause_requested() -> void:
+	if not allowed:
+		return
+	if not get_tree().get_nodes_in_group(&"modal_overlay").is_empty():
+		return
+	if is_open:
+		AudioManager.play_sfx("ui_click")
+		if _settings_panel != null and _settings_panel.visible:
+			_settings_panel.close_panel()
+		elif _tutorials_panel != null and _tutorials_panel.visible:
+			_close_tutorials_subpanel()
+		else:
+			close()
+	elif can_open_pause():
+		AudioManager.play_sfx("ui_click")
+		open()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"toggle_fullscreen"):
@@ -225,6 +244,7 @@ func open() -> bool:
 	_settings_panel.visible = false
 	_tutorials_panel.visible = false
 	_retry_battle_btn.visible = (mode == &"BATTLE")
+
 	get_tree().paused = true
 	AudioManager.set_pause_duck(true)
 	if _resume_btn != null:

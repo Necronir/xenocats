@@ -87,10 +87,19 @@ func can_pause() -> bool:
 	)
 
 func _exit_tree() -> void:
+	if SaveManager.settings != null and SaveManager.settings.changed.is_connected(_sync_dev_visibility):
+		SaveManager.settings.changed.disconnect(_sync_dev_visibility)
 	if _shake_tween != null and _shake_tween.is_valid():
 		_shake_tween.kill()
 	if _mid_battle_dialogue != null and is_instance_valid(_mid_battle_dialogue):
 		_mid_battle_dialogue.close_dialogue()
+
+func _sync_dev_visibility() -> void:
+	var dev_on: bool = SaveManager.is_dev_menu_enabled()
+	if _dev_boss_btn != null:
+		_dev_boss_btn.visible = dev_on
+	if _dev_win_btn != null:
+		_dev_win_btn.visible = dev_on
 
 func is_mid_battle_dialogue_active() -> bool:
 	return _mid_battle_dialogue != null and is_instance_valid(_mid_battle_dialogue)
@@ -176,13 +185,14 @@ func _build_visual_hierarchy() -> void:
 	top_hbox.add_child(_sync_bar)
 
 	var pause_btn: Button = Button.new()
-	pause_btn.text = "⏸ МЕНЮ"
-	pause_btn.add_theme_font_size_override("font_size", 8)
+	pause_btn.text = "|| МЕНЮ"
+	pause_btn.custom_minimum_size = Vector2(56, 20)
+	pause_btn.add_theme_font_size_override("font_size", 9)
 	_style_combat_button(pause_btn, &"default")
 	pause_btn.pressed.connect(func() -> void:
 		AudioManager.play_sfx("ui_click")
-		Input.action_press(&"pause")
-		Input.action_release(&"pause")
+		EventBus.pause_requested.emit()
+
 	)
 	top_hbox.add_child(pause_btn)
 
@@ -211,6 +221,9 @@ func _build_visual_hierarchy() -> void:
 		_handle_victory()
 	)
 	top_hbox.add_child(_dev_win_btn)
+	_sync_dev_visibility()
+	if SaveManager.settings != null and not SaveManager.settings.changed.is_connected(_sync_dev_visibility):
+		SaveManager.settings.changed.connect(_sync_dev_visibility)
 
 	# 4. Лог боевых сообщений
 	var log_panel: PanelContainer = _make_styled_panel(Rect2(6, 34, 628, 22))
@@ -731,7 +744,12 @@ func _spawn_cat_rigs() -> void:
 		legs_joint.add_child(legs_sparks)
 
 		var name_lbl: Label = Label.new()
-		name_lbl.position = Vector2(-24, -32)
+		name_lbl.position = Vector2(-36, -32)
+		name_lbl.size = Vector2(72, 14)
+		name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		name_lbl.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+		name_lbl.add_theme_color_override("font_outline_color", Color(0.06, 0.08, 0.12, 1.0))
+		name_lbl.add_theme_constant_override("outline_size", 2)
 		name_lbl.text = cat.display_name
 		name_lbl.add_theme_font_size_override("font_size", 8)
 		root.add_child(name_lbl)
@@ -851,6 +869,10 @@ func _spawn_enemy_rigs() -> void:
 
 		var info_lbl: Label = Label.new()
 		info_lbl.position = Vector2(-52, -48)
+		info_lbl.size = Vector2(104, 20)
+		info_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		info_lbl.add_theme_color_override("font_outline_color", Color(0.06, 0.08, 0.12, 1.0))
+		info_lbl.add_theme_constant_override("outline_size", 2)
 		info_lbl.add_theme_font_size_override("font_size", 8)
 		root.add_child(info_lbl)
 
@@ -996,7 +1018,7 @@ func _refresh_hud() -> void:
 			else "Гитара + Бас + Барабан + Синтезатор + Резонатор «Бремен»"
 		)
 		var p_title_str: String = CombatFusionController.get_tier_title(_fusion_controller.current_tier) if (_fusion_controller != null and _fusion_controller.is_active()) else get_pyramid_title(_pyramid_tier)
-		p_title.text = "★ " + p_title_str + " | ♫ " + band_str
+		p_title.text = "★ " + p_title_str + " | " + band_str
 		p_title.add_theme_font_size_override("font_size", 9)
 		p_title.add_theme_color_override("font_color", Color(1.0, 0.9, 0.35))
 		p_title.clip_text = true
@@ -1086,7 +1108,7 @@ func _refresh_hud() -> void:
 				st_str += " [ТАНК]"
 			if c.bleed_stacks > 0:
 				st_str += " [МАСЛО]"
-			title_l.text = c.display_name + " ♪" + c.instrument_name + st_str
+			title_l.text = c.display_name + " [" + c.instrument_name + "]" + st_str
 			title_l.clip_text = true
 			title_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 			title_l.tooltip_text = title_l.text
@@ -1282,9 +1304,9 @@ func _begin_player_turn(cat_index: int) -> void:
 	var header: Label = Label.new()
 	var f_title: String = CombatFusionController.get_tier_title(_fusion_controller.current_tier) if (_fusion_controller != null and _fusion_controller.is_active()) else get_pyramid_title(_pyramid_tier)
 	header.text = (
-		("ХОД: " + f_title + " [♫ +Резонатор «Бремен»]:")
+		("ХОД: " + f_title + " [+Резонатор «Бремен»]:")
 		if _pyramid_active
-		else ("ХОД: " + cat.display_name + " (" + cat.role_title + " | ♪ " + cat.instrument_name + ")")
+		else ("ХОД: " + cat.display_name + " (" + cat.role_title + " | " + cat.instrument_name + ")")
 	)
 	header.add_theme_font_size_override("font_size", 10)
 	header.add_theme_color_override("font_color", Color(0.95, 0.88, 0.35))
@@ -1336,7 +1358,7 @@ func _begin_player_turn(cat_index: int) -> void:
 				TutorialToast.show_if_needed(self, &"pyramid_ready")
 				enabled_action_buttons.append(btn)
 			else:
-				btn.text = "🔒 " + t_name + " [" + str(cost) + "% Sync]"
+				btn.text = "* " + t_name + " [" + str(cost) + "% Sync]"
 				btn.disabled = true
 				btn.tooltip_text = t_tip + "\nПорог активации: " + str(cost) + "% (Текущий заряд: " + str(SaveManager.sync_gauge) + "% / " + str(cost) + "%)"
 				_style_combat_button(btn, &"default")
@@ -1381,7 +1403,7 @@ func _begin_player_turn(cat_index: int) -> void:
 
 	var hint_lbl: Label = Label.new()
 	var is_touch_a: bool = (SaveManager.settings != null and SaveManager.settings.touch_controls_enabled)
-	hint_lbl.text = "🎮 [D-Pad/Стик] Выбор | [A] Удар" + (" | 👆 Тач" if is_touch_a else "")
+	hint_lbl.text = "[D-Pad/Стик] Выбор | [A] Удар" + (" | [Тач]" if is_touch_a else "")
 	hint_lbl.add_theme_font_size_override("font_size", 7)
 	hint_lbl.add_theme_color_override("font_color", Color(0.45, 0.72, 0.88, 0.8))
 	_action_box.add_child(hint_lbl)
@@ -1756,7 +1778,7 @@ func _on_skill_chosen(sk: SkillData) -> void:
 			has_modular_enemy = true
 			if living_enemies_count > 1:
 				var m_hdr: Label = Label.new()
-				m_hdr.text = "► " + str(e_idx + 1) + ". " + en.data.enemy_name + (" [ЭЛИТА]" if (en.data != null and en.data.is_elite) else "") + ":"
+				m_hdr.text = "▶ " + str(e_idx + 1) + ". " + en.data.enemy_name + (" [ЭЛИТА]" if (en.data != null and en.data.is_elite) else "") + ":"
 				m_hdr.add_theme_font_size_override("font_size", 8)
 				m_hdr.add_theme_color_override("font_color", Color(0.95, 0.8, 0.4))
 				_target_box.add_child(m_hdr)
@@ -1803,7 +1825,7 @@ func _on_skill_chosen(sk: SkillData) -> void:
 		else:
 			var e_btn: Button = Button.new()
 			e_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			var mob_prefix: String = ("► " + str(e_idx + 1) + ". ") if living_enemies_count > 1 else ""
+			var mob_prefix: String = ("▶ " + str(e_idx + 1) + ". ") if living_enemies_count > 1 else ""
 			e_btn.text = mob_prefix + en.data.enemy_name + " (HP: " + str(en.current_hp) + "/" + str(en.data.max_hp) + ")"
 			e_btn.add_theme_font_size_override("font_size", 9)
 			_style_combat_button(e_btn, &"default")
@@ -1829,7 +1851,7 @@ func _on_skill_chosen(sk: SkillData) -> void:
 
 	var t_hint: Label = Label.new()
 	var is_touch_t: bool = (SaveManager.settings != null and SaveManager.settings.touch_controls_enabled)
-	t_hint.text = "🎮 [D-Pad/Стик] Выбор | [A] Удар | [B] Назад" + (" | 👆 Тач" if is_touch_t else "")
+	t_hint.text = "[D-Pad/Стик] Выбор | [A] Удар | [B] Назад" + (" | [Тач]" if is_touch_t else "")
 	t_hint.add_theme_font_size_override("font_size", 7)
 	t_hint.add_theme_color_override("font_color", Color(0.45, 0.72, 0.88, 0.8))
 	_target_box.add_child(t_hint)

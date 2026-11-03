@@ -56,6 +56,9 @@ func _ready() -> void:
 	load_meta()
 	load_run()
 
+func is_dev_menu_enabled() -> bool:
+	return settings != null and settings.dev_menu_enabled
+
 func _process(delta: float) -> void:
 	if has_active_run:
 		run_elapsed_sec += delta

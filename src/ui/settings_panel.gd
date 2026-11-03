@@ -13,6 +13,7 @@ var _music_slider: HSlider = null
 var _music_val_label: Label = null
 var _fullscreen_check: CheckButton = null
 var _touch_controls_check: CheckButton = null
+var _dev_menu_check: CheckButton = null
 var _tutorials_check: CheckButton = null
 var _reset_tutorials_btn: Button = null
 var _reset_progress_btn: Button = null
@@ -22,9 +23,9 @@ var _status_hint_label: Label = null
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	custom_minimum_size = Vector2(360, 275)
-	size = Vector2(360, 275)
-	position = Vector2((640.0 - 360.0) * 0.5, (360.0 - 275.0) * 0.5)
+	custom_minimum_size = Vector2(360, 298)
+	size = Vector2(360, 298)
+	position = Vector2((640.0 - 360.0) * 0.5, (360.0 - 298.0) * 0.5)
 
 	var st: StyleBoxFlat = StyleBoxFlat.new()
 	st.bg_color = Color(0.06, 0.08, 0.14, 0.98)
@@ -86,6 +87,17 @@ func _ready() -> void:
 	)
 	vbox.add_child(_touch_controls_check)
 
+	_dev_menu_check = CheckButton.new()
+	_dev_menu_check.text = "Панель разработчика (Dev Меню)"
+	_dev_menu_check.add_theme_font_size_override("font_size", 9)
+	_dev_menu_check.toggled.connect(func(pressed: bool) -> void:
+		AudioManager.play_sfx("ui_click")
+		if SaveManager.settings != null:
+			SaveManager.settings.set_dev_menu_enabled(pressed)
+			SaveManager.settings.save_to_disk(SaveManager.SETTINGS_PATH)
+	)
+	vbox.add_child(_dev_menu_check)
+
 	# 5. Tutorials CheckButton + Reset Button
 	var tut_row: HBoxContainer = HBoxContainer.new()
 	tut_row.add_theme_constant_override("separation", 6)
@@ -113,7 +125,7 @@ func _ready() -> void:
 			SaveManager.settings.save_to_disk(SaveManager.SETTINGS_PATH)
 		refresh_from_settings()
 		if _status_hint_label != null:
-			_status_hint_label.text = "✓ Все подсказки обучения сброшены!"
+			_status_hint_label.text = "★ Все подсказки обучения сброшены!"
 	)
 	tut_row.add_child(_reset_tutorials_btn)
 
@@ -134,7 +146,7 @@ func _ready() -> void:
 			AudioManager.play_sfx("part_break")
 			SaveManager.hard_reset_all_progress()
 			if _status_hint_label != null:
-				_status_hint_label.text = "✓ Прогресс полностью сброшен! Запущен чистый профиль."
+				_status_hint_label.text = "★ Прогресс полностью сброшен! Запущен чистый профиль."
 				_status_hint_label.add_theme_color_override("font_color", Color(0.4, 1.0, 0.6))
 			close_panel()
 			EventBus.request_scene_change.emit(&"HUB", {})
@@ -224,6 +236,8 @@ func refresh_from_settings() -> void:
 		_tutorials_check.set_pressed_no_signal(s.tutorials_enabled)
 	if _touch_controls_check != null:
 		_touch_controls_check.set_pressed_no_signal(s.touch_controls_enabled)
+	if _dev_menu_check != null:
+		_dev_menu_check.set_pressed_no_signal(s.dev_menu_enabled)
 	if _status_hint_label != null:
 		_status_hint_label.text = ""
 

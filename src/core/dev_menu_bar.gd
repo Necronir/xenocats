@@ -34,7 +34,7 @@ func _ready() -> void:
 
 	var sec: int = clampi(SaveManager.current_sector if SaveManager.has_active_run else 1, 1, 3)
 	_current_boss_btn = _make_dev_button(
-		"⚔ К БОССУ УРОВНЯ (Сектор " + str(sec) + ")",
+		"⚡ К БОССУ УРОВНЯ (Сектор " + str(sec) + ")",
 		Color(1.0, 0.92, 0.35),
 		func() -> void:
 			_trigger_boss_jump(-1)
@@ -75,10 +75,21 @@ func _ready() -> void:
 	)
 	hbox.add_child(epilogue_btn)
 
+	_sync_visibility()
+	if SaveManager.settings != null and not SaveManager.settings.changed.is_connected(_sync_visibility):
+		SaveManager.settings.changed.connect(_sync_visibility)
+
+func _exit_tree() -> void:
+	if SaveManager.settings != null and SaveManager.settings.changed.is_connected(_sync_visibility):
+		SaveManager.settings.changed.disconnect(_sync_visibility)
+
+func _sync_visibility() -> void:
+	visible = SaveManager.is_dev_menu_enabled()
+
 func refresh_labels() -> void:
 	if _current_boss_btn != null:
 		var sec: int = clampi(SaveManager.current_sector if SaveManager.has_active_run else 1, 1, 3)
-		_current_boss_btn.text = "⚔ К БОССУ УРОВНЯ (Сектор " + str(sec) + ")"
+		_current_boss_btn.text = "⚡ К БОССУ УРОВНЯ (Сектор " + str(sec) + ")"
 
 func _make_dev_button(text_str: String, font_col: Color, on_press: Callable) -> Button:
 	var btn: Button = Button.new()

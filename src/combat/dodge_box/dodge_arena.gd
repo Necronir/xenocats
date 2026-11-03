@@ -166,10 +166,10 @@ func _build_touch_dpad() -> void:
 	_touch_controls_container.add_theme_constant_override("separation", 6)
 	add_child(_touch_controls_container)
 
-	_touch_btn_left = _create_dpad_button("◄", Vector2(-1.0, 0.0))
+	_touch_btn_left = _create_dpad_button("◀", Vector2(-1.0, 0.0))
 	_touch_btn_up = _create_dpad_button("▲", Vector2(0.0, -1.0))
 	_touch_btn_down = _create_dpad_button("▼", Vector2(0.0, 1.0))
-	_touch_btn_right = _create_dpad_button("►", Vector2(1.0, 0.0))
+	_touch_btn_right = _create_dpad_button("▶", Vector2(1.0, 0.0))
 
 	_touch_controls_container.add_child(_touch_btn_left)
 	_touch_controls_container.add_child(_touch_btn_up)

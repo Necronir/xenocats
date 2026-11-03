@@ -71,7 +71,7 @@ func _build_ui() -> void:
 
 	# 5. Кнопка перехода / пропуска в правом нижнем углу
 	_skip_btn = Button.new()
-	_skip_btn.text = "ПРОДОЛЖИТЬ [SPACE / ENTER] ❯❯"
+	_skip_btn.text = "ПРОДОЛЖИТЬ [SPACE / ENTER] >>"
 	_skip_btn.position = Vector2(400, 326)
 	_skip_btn.size = Vector2(232, 26)
 	_skip_btn.add_theme_font_size_override("font_size", 9)
@@ -116,7 +116,7 @@ func _start_media() -> void:
 			_video_player.visible = false
 			_photo_rect.texture = tex
 			_photo_rect.visible = true
-			_skip_btn.text = "ПРОДОЛЖИТЬ [SPACE / ENTER] ❯❯"
+			_skip_btn.text = "ПРОДОЛЖИТЬ [SPACE / ENTER] >>"
 			_estimated_duration = float(_payload.get("duration", 6.0))
 
 			var st_stage: int = int(_payload.get("story_stage", 0))
@@ -137,7 +137,7 @@ func _start_media() -> void:
 			_photo_rect.visible = false
 			_video_player.visible = true
 			_video_player.stream = stream
-			_skip_btn.text = "ПРОПУСТИТЬ [ESC / SPACE] ❯❯"
+			_skip_btn.text = "ПРОПУСТИТЬ [ESC / SPACE] >>"
 			_estimated_duration = 14.0
 			if DisplayServer.get_name() != "headless":
 				_video_player.play()

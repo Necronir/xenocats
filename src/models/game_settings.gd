@@ -14,6 +14,7 @@ var fullscreen: bool = false
 var tutorials_enabled: bool = true
 var strict_weight_limit: bool = false
 var touch_controls_enabled: bool = true
+var dev_menu_enabled: bool = false
 var seen_tutorials: Array[String] = []
 
 func load_from_disk(path: String = DEFAULT_PATH) -> bool:
@@ -29,6 +30,7 @@ func load_from_disk(path: String = DEFAULT_PATH) -> bool:
 	tutorials_enabled = bool(cfg.get_value("tutorial", "enabled", true))
 	strict_weight_limit = bool(cfg.get_value("gameplay", "strict_weight_limit", false))
 	touch_controls_enabled = bool(cfg.get_value("gameplay", "touch_controls", true))
+	dev_menu_enabled = bool(cfg.get_value("gameplay", "dev_menu_enabled", false))
 
 	seen_tutorials.clear()
 	var raw_seen: Variant = cfg.get_value("tutorial", "seen", [])
@@ -48,6 +50,7 @@ func save_to_disk(path: String = DEFAULT_PATH) -> bool:
 	cfg.set_value("tutorial", "enabled", tutorials_enabled)
 	cfg.set_value("gameplay", "strict_weight_limit", strict_weight_limit)
 	cfg.set_value("gameplay", "touch_controls", touch_controls_enabled)
+	cfg.set_value("gameplay", "dev_menu_enabled", dev_menu_enabled)
 	cfg.set_value("tutorial", "seen", seen_tutorials.duplicate())
 	return cfg.save(path) == OK
 
@@ -78,6 +81,10 @@ func apply_audio() -> void:
 
 func set_fullscreen(enabled: bool) -> void:
 	fullscreen = enabled
+
+func set_dev_menu_enabled(enabled: bool) -> void:
+	dev_menu_enabled = enabled
+	changed.emit()
 	apply_display()
 	changed.emit()
 
