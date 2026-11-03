@@ -19,6 +19,9 @@ signal node_selected(node_id: int, node_type: StringName)
 signal node_completed(node_id: int)
 signal run_resources_changed(scrap: int, sync_gauge: int)
 
+# Сигналы паузы и меню
+signal pause_requested()
+
 # Сигналы мета-прогрессии и Dialogic 2
 signal meta_resources_changed(titanium_scrap: int, ai_cores: int)
 signal dialogic_event_triggered(event_code: String, amount: int)

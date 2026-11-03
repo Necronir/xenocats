@@ -49,7 +49,7 @@ func _ready() -> void:
 	panel.add_child(vbox)
 
 	var badge_lbl: Label = Label.new()
-	badge_lbl.text = "📖 ТАКТИЧЕСКАЯ ПАМЯТКА БРЕМЕН-4"
+	badge_lbl.text = "★ ТАКТИЧЕСКАЯ ПАМЯТКА БРЕМЕН-4"
 	badge_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	badge_lbl.add_theme_font_size_override("font_size", 8)
 	badge_lbl.add_theme_color_override("font_color", Color(0.4, 0.95, 1.0))
@@ -106,9 +106,9 @@ func _ready() -> void:
 	hint_lbl.add_theme_font_size_override("font_size", 8)
 	hint_lbl.add_theme_color_override("font_color", Color(1.0, 0.9, 0.4, 0.95))
 	if _is_reference_mode:
-		hint_lbl.text = "🎮 [A / B] Закрыть"
+		hint_lbl.text = "[A / B] Закрыть"
 	else:
-		hint_lbl.text = "🎮 [A] Понятно  •  [B / Start] Закрыть  •  [X / Y] Пропустить обучение"
+		hint_lbl.text = "[A] Понятно  •  [B / Start] Закрыть  •  [X / Y] Пропустить обучение"
 	vbox.add_child(hint_lbl)
 
 	_ok_btn.grab_focus()

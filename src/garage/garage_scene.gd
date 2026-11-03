@@ -152,13 +152,14 @@ func _build_ui() -> void:
 	top_hbox.add_child(_exit_btn)
 
 	var pause_btn: Button = Button.new()
-	pause_btn.text = "⏸ МЕНЮ"
+	pause_btn.text = "|| МЕНЮ"
+	pause_btn.custom_minimum_size = Vector2(56, 20)
 	pause_btn.add_theme_font_size_override("font_size", 9)
 	_style_garage_button(pause_btn, &"default")
 	pause_btn.pressed.connect(func() -> void:
 		AudioManager.play_sfx("ui_click")
-		Input.action_press(&"pause")
-		Input.action_release(&"pause")
+		EventBus.pause_requested.emit()
+
 	)
 	top_hbox.add_child(pause_btn)
 
@@ -257,7 +258,7 @@ func _build_ui() -> void:
 	hint_lbl.position = Vector2(8, 342)
 	hint_lbl.size = Vector2(624, 16)
 	var is_touch_g: bool = (SaveManager.settings != null and SaveManager.settings.touch_controls_enabled)
-	hint_lbl.text = "🎮 [LB/RB] Выбор героя  |  [D-Pad] Навигация  |  [A] Установить/Починить  |  [R-Стик] Прокрутка  |  [B] Назад" + ("  |  👆 Тач" if is_touch_g else "")
+	hint_lbl.text = "[LB/RB] Выбор героя  |  [D-Pad] Навигация  |  [A] Установить/Починить  |  [R-Стик] Прокрутка  |  [B] Назад" + ("  |  [Тач]" if is_touch_g else "")
 	hint_lbl.add_theme_font_size_override("font_size", 7)
 	hint_lbl.add_theme_color_override("font_color", Color(0.45, 0.75, 0.9, 0.85))
 	add_child(hint_lbl)
@@ -321,7 +322,7 @@ func _refresh_view() -> void:
 		child.queue_free()
 
 	var title: Label = Label.new()
-	title.text = cat.display_name + " [♪ " + cat.instrument_name + "] | Инициатива: " + str(cat.get_initiative_score())
+	title.text = cat.display_name + " [" + cat.instrument_name + "] | Инициатива: " + str(cat.get_initiative_score())
 	title.add_theme_font_size_override("font_size", 11)
 	title.add_theme_color_override("font_color", Color(0.95, 0.88, 0.35))
 	_cat_details_box.add_child(title)
@@ -387,7 +388,7 @@ func _refresh_view() -> void:
 		warn_lbl.name = "OverweightWarningLabel"
 		warn_lbl.add_theme_font_size_override("font_size", 8)
 		warn_lbl.add_theme_color_override("font_color", Color(1.0, 0.45, 0.3))
-		warn_lbl.text = "⚠️ Внимание: Штраф -" + str(penalty_pct) + "% к скорости и инициативе в бою!"
+		warn_lbl.text = "⚠ Внимание: Штраф -" + str(penalty_pct) + "% к скорости и инициативе в бою!"
 		weight_box.add_child(warn_lbl)
 
 	var repair_buttons: Array[Button] = []
@@ -507,7 +508,7 @@ func _refresh_view() -> void:
 			eq_btn.disabled = true
 			eq_btn.add_theme_color_override("font_color", Color(0.95, 0.4, 0.4))
 		elif will_overweight:
-			eq_btn.text = "⚠️ Установить (" + str(proj_w) + "/" + str(proj_cap) + " т: +" + str(ow_diff) + " т)"
+			eq_btn.text = "⚠ Установить (" + str(proj_w) + "/" + str(proj_cap) + " т: +" + str(ow_diff) + " т)"
 			eq_btn.add_theme_color_override("font_color", Color(1.0, 0.75, 0.25))
 		else:
 			eq_btn.text = "Установить на " + cat.display_name + " (" + str(proj_w) + "/" + str(proj_cap) + " т)"

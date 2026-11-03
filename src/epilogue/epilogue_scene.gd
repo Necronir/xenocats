@@ -229,7 +229,7 @@ func _build_act1_ui() -> void:
 	top_hbox.add_child(top_title)
 
 	_skip_cabin_btn = Button.new()
-	_skip_cabin_btn.text = "ПРОПУСТИТЬ К КОНЦЕРТУ ❯❯"
+	_skip_cabin_btn.text = "ПРОПУСТИТЬ К КОНЦЕРТУ >>"
 	_skip_cabin_btn.add_theme_font_size_override("font_size", 8)
 	_skip_cabin_btn.pressed.connect(start_act_2_concert)
 	top_hbox.add_child(_skip_cabin_btn)
@@ -292,7 +292,7 @@ func _build_act1_ui() -> void:
 	bottom_hbox.add_child(_next_btn)
 
 	_to_concert_btn = Button.new()
-	_to_concert_btn.text = "В КОНЦЕРТНЫЙ ЗАЛ НА ПОБЕДНЫЙ РОК-КОНЦЕРТ ❯❯"
+	_to_concert_btn.text = "В КОНЦЕРТНЫЙ ЗАЛ НА ПОБЕДНЫЙ РОК-КОНЦЕРТ >>"
 	_to_concert_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_to_concert_btn.visible = false
 	_to_concert_btn.add_theme_font_size_override("font_size", 10)
@@ -477,7 +477,7 @@ func _build_act2_ui() -> void:
 
 	# 5. Кнопка пропуска в Хаб
 	_skip_to_hub_btn = Button.new()
-	_skip_to_hub_btn.text = "В ЛАГЕРЬ БРОДЯГ (ХАБ) [SPACE / ESC] ❯❯"
+	_skip_to_hub_btn.text = "В ЛАГЕРЬ БРОДЯГ (ХАБ) [SPACE / ESC] >>"
 	_skip_to_hub_btn.position = Vector2(390, 324)
 	_skip_to_hub_btn.size = Vector2(242, 28)
 	_skip_to_hub_btn.add_theme_font_size_override("font_size", 9)

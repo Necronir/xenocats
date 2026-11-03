@@ -159,7 +159,7 @@ func _build_ui() -> void:
 	top_hbox.add_child(_status_label)
 
 	_fast_boss_btn = Button.new()
-	_fast_boss_btn.text = "⚔ К БОССУ"
+	_fast_boss_btn.text = "⚡ К БОССУ"
 	_fast_boss_btn.add_theme_font_size_override("font_size", 9)
 	_fast_boss_btn.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
 	_fast_boss_btn.pressed.connect(func() -> void:
@@ -191,12 +191,13 @@ func _build_ui() -> void:
 	top_hbox.add_child(hub_btn)
 
 	var pause_btn: Button = Button.new()
-	pause_btn.text = "⏸ МЕНЮ"
+	pause_btn.text = "|| МЕНЮ"
+	pause_btn.custom_minimum_size = Vector2(56, 20)
 	pause_btn.add_theme_font_size_override("font_size", 9)
 	pause_btn.pressed.connect(func() -> void:
 		AudioManager.play_sfx("ui_click")
-		Input.action_press(&"pause")
-		Input.action_release(&"pause")
+		EventBus.pause_requested.emit()
+
 	)
 	_style_top_bar_button(pause_btn)
 	top_hbox.add_child(pause_btn)
@@ -256,8 +257,23 @@ func _build_ui() -> void:
 	hint_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	hint_lbl.add_theme_font_size_override("font_size", 8)
 	hint_lbl.add_theme_color_override("font_color", Color(1.0, 0.9, 0.4, 0.95))
-	hint_lbl.text = "🎮 ГЕЙМПАД: [D-Pad] Выбор пути  •  [A] В путь  •  [Прав. Стик / LB / RB] Прокрутка карты  •  [Y] Центр пути"
+	hint_lbl.text = "ГЕЙМПАД: [D-Pad] Выбор пути  •  [A] В путь  •  [Прав. Стик / LB / RB] Прокрутка карты  •  [Y] Центр пути"
 	leg_vbox.add_child(hint_lbl)
+
+	_sync_dev_visibility()
+	if SaveManager.settings != null and not SaveManager.settings.changed.is_connected(_sync_dev_visibility):
+		SaveManager.settings.changed.connect(_sync_dev_visibility)
+
+func _exit_tree() -> void:
+	if SaveManager.settings != null and SaveManager.settings.changed.is_connected(_sync_dev_visibility):
+		SaveManager.settings.changed.disconnect(_sync_dev_visibility)
+
+func _sync_dev_visibility() -> void:
+	var dev_on: bool = SaveManager.is_dev_menu_enabled()
+	if _dev_menu_bar != null:
+		_dev_menu_bar.visible = dev_on
+	if _fast_boss_btn != null:
+		_fast_boss_btn.visible = dev_on
 
 func _populate_map_nodes() -> void:
 	for child: Node in _graph_canvas.get_children():

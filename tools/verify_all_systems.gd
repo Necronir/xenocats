@@ -2619,6 +2619,113 @@ func _ready() -> void:
 
 	print("[24] Issue #45: Gamepad & Mobile Touch support in Dodge Box, Combat & Map verified OK")
 
+	# --- [25] VERIFYING ISSUE #48: MOBILE MENU BUTTON, FONT GLYPHS & DEV MENU CHECK TOGGLE ---
+	print("\n--- [25] VERIFYING ISSUE #48: MOBILE MENU BUTTON, FONT GLYPHS & DEV MENU CHECK TOGGLE ---")
+
+	# 25.1 Verify on-screen Menu button opens PauseMenu via EventBus.pause_requested
+	var root_48: SceneManager = SceneManager.new()
+	add_child(root_48)
+	await get_tree().process_frame
+
+	root_48.change_scene(&"BATTLE", {"is_boss": false, "sector": 1})
+	await get_tree().process_frame
+
+	assert(root_48._pause_menu != null, "SceneManager must own PauseMenu")
+	assert(not root_48._pause_menu.is_open, "PauseMenu must initially be closed in BATTLE")
+
+	# Emit pause_requested directly (as the on-screen Menu button does on mobile click)
+	EventBus.pause_requested.emit()
+	await get_tree().process_frame
+	assert(root_48._pause_menu.is_open and get_tree().paused, "Clicking on-screen Menu button must open PauseMenu in BATTLE")
+
+	# Clicking again closes it
+	EventBus.pause_requested.emit()
+	await get_tree().process_frame
+	assert(not root_48._pause_menu.is_open and not get_tree().paused, "Clicking Menu button again must close PauseMenu")
+
+	# Test in MAP
+	root_48.change_scene(&"MAP", {})
+	await get_tree().process_frame
+	EventBus.pause_requested.emit()
+	await get_tree().process_frame
+	assert(root_48._pause_menu.is_open and get_tree().paused, "Clicking Menu button must open PauseMenu in MAP")
+	EventBus.pause_requested.emit()
+	await get_tree().process_frame
+	assert(not root_48._pause_menu.is_open, "Clicking Menu button again must close PauseMenu in MAP")
+
+	# Test in GARAGE
+	root_48.change_scene(&"GARAGE", {})
+	await get_tree().process_frame
+	EventBus.pause_requested.emit()
+	await get_tree().process_frame
+	assert(root_48._pause_menu.is_open and get_tree().paused, "Clicking Menu button must open PauseMenu in GARAGE")
+	root_48._pause_menu.close()
+
+	# 25.2 Verify Dev Menu hidden by default & toggled via CheckButton
+	SaveManager.settings.set_dev_menu_enabled(false)
+	await get_tree().process_frame
+
+	var map_48: MapScene = MapScene.new()
+	add_child(map_48)
+	await get_tree().process_frame
+
+	assert(map_48._dev_menu_bar != null and not map_48._dev_menu_bar.visible, "DevMenuBar must be hidden by default in MapScene")
+	assert(map_48._fast_boss_btn != null and not map_48._fast_boss_btn.visible, "Fast boss button must be hidden by default in MapScene")
+
+	var combat_48: CombatArena = CombatArena.new()
+	add_child(combat_48)
+	combat_48.setup_battle({"is_boss": false, "sector": 1})
+	await get_tree().process_frame
+
+	assert(combat_48._dev_boss_btn != null and not combat_48._dev_boss_btn.visible, "DEV: К БОССУ must be hidden by default in CombatArena")
+	assert(combat_48._dev_win_btn != null and not combat_48._dev_win_btn.visible, "DEV: ПОБЕДА must be hidden by default in CombatArena")
+
+	# Enable Dev Menu via setting / check button
+	SaveManager.settings.set_dev_menu_enabled(true)
+	await get_tree().process_frame
+
+	assert(map_48._dev_menu_bar.visible, "DevMenuBar must become visible when dev_menu_enabled is true")
+	assert(map_48._fast_boss_btn.visible, "Fast boss button must become visible when dev_menu_enabled is true")
+	assert(combat_48._dev_boss_btn.visible, "DEV: К БОССУ must become visible when dev_menu_enabled is true")
+	assert(combat_48._dev_win_btn.visible, "DEV: ПОБЕДА must become visible when dev_menu_enabled is true")
+
+	# Verify CheckButton in PauseMenu and SettingsPanel
+	assert(root_48._pause_menu._dev_menu_check != null, "PauseMenu must have _dev_menu_check CheckButton")
+	root_48._pause_menu.open()
+	assert(root_48._pause_menu._dev_menu_check.button_pressed, "PauseMenu dev check button must reflect enabled state")
+	root_48._pause_menu.close()
+
+	var sp_48: SettingsPanel = SettingsPanel.new()
+	add_child(sp_48)
+	sp_48.open_panel()
+	assert(sp_48._dev_menu_check != null and sp_48._dev_menu_check.button_pressed, "SettingsPanel dev check button must reflect enabled state")
+	sp_48.close_panel()
+	sp_48.queue_free()
+
+	# Re-hide Dev Menu
+	SaveManager.settings.set_dev_menu_enabled(false)
+	await get_tree().process_frame
+	assert(not map_48._dev_menu_bar.visible, "DevMenuBar must hide when dev_menu_enabled is toggled off")
+	assert(not combat_48._dev_boss_btn.visible, "DEV: К БОССУ must hide when dev_menu_enabled is toggled off")
+
+	map_48.queue_free()
+	combat_48.queue_free()
+	root_48.queue_free()
+	await get_tree().process_frame
+
+	# 25.3 Verify font glyphs (DodgeArena D-Pad and UI buttons)
+	var da_48: DodgeArena = DodgeArena.new()
+	add_child(da_48)
+	await get_tree().process_frame
+	assert(da_48._touch_btn_left.text == "◀", "DodgeArena left touch button must use font-supported '◀'")
+	assert(da_48._touch_btn_right.text == "▶", "DodgeArena right touch button must use font-supported '▶'")
+	assert(da_48._touch_btn_up.text == "▲", "DodgeArena up touch button must use font-supported '▲'")
+	assert(da_48._touch_btn_down.text == "▼", "DodgeArena down touch button must use font-supported '▼'")
+	da_48.queue_free()
+	await get_tree().process_frame
+
+	print("[25] Issue #48: Mobile menu button, font glyphs & dev menu check toggle verified OK")
+
 	AudioManager.stop_music()
 	await get_tree().process_frame
 	SaveManager.delete_run_save()

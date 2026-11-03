@@ -452,7 +452,7 @@ func _render_dialogue_state() -> void:
 	var choice_buttons: Array[Button] = []
 	for ch: Dictionary in _choices:
 		var c_btn: Button = Button.new()
-		c_btn.text = "▸ " + String(ch["label"])
+		c_btn.text = "▶ " + String(ch["label"])
 		c_btn.add_theme_font_size_override("font_size", 9)
 		_style_event_button(c_btn)
 		var ch_ref: Dictionary = ch
@@ -465,7 +465,7 @@ func _render_dialogue_state() -> void:
 
 	var hint_lbl: Label = Label.new()
 	var is_touch: bool = (SaveManager.settings != null and SaveManager.settings.touch_controls_enabled)
-	hint_lbl.text = "🎮 [D-Pad/Стик] Выбор решения  |  [A / ПРОБЕЛ] Подтвердить" + ("  |  👆 Тач" if is_touch else "")
+	hint_lbl.text = "[D-Pad/Стик] Выбор решения  |  [A / ПРОБЕЛ] Подтвердить" + ("  |  [Тач]" if is_touch else "")
 	hint_lbl.add_theme_font_size_override("font_size", 7)
 	hint_lbl.add_theme_color_override("font_color", Color(0.4, 0.95, 1.0, 0.8))
 	_choices_box.add_child(hint_lbl)

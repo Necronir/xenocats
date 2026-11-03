@@ -296,7 +296,7 @@ func _refresh_hub() -> void:
 		var p_btn: Button = Button.new()
 		p_btn.add_theme_font_size_override("font_size", 8)
 		if unlocked:
-			p_btn.text = "✓ " + String(pk["title"]) + " [ОТКРЫТО]"
+			p_btn.text = "★ " + String(pk["title"]) + " [ОТКРЫТО]"
 			p_btn.disabled = true
 		else:
 			p_btn.text = String(pk["title"]) + " (" + str(pcost) + " Ядро)"
@@ -326,7 +326,7 @@ func _refresh_hub() -> void:
 		if is_unlocked:
 			t_lbl.text = tape.tape_name + "\n" + tape.description
 		else:
-			t_lbl.text = "🔒 " + tape.tape_name + "\n[ТРЕБУЕТСЯ ПОБЕДА В ЭПИЛОГЕ]"
+			t_lbl.text = "[!] " + tape.tape_name + "\n[ТРЕБУЕТСЯ ПОБЕДА В ЭПИЛОГЕ]"
 		_tapes_box.add_child(t_lbl)
 
 		var t_btn: Button = Button.new()
@@ -335,7 +335,7 @@ func _refresh_hub() -> void:
 			t_btn.text = "Заблокировано"
 			t_btn.disabled = true
 		elif is_eq:
-			t_btn.text = "♪ ИГРАЕТ СЕЙЧАС ♪"
+			t_btn.text = "★ ИГРАЕТ СЕЙЧАС ★"
 			t_btn.disabled = true
 		else:
 			t_btn.text = "Вставить кассету"
