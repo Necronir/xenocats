@@ -362,7 +362,26 @@ func _refresh_hub() -> void:
 	else:
 		_continue_run_btn.visible = false
 
+	var active_run_btn: Button = _continue_run_btn if (_continue_run_btn != null and _continue_run_btn.visible) else _new_run_btn
+	if _settings_btn != null and active_run_btn != null:
+		_settings_btn.focus_neighbor_bottom = active_run_btn.get_path()
+		active_run_btn.focus_neighbor_top = _settings_btn.get_path()
+
 	if _continue_run_btn != null and _continue_run_btn.visible:
 		_continue_run_btn.grab_focus()
 	elif _new_run_btn != null and _new_run_btn.visible:
 		_new_run_btn.grab_focus()
+
+func _unhandled_input(event: InputEvent) -> void:
+	var is_joy_pause: bool = (
+		event is InputEventJoypadButton
+		and event.is_pressed()
+		and (event as InputEventJoypadButton).button_index in [JOY_BUTTON_START, JOY_BUTTON_BACK, JOY_BUTTON_GUIDE]
+	)
+	if event.is_action_pressed(&"pause") or is_joy_pause:
+		if _settings_panel != null and not _settings_panel.visible:
+			AudioManager.play_sfx("ui_click")
+			if _settings_backdrop != null:
+				_settings_backdrop.visible = true
+			_settings_panel.open_panel()
+			get_viewport().set_input_as_handled()

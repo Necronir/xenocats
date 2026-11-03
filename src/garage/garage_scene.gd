@@ -80,6 +80,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	# Автоматический возврат фокуса при потере
 	if get_viewport().gui_get_focus_owner() == null:
+		if event.is_action(&"pause"):
+			return
+		if event is InputEventJoypadButton:
+			var jb_btn: int = (event as InputEventJoypadButton).button_index
+			if jb_btn in [JOY_BUTTON_START, JOY_BUTTON_BACK, JOY_BUTTON_GUIDE]:
+				return
 		var is_joy_btn: bool = (event is InputEventJoypadButton and (event as InputEventJoypadButton).pressed)
 		var is_joy_stick: bool = (event is InputEventJoypadMotion and abs((event as InputEventJoypadMotion).axis_value) > 0.35)
 		var is_ui_nav: bool = (

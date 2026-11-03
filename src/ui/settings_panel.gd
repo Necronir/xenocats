@@ -256,3 +256,16 @@ func close_panel() -> void:
 	visible = false
 	closed.emit()
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not visible:
+		return
+	var is_joy_b: bool = (
+		event is InputEventJoypadButton
+		and event.is_pressed()
+		and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B
+	)
+	if event.is_action_pressed(&"ui_cancel") or is_joy_b:
+		AudioManager.play_sfx("ui_click")
+		close_panel()
+		get_viewport().set_input_as_handled()
+
