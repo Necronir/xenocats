@@ -785,6 +785,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _on_return_to_hub() -> void:
 	AudioManager.play_sfx("ui_click")
 	AudioManager.sync_music_to_party(SaveManager.party)
+	SaveManager.delete_run_save()
 	EventBus.request_scene_change.emit(&"HUB", {})
 
 # =============================================================================

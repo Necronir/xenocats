@@ -2197,7 +2197,16 @@ func _handle_victory() -> void:
 	if was_boss:
 		var current_sec: int = clampi(SaveManager.current_sector, 1, 3)
 		var postlude_path: String = "res://data/dialogues/boss_postlude_sector" + str(current_sec) + ".dtl"
-		if SaveManager.current_sector >= 3 or current_sec >= 3 or _is_final_boss_battle():
+
+		var enemy_boss_id_pre: String = ""
+		for en_pre: EnemyInstance in _enemies:
+			if en_pre != null and en_pre.data != null and en_pre.data.is_boss:
+				enemy_boss_id_pre = String(en_pre.data.enemy_id)
+				break
+		if enemy_boss_id_pre == "":
+			enemy_boss_id_pre = String(_battle_payload.get("boss_id", ""))
+
+		if enemy_boss_id_pre != "boss_censor" and (SaveManager.current_sector >= 3 or current_sec >= 3 or _is_final_boss_battle()):
 			var victory_stats: Dictionary = SaveManager.complete_run_victory()
 			_end_overlay.position = Vector2(60, 26)
 			_end_overlay.size = Vector2(520, 298)
@@ -2307,20 +2316,17 @@ func _handle_victory() -> void:
 				if enemy_boss_id == "boss_satellite" or cid == "HOUND":
 					if has_cock or battle_party_size >= 4:
 						# 3.3 Cycle 2: Full Quartet destroys all 4 stations -> Trubadur defeated -> Cabin & Rock Concert!
-						var epilogue_dialogue_payload: Dictionary = {
-							"timeline": "res://data/dialogues/epilogue_cabin_scene.dtl",
-							"timeline_name": "epilogue_cabin_scene",
-							"title": "ЭПИЛОГ: СВОБОДНЫЙ ЭФИР «БРЕМЕН-4»",
-							"continue_text": "В ЛАГЕРЬ БРОДЯГ (ПОБЕДА В ИГРЕ!) ->",
-							"action_on_complete": "finish_run",
-							"next_scene": &"HUB",
-							"next_payload": {}
+						var concert_payload: Dictionary = {
+							"act": 2,
+							"source": "final_boss_victory"
 						}
 						var epilogue_cutscene_payload: Dictionary = {
 							"image_path": "res://assets/photos/7-final.jpg",
 							"title": "ВЕЛИКИЙ ПОБЕДНЫЙ РОК-КОНЦЕРТ",
-							"next_scene": &"EVENT",
-							"next_payload": epilogue_dialogue_payload
+							"story_stage": 4,
+							"action_on_complete": "finish_run",
+							"next_scene": &"EPILOGUE",
+							"next_payload": concert_payload
 						}
 						var cabin_dialogue_payload: Dictionary = {
 							"timeline": "res://data/dialogues/boss_postlude_sector3.dtl",
@@ -2504,20 +2510,17 @@ func _handle_victory() -> void:
 					return
 
 				elif enemy_boss_id == "boss_censor":
-					var epilogue_dialogue_payload: Dictionary = {
-						"timeline": "res://data/dialogues/epilogue_cabin_scene.dtl",
-						"timeline_name": "epilogue_cabin_scene",
-						"title": "ЭПИЛОГ: СВОБОДНЫЙ ЭФИР «БРЕМЕН-4»",
-						"continue_text": "В ЛАГЕРЬ БРОДЯГ (ПОБЕДА В ЗАБЕГЕ) ->",
-						"action_on_complete": "finish_run",
-						"next_scene": &"HUB",
-						"next_payload": {}
+					var concert_payload: Dictionary = {
+						"act": 2,
+						"source": "final_boss_victory"
 					}
 					var epilogue_cutscene_payload: Dictionary = {
 						"image_path": "res://assets/photos/7-final.jpg",
-						"title": "ЭПИЛОГ: ТРИУМФ БРЕМЕНСКИХ МУЗЫКАНТОВ",
-						"next_scene": &"EVENT",
-						"next_payload": epilogue_dialogue_payload
+						"title": "ВЕЛИКИЙ ПОБЕДНЫЙ РОК-КОНЦЕРТ",
+						"story_stage": 4,
+						"action_on_complete": "finish_run",
+						"next_scene": &"EPILOGUE",
+						"next_payload": concert_payload
 					}
 					var postlude_payload: Dictionary = {
 						"timeline": "res://data/dialogues/boss_postlude_sector3.dtl",
