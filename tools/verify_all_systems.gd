@@ -642,9 +642,46 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var active_modals2: Array[Node] = get_tree().get_nodes_in_group(&"modal_overlay")
 	assert(active_modals2.size() == 1, "qte_timing TutorialOverlay must open")
-	(active_modals2[0] as TutorialOverlay).disable_tutorials_and_close()
+	var modal_inst2: TutorialOverlay = active_modals2[0] as TutorialOverlay
+	assert(modal_inst2._ok_btn != null and modal_inst2._ok_btn.has_theme_stylebox_override("focus"), "Tutorial _ok_btn must have high-contrast focus stylebox")
+	assert(modal_inst2._disable_btn != null and modal_inst2._disable_btn.has_theme_stylebox_override("focus"), "Tutorial _disable_btn must have high-contrast focus stylebox")
+
+	# Test joypad [X] button skips and disables tutorials
+	var joy_x: InputEventJoypadButton = InputEventJoypadButton.new()
+	joy_x.button_index = JOY_BUTTON_X
+	joy_x.pressed = true
+	modal_inst2._input(joy_x)
 	await get_tree().process_frame
-	assert(not SaveManager.settings.tutorials_enabled, "Skip/Disable button must set tutorials_enabled = false")
+	assert(not SaveManager.settings.tutorials_enabled, "Joypad [X] must skip and disable tutorials")
+	assert(not get_tree().paused, "Joypad [X] must unpause game after skipping tutorial")
+
+	# Test joypad [B] button closes tutorial
+	SaveManager.settings.tutorials_enabled = true
+	TutorialOverlay.show_if_needed(self, &"dodge_segments")
+	await get_tree().process_frame
+	var active_modals3: Array[Node] = get_tree().get_nodes_in_group(&"modal_overlay")
+	assert(active_modals3.size() == 1, "dodge_segments TutorialOverlay must open")
+	var modal_inst3: TutorialOverlay = active_modals3[0] as TutorialOverlay
+	var joy_b: InputEventJoypadButton = InputEventJoypadButton.new()
+	joy_b.button_index = JOY_BUTTON_B
+	joy_b.pressed = true
+	modal_inst3._input(joy_b)
+	await get_tree().process_frame
+	assert(not get_tree().paused, "Joypad [B] must confirm/close tutorial overlay")
+
+	# Test joypad [A] button confirms tutorial
+	SaveManager.settings.reset_tutorials()
+	TutorialOverlay.show_if_needed(self, &"dodge_segments")
+	await get_tree().process_frame
+	var active_modals4: Array[Node] = get_tree().get_nodes_in_group(&"modal_overlay")
+	assert(active_modals4.size() == 1, "dodge_segments TutorialOverlay re-open must succeed")
+	var modal_inst4: TutorialOverlay = active_modals4[0] as TutorialOverlay
+	var joy_a: InputEventJoypadButton = InputEventJoypadButton.new()
+	joy_a.button_index = JOY_BUTTON_A
+	joy_a.pressed = true
+	modal_inst4._input(joy_a)
+	await get_tree().process_frame
+	assert(not get_tree().paused, "Joypad [A] must confirm and close tutorial overlay")
 
 	SaveManager.settings.reset_tutorials()
 	var toast_inst: TutorialToast = TutorialToast.show_if_needed(self, &"pyramid_ready")
