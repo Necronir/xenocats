@@ -2689,12 +2689,7 @@ func _ready() -> void:
 	assert(combat_48._dev_boss_btn.visible, "DEV: К БОССУ must become visible when dev_menu_enabled is true")
 	assert(combat_48._dev_win_btn.visible, "DEV: ПОБЕДА must become visible when dev_menu_enabled is true")
 
-	# Verify CheckButton in PauseMenu and SettingsPanel
-	assert(root_48._pause_menu._dev_menu_check != null, "PauseMenu must have _dev_menu_check CheckButton")
-	root_48._pause_menu.open()
-	assert(root_48._pause_menu._dev_menu_check.button_pressed, "PauseMenu dev check button must reflect enabled state")
-	root_48._pause_menu.close()
-
+	# Verify CheckButton in SettingsPanel
 	var sp_48: SettingsPanel = SettingsPanel.new()
 	add_child(sp_48)
 	sp_48.open_panel()

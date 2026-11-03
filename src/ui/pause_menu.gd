@@ -19,7 +19,6 @@ var _settings_btn: Button = null
 var _tutorials_btn: Button = null
 var _retry_battle_btn: Button = null
 var _hub_btn: Button = null
-var _dev_menu_check: CheckButton = null
 
 func _ready() -> void:
 	layer = 50
@@ -61,8 +60,8 @@ func _build_ui() -> void:
 
 	# 1. Главная панель паузы
 	_main_panel = PanelContainer.new()
-	_main_panel.position = Vector2(170, 48)
-	_main_panel.size = Vector2(300, 264)
+	_main_panel.position = Vector2(170, 62)
+	_main_panel.size = Vector2(300, 236)
 	_main_panel.add_theme_stylebox_override("panel", st)
 	add_child(_main_panel)
 
@@ -102,17 +101,6 @@ func _build_ui() -> void:
 
 	_hub_btn = _make_menu_button("<- В ЛАГЕРЬ БРОДЯГ (ХАБ)", Color(1.0, 0.55, 0.55), return_to_hub)
 	vbox.add_child(_hub_btn)
-
-	_dev_menu_check = CheckButton.new()
-	_dev_menu_check.text = "Панель разработчика (Dev Меню)"
-	_dev_menu_check.add_theme_font_size_override("font_size", 9)
-	_dev_menu_check.toggled.connect(func(pressed: bool) -> void:
-		AudioManager.play_sfx("ui_click")
-		if SaveManager.settings != null:
-			SaveManager.settings.set_dev_menu_enabled(pressed)
-			SaveManager.settings.save_to_disk(SaveManager.SETTINGS_PATH)
-	)
-	vbox.add_child(_dev_menu_check)
 
 	# 2. Вложенная панель настроек
 	_settings_panel = SettingsPanel.new()
@@ -256,8 +244,7 @@ func open() -> bool:
 	_settings_panel.visible = false
 	_tutorials_panel.visible = false
 	_retry_battle_btn.visible = (mode == &"BATTLE")
-	if _dev_menu_check != null and SaveManager.settings != null:
-		_dev_menu_check.set_pressed_no_signal(SaveManager.settings.dev_menu_enabled)
+
 	get_tree().paused = true
 	AudioManager.set_pause_duck(true)
 	if _resume_btn != null:
