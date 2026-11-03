@@ -1,0 +1,23 @@
+# Dialogic 2 Timeline: boss_postlude_trubadur_trio — Кот, Пёс и Осёл ломают 3 станции Трубадура
+[image path="res://assets/photos/5-1-trubadur-full.jpg"]
+[sound path="res://assets/audio/sfx/dissonance.wav"]
+felix (battle): Мы вернулись, Трубадур! И на этот раз я пришёл не один!
+hound (battle): ГАВ! Встречай ритм-секцию банды «Бременские Музыканты»! Дробь барабанов разорвёт твои фальшивые фильтры!
+mule (battle): И-А-А! Мой бронированный бас сотрясёт эту ржавую вышку до самого основания!
+trubadur (battle): Жалкие бродяги! Мои генераторы энергии всё ещё питают главный передатчик!
+[sound path="res://assets/audio/sfx/qte_hit.wav"]
+[image path="res://assets/photos/5-2-trubadur-blue.jpg"]
+felix (battle): Беру на себя Синий генератор! Лазерные когти в клочья разносят силовые кабели! Синяя станция уничтожена!
+[sound path="res://assets/audio/sfx/part_break.wav"]
+[image path="res://assets/photos/5-3-trubadur-red.jpg"]
+hound (battle): Красный генератор мой! Дробь вибро-колотушек перегружает конденсаторы! Красная станция взорвана!
+[sound path="res://assets/audio/sfx/qte_hit.wav"]
+[image path="res://assets/photos/5-3-trubadur-yellow.jpg"]
+mule (battle): Жёлтый генератор под прессом! Басовый удар ковшом сминает трансформатор в лепёшку! Жёлтая станция уничтожена!
+felix (battle): Три станции разбиты! Сдавайся, Трубадур!
+[sound path="res://assets/audio/sfx/pyramid_siren.wav"]
+[image path="res://assets/photos/5-4a-trubadur-fail.jpg"]
+trubadur (battle): Неплохо, зверьё... Три генератора пали! Но Зелёный генератор Атаманши всё ещё питает мой щит! Без синтезатора и электронных помех эфир не пробить! ВОН ИЗ ЭФИРА!
+mule (damaged): Держитесь! Ударная звуковая волна колоссальной мощности!
+hound (damaged): Нас сносит обратно в мусоропровод! А-А-А!
+felix (damaged): Мы летим на свалку... но теперь мы точно знаем, кто нам нужен!

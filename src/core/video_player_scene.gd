@@ -101,8 +101,16 @@ func _start_media() -> void:
 		vid_path = ""
 
 	# Режим фото-арта (Photo Slide Cutscene)
-	if img_path != "" and ResourceLoader.exists(img_path):
-		var tex: Texture2D = ResourceLoader.load(img_path) as Texture2D
+	if img_path != "":
+		var tex: Texture2D = null
+		if ResourceLoader.exists(img_path):
+			tex = ResourceLoader.load(img_path) as Texture2D
+		if tex == null:
+			var gpath: String = ProjectSettings.globalize_path(img_path)
+			if FileAccess.file_exists(gpath) or FileAccess.file_exists(img_path):
+				var img: Image = Image.load_from_file(gpath if FileAccess.file_exists(gpath) else img_path)
+				if img != null and not img.is_empty():
+					tex = ImageTexture.create_from_image(img)
 		if tex != null:
 			_video_player.visible = false
 			_photo_rect.texture = tex
@@ -170,6 +178,14 @@ func _finish_media() -> void:
 
 	if _video_player != null and is_instance_valid(_video_player):
 		_video_player.stop()
+
+	var action: String = String(_payload.get("action_on_complete", ""))
+	if action == "advance_sector":
+		SaveManager.advance_to_next_sector()
+	elif action == "finish_run":
+		SaveManager.delete_run_save()
+	else:
+		SaveManager.save_run()
 
 	if _payload.has("next_scene"):
 		var next_scene: StringName = _payload.get("next_scene", &"HUB")

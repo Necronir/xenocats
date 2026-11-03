@@ -261,41 +261,66 @@ func _on_node_clicked(node_dict: Dictionary) -> void:
 		"COMBAT", "ELITE":
 			EventBus.request_scene_change.emit(&"BATTLE", {"node_id": nid, "node_type": ntype})
 		"BOSS":
-			var sec: int = clampi(SaveManager.current_sector, 1, 3)
-			var prelude_path: String = "res://data/dialogues/boss_prelude_sector" + str(sec) + ".dtl"
-			var boss_titles: Dictionary = {
-				1: "МЕЛЬНИЦА СВАЛКИ // ХОЗЯИН ОСЛА (ТРЁХГОЛОВЫЙ ПРЕСС)",
-				2: "ПРИТОН РАЗБОЙНИКОВ // ПЕТУХ И СУП АТАМАНШИ",
-				3: "ИЗБА НА ВЕРШИНЕ // ПИРАМИДА БРЕМЕНА В ОКНЕ"
-			}
-			var boss_btns: Dictionary = {
-				1: "В БОЙ ЗА СПАСЕНИЕ ОСЛА ->",
-				2: "В БОЙ ЗА СПАСЕНИЕ ПЕТУХА ->",
-				3: "ВЛОМИТЬСЯ В ОКНО (ФИНАЛЬНЫЙ БОЙ) ->"
-			}
-			var boss_photos: Dictionary = {
-				1: "res://assets/photos/3-press-boss-appirance.jpg",
-				2: "res://assets/photos/5-atamansha-boss-apperiance.jpg",
-				3: "res://assets/photos/7-sputnik-boss-apperiance.jpg"
-			}
-			var boss_cutscene_titles: Dictionary = {
-				1: "БОСС 1: ПОЯВЛЕНИЕ ТРЁХГОЛОВОГО ПРЕССА",
-				2: "БОСС 2: ПОЯВЛЕНИЕ АТАМАНШИ РАЗБОЙНИКОВ",
-				3: "ФИНАЛЬНЫЙ БОСС: СПЯЩИЙ СПУТНИК ВЫШКИ БРЕМЕН-4"
-			}
+			var sec: int = clampi(SaveManager.current_sector, 1, 4)
+			var p_val: int = int(SaveManager.story_progression.current_phase) if SaveManager.story_progression != null else -1
+			var th: String = MapGenerator.get_sector_theme(sec, p_val)
+
+			var prelude_path: String = "res://data/dialogues/boss_prelude_sector1.dtl"
+			var b_title: String = "БОЕВАЯ ТРЕВОГА"
+			var b_btn: String = "В БОЙ ->"
+			var b_photo: String = ""
+			var b_cut_title: String = "БОСС"
+			var boss_enemy_id: String = ""
+
+			if p_val == int(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT):
+				prelude_path = "res://data/dialogues/boss_prelude_sputnik_solo.dtl"
+				b_title = "ПРОЛОГ // БОСС: СПЯЩИЙ СПУТНИК"
+				b_btn = "РАЗБУДИТЬ НАДЗИРАТЕЛЯ (В БОЙ) ->"
+				b_photo = "res://assets/photos/1-2-sputnik-apperiance.jpg"
+				b_cut_title = "БОСС: СПЯЩИЙ СПУТНИК ВЫШКИ БРЕМЕН-4"
+				boss_enemy_id = "boss_satellite"
+			elif sec == 1:
+				prelude_path = "res://data/dialogues/boss_prelude_sector1.dtl"
+				b_title = "МЕЛЬНИЦА СВАЛКИ // ХОЗЯИН ОСЛА (ТРЁХГОЛОВЫЙ ПРЕСС)"
+				b_btn = "В БОЙ ЗА СПАСЕНИЕ ОСЛА ->"
+				b_photo = "res://assets/photos/2-2-press-boss-appirance.jpg"
+				b_cut_title = "БОСС 1: ПОЯВЛЕНИЕ ТРЁХГОЛОВОГО ПРЕССА"
+				boss_enemy_id = "boss_press"
+			elif sec == 2:
+				prelude_path = "res://data/dialogues/boss_prelude_sector2.dtl"
+				b_title = "ПРИТОН РАЗБОЙНИКОВ // ПЕТУХ И СУП АТАМАНШИ"
+				b_btn = "В БОЙ ЗА СПАСЕНИЕ ПЕТУХА ->"
+				b_photo = "res://assets/photos/3-1-atamansha-boss-apperiance.jpg"
+				b_cut_title = "БОСС 2: ПОЯВЛЕНИЕ АТАМАНШИ РАЗБОЙНИКОВ"
+				boss_enemy_id = "boss_atamansha"
+			else:
+				if p_val >= int(StoryProgressionData.StoryPhase.CYCLE_3_QUARTET) or sec >= 4:
+					prelude_path = "res://data/dialogues/boss_prelude_sector3.dtl"
+					b_title = "ИЗБА НА ВЕРШИНЕ // ПИРАМИДА БРЕМЕНА В ОКНЕ"
+					b_btn = "ВЛОМИТЬСЯ В ОКНО (ФИНАЛЬНЫЙ БОЙ) ->"
+					b_photo = "res://assets/photos/6-1-fake-boss-apperiance.jpg"
+					b_cut_title = "ФИНАЛЬНЫЙ БОСС: ЗАСЛУЖЕННЫЕ ДЕЯТЕЛИ ЭСТРАДЫ"
+					boss_enemy_id = "boss_censor"
+				else:
+					prelude_path = "res://data/dialogues/boss_prelude_sector3.dtl"
+					b_title = "ВЕРШИНА БРЕМЕН-4 // СПУТНИК В ЭФИРЕ"
+					b_btn = "В БОЙ ЗА РЕТРАНСЛЯТОР ->"
+					b_photo = "res://assets/photos/4-1-sputnik-boss-apperiance.jpg"
+					b_cut_title = "БОСС 3: СПЯЩИЙ СПУТНИК ВЫШКИ БРЕМЕН-4"
+					boss_enemy_id = "boss_satellite"
+
 			SaveManager.save_run()
 			var event_payload: Dictionary = {
 				"timeline": prelude_path,
 				"next_scene": &"BATTLE",
-				"next_payload": {"node_id": nid, "node_type": "BOSS"},
-				"title": String(boss_titles.get(sec, "БОЕВАЯ ТРЕВОГА")),
-				"continue_text": String(boss_btns.get(sec, "В БОЙ ->"))
+				"next_payload": {"node_id": nid, "node_type": "BOSS", "boss_id": boss_enemy_id, "biome_theme": th},
+				"title": b_title,
+				"continue_text": b_btn
 			}
-			var p_path: String = String(boss_photos.get(sec, ""))
-			if p_path != "" and ResourceLoader.exists(p_path):
+			if b_photo != "" and ResourceLoader.exists(b_photo):
 				EventBus.request_scene_change.emit(&"VIDEO", {
-					"image_path": p_path,
-					"title": String(boss_cutscene_titles.get(sec, "БОСС")),
+					"image_path": b_photo,
+					"title": b_cut_title,
 					"boss_theme": sec,
 					"next_scene": &"EVENT",
 					"next_payload": event_payload

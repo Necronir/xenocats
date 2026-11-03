@@ -321,8 +321,8 @@ func repair_squad_percentage(ratio: float = 0.3) -> void:
 
 func rescue_companion(cat_id: String) -> Dictionary:
 	var cid_upper: String = cat_id.to_upper().strip_edges()
-	var theme: String = "YELLOW" if cid_upper == "MULE" else ("GREEN" if cid_upper == "COCK" else "")
-	var b_id: String = "boss_press" if cid_upper == "MULE" else ("boss_atamansha" if cid_upper == "COCK" else "")
+	var theme: String = "YELLOW" if cid_upper == "MULE" else ("GREEN" if cid_upper == "COCK" else ("BLUE" if cid_upper == "HOUND" else ""))
+	var b_id: String = "boss_press" if cid_upper == "MULE" else ("boss_atamansha" if cid_upper == "COCK" else ("boss_satellite" if cid_upper == "HOUND" else ""))
 	return handle_biome_boss_defeat(theme, b_id)
 
 func handle_biome_boss_defeat(biome_theme: String = "", boss_id: String = "") -> Dictionary:
@@ -337,38 +337,87 @@ func handle_biome_boss_defeat(biome_theme: String = "", boss_id: String = "") ->
 	# Map theme or boss_id to companion rescue per ADR-002:
 	# Yellow Biome Boss -> M.U.L.E. (Donkey / Bassist)
 	# Green Biome Boss -> C.O.C.K. (Rooster / Synth & Electronic Warfare)
-	if clean_theme == "YELLOW" or boss_id == "boss_press":
+	var p_val: int = int(story_progression.current_phase) if story_progression != null else -1
+	if boss_id == "boss_satellite":
+		if has_party_member("COCK"):
+			companion_id = &""
+			timeline = "res://data/dialogues/boss_postlude_trubadur_quartet.dtl"
+			timeline_id = "boss_postlude_trubadur_quartet"
+			photo_path = "res://assets/photos/5-1-trubadur-full.jpg"
+			post_title = "СПУТНИК ПОВЕРЖЕН // ФИНАЛЬНЫЙ ШТУРМ КВАРТЕТА"
+			fusion_tier = 3
+			clean_theme = "BLUE"
+		elif has_party_member("MULE"):
+			companion_id = &""
+			timeline = "res://data/dialogues/boss_postlude_trubadur_trio.dtl"
+			timeline_id = "boss_postlude_trubadur_trio"
+			photo_path = "res://assets/photos/5-1-trubadur-full.jpg"
+			post_title = "СПУТНИК ПОВЕРЖЕН // ШТУРМ ВЫШКИ ТРИО"
+			fusion_tier = 2
+			clean_theme = "BLUE"
+		else:
+			companion_id = &"HOUND"
+			timeline = "res://data/dialogues/boss_postlude_sputnik_solo.dtl"
+			timeline_id = "boss_postlude_sputnik_solo"
+			photo_path = "res://assets/photos/1-4b-trubadur-apperiance.jpg"
+			post_title = "СПУТНИК ПОВЕРЖЕН // ПОЯВЛЕНИЕ КИБЕР-ТРУБАДУРА"
+			fusion_tier = 1
+			clean_theme = "BLUE"
+	elif boss_id == "boss_press" or clean_theme == "YELLOW":
 		companion_id = &"MULE"
 		timeline = "res://data/dialogues/dialogic_rescue_mule.dtl"
 		timeline_id = "dialogic_rescue_mule"
-		photo_path = "res://assets/photos/4a-press-boss-win.jpg"
-		post_title = "СЕКТОР: ПОБЕДА НАД ПРЕССОМ // СПАСЕНИЕ ОСЛА M.U.L.E."
+		photo_path = "res://assets/photos/2-3a-press-boss-win.jpg"
+		post_title = "СЕКТОР 1: ПОБЕДА НАД ПРЕССОМ // СПАСЕНИЕ ОСЛА M.U.L.E."
 		fusion_tier = 2 # ROBO_CATDOG_DONKEY
 		clean_theme = "YELLOW"
-	elif clean_theme == "GREEN" or boss_id == "boss_atamansha":
+	elif boss_id == "boss_atamansha" or clean_theme == "GREEN":
 		companion_id = &"COCK"
 		timeline = "res://data/dialogues/dialogic_rescue_cock.dtl"
 		timeline_id = "dialogic_rescue_cock"
-		photo_path = "res://assets/photos/6a-atamansha-boss-win.jpg"
-		post_title = "СЕКТОР: ПОБЕДА НАД АТАМАНШЕЙ // СПАСЕНИЕ ПЕТУХА C.O.C.K."
+		photo_path = "res://assets/photos/3-2a-atamansha-boss-win.jpg"
+		post_title = "СЕКТОР 2: ПОБЕДА НАД АТАМАНШЕЙ // СПАСЕНИЕ ПЕТУХА C.O.C.K."
 		fusion_tier = 3 # ROBO_MEGA_PYRAMID
 		clean_theme = "GREEN"
+	elif boss_id == "boss_censor":
+		companion_id = &""
+		timeline = "res://data/dialogues/boss_postlude_sector3.dtl"
+		timeline_id = "boss_postlude_sector3"
+		photo_path = "res://assets/photos/6-4-fake-boss-win.jpg"
+		post_title = "ФИНАЛЬНЫЙ СЕКТОР: СВЕРЖЕНИЕ ЦЕНЗОРА"
+		fusion_tier = 3
+		clean_theme = "BLUE"
+	elif current_sector == 1:
+		companion_id = &"MULE"
+		timeline = "res://data/dialogues/dialogic_rescue_mule.dtl"
+		timeline_id = "dialogic_rescue_mule"
+		photo_path = "res://assets/photos/2-3a-press-boss-win.jpg"
+		post_title = "СЕКТОР 1: ПОБЕДА НАД ПРЕССОМ // СПАСЕНИЕ ОСЛА M.U.L.E."
+		fusion_tier = 2
+		clean_theme = "YELLOW"
+	elif current_sector == 2:
+		companion_id = &"COCK"
+		timeline = "res://data/dialogues/dialogic_rescue_cock.dtl"
+		timeline_id = "dialogic_rescue_cock"
+		photo_path = "res://assets/photos/3-2a-atamansha-boss-win.jpg"
+		post_title = "СЕКТОР 2: ПОБЕДА НАД АТАМАНШЕЙ // СПАСЕНИЕ ПЕТУХА C.O.C.K."
+		fusion_tier = 3
+		clean_theme = "GREEN"
 	else:
-		var p_val: int = int(story_progression.current_phase) if story_progression != null else -1
 		var inferred: String = MapGenerator.get_sector_theme(current_sector, p_val)
-		if inferred == "YELLOW" or current_sector == 1:
+		if inferred == "YELLOW":
 			companion_id = &"MULE"
 			timeline = "res://data/dialogues/dialogic_rescue_mule.dtl"
 			timeline_id = "dialogic_rescue_mule"
-			photo_path = "res://assets/photos/4a-press-boss-win.jpg"
+			photo_path = "res://assets/photos/2-3a-press-boss-win.jpg"
 			post_title = "СЕКТОР: ПОБЕДА НАД ПРЕССОМ // СПАСЕНИЕ ОСЛА M.U.L.E."
 			fusion_tier = 2
 			clean_theme = "YELLOW"
-		elif inferred == "GREEN" or current_sector == 2:
+		elif inferred == "GREEN":
 			companion_id = &"COCK"
 			timeline = "res://data/dialogues/dialogic_rescue_cock.dtl"
 			timeline_id = "dialogic_rescue_cock"
-			photo_path = "res://assets/photos/6a-atamansha-boss-win.jpg"
+			photo_path = "res://assets/photos/3-2a-atamansha-boss-win.jpg"
 			post_title = "СЕКТОР: ПОБЕДА НАД АТАМАНШЕЙ // СПАСЕНИЕ ПЕТУХА C.O.C.K."
 			fusion_tier = 3
 			clean_theme = "GREEN"
@@ -392,7 +441,26 @@ func handle_biome_boss_defeat(biome_theme: String = "", boss_id: String = "") ->
 	repair_squad_percentage(0.3)
 
 	# 4. Advance story phase in SaveManager
-	advance_story_phase()
+	if boss_id == "boss_satellite":
+		if has_party_member("COCK"):
+			if story_progression != null and int(story_progression.current_phase) < int(StoryProgressionData.StoryPhase.COMPLETED):
+				advance_story_phase()
+		elif has_party_member("MULE"):
+			current_sector = 1
+			if story_progression != null and int(story_progression.current_phase) < int(StoryProgressionData.StoryPhase.CYCLE_2_TRIO):
+				advance_story_phase()
+		else:
+			current_sector = 0
+			if story_progression != null and story_progression.current_phase == StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT:
+				advance_story_phase()
+	elif companion_id == &"MULE" or boss_id == "boss_press":
+		if story_progression != null and int(story_progression.current_phase) < int(StoryProgressionData.StoryPhase.CYCLE_2_TRIO):
+			advance_story_phase()
+	elif companion_id == &"COCK" or boss_id == "boss_atamansha":
+		if story_progression != null and int(story_progression.current_phase) < int(StoryProgressionData.StoryPhase.CYCLE_3_QUARTET):
+			advance_story_phase()
+	else:
+		advance_story_phase()
 
 	save_meta()
 	save_run()
@@ -413,12 +481,13 @@ func handle_biome_boss_defeat(biome_theme: String = "", boss_id: String = "") ->
 
 func advance_to_next_sector() -> void:
 	current_sector += 1
+	var phase_val: int = int(story_progression.current_phase) if story_progression != null else -1
+
 	current_floor = 0
 	current_node_id = -1
 	completed_node_ids.clear()
 	map_graph.clear()
 	pending_battle.clear()
-	var phase_val: int = int(story_progression.current_phase) if story_progression != null else -1
 	map_graph = MapGenerator.generate_sector_dag(run_seed, current_sector, -1, phase_val)
 	if current_sector >= 2:
 		recruit_cat("MULE")

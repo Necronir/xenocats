@@ -35,7 +35,8 @@ const SPEAKER_NAMES: Dictionary = {
 	"press": "ХОЗЯИН МЕЛЬНИЦЫ (Трёхголовый Пресс)",
 	"atamansha": "ХОЗЯЙКА ПРИТОНА (Атаманша)",
 	"satellite": "НАДЗИРАТЕЛЬ ИЗБЫ (Спящий Спутник)",
-	"outlaw": "ГЛАВАРЬ РАЗБОЙНИКОВ (Мародёр из Избы)"
+	"outlaw": "ГЛАВАРЬ РАЗБОЙНИКОВ (Мародёр из Избы)",
+	"trubadur": "КИБЕР-ТРУБАДУР (Владыка Башни «Бремен-4»)"
 }
 
 func setup_event(payload: Dictionary) -> void:
@@ -294,9 +295,21 @@ func _render_dialogue_state() -> void:
 		var cid: String = String(item["char"])
 		var mood: String = String(item["mood"])
 		var img_path: String = String(item.get("image", ""))
-		if img_path != "" and ResourceLoader.exists(img_path):
-			_illustration_rect.texture = load(img_path) as Texture2D
-			_illustration_panel.visible = true
+		if img_path != "":
+			var tex: Texture2D = null
+			if ResourceLoader.exists(img_path):
+				tex = load(img_path) as Texture2D
+			if tex == null:
+				var gpath: String = ProjectSettings.globalize_path(img_path)
+				if FileAccess.file_exists(gpath) or FileAccess.file_exists(img_path):
+					var img: Image = Image.load_from_file(gpath if FileAccess.file_exists(gpath) else img_path)
+					if img != null and not img.is_empty():
+						tex = ImageTexture.create_from_image(img)
+			if tex != null:
+				_illustration_rect.texture = tex
+				_illustration_panel.visible = true
+			else:
+				_illustration_panel.visible = (_illustration_rect.texture != null)
 		else:
 			_illustration_panel.visible = (_illustration_rect.texture != null)
 
