@@ -10,6 +10,9 @@ var _scroll: ScrollContainer = null
 var _header_label: Label = null
 var _status_label: Label = null
 var _node_positions: Dictionary = {}
+var _scroll_tween: Tween = null
+var _selectable_buttons: Array[Button] = []
+var _top_bar_buttons: Array[Button] = []
 
 const FLOOR_SPACING_X: float = 92.0
 const MAP_LEFT_PAD: float = 48.0
@@ -33,6 +36,78 @@ func _ready() -> void:
 	_build_ui()
 	_populate_map_nodes()
 	AudioManager.sync_music_to_party(SaveManager.party)
+
+	await get_tree().process_frame
+	if is_inside_tree():
+		center_on_selectable_path(false)
+
+func _process(delta: float) -> void:
+	# Плавная непрерывная прокрутка карты правым аналоговым стиком
+	var right_stick_x: float = Input.get_joy_axis(0, JOY_AXIS_RIGHT_X)
+	if absf(right_stick_x) > 0.18:
+		_kill_scroll_tween()
+		var speed: float = 720.0
+		_scroll_horizontal_by(right_stick_x * speed * delta)
+
+func _unhandled_input(event: InputEvent) -> void:
+	# Прокрутка правым аналоговым стиком (событийная обработка)
+	if event is InputEventJoypadMotion:
+		var jm: InputEventJoypadMotion = event as InputEventJoypadMotion
+		if jm.axis == JOY_AXIS_RIGHT_X and absf(jm.axis_value) > 0.18:
+			_kill_scroll_tween()
+			_scroll_horizontal_by(jm.axis_value * 28.0)
+			get_viewport().set_input_as_handled()
+			return
+
+	# Бамперы LB / RB для быстрой постраничной прокрутки карты влево / вправо
+	if event is InputEventJoypadButton and event.is_pressed():
+		var jb: int = (event as InputEventJoypadButton).button_index
+		if jb == JOY_BUTTON_RIGHT_SHOULDER:
+			_kill_scroll_tween()
+			_scroll_horizontal_by(FLOOR_SPACING_X * 2.5)
+			get_viewport().set_input_as_handled()
+			return
+		elif jb == JOY_BUTTON_LEFT_SHOULDER:
+			_kill_scroll_tween()
+			_scroll_horizontal_by(-FLOOR_SPACING_X * 2.5)
+			get_viewport().set_input_as_handled()
+			return
+		elif jb == JOY_BUTTON_Y or jb == JOY_BUTTON_RIGHT_STICK:
+			center_on_selectable_path(true)
+			_reclaim_map_focus()
+			get_viewport().set_input_as_handled()
+			return
+
+	# Стрелки D-Pad Влево / Вправо при фокусе на ноде карты для ручной прокрутки
+	var focus_owner: Control = get_viewport().gui_get_focus_owner()
+	var is_on_map_node: bool = (focus_owner is Button and _selectable_buttons.has(focus_owner as Button))
+	if is_on_map_node:
+		if event.is_action_pressed(&"ui_right"):
+			_kill_scroll_tween()
+			_scroll_horizontal_by(FLOOR_SPACING_X * 1.5)
+			get_viewport().set_input_as_handled()
+			return
+		elif event.is_action_pressed(&"ui_left"):
+			_kill_scroll_tween()
+			_scroll_horizontal_by(-FLOOR_SPACING_X * 1.5)
+			get_viewport().set_input_as_handled()
+			return
+
+	# Автоматический возврат фокуса при потере
+	if focus_owner == null:
+		var is_joy_btn: bool = (event is InputEventJoypadButton and (event as InputEventJoypadButton).pressed)
+		var is_joy_stick: bool = (event is InputEventJoypadMotion and absf((event as InputEventJoypadMotion).axis_value) > 0.35)
+		var is_ui_nav: bool = (
+			event.is_action_pressed(&"ui_up")
+			or event.is_action_pressed(&"ui_down")
+			or event.is_action_pressed(&"ui_left")
+			or event.is_action_pressed(&"ui_right")
+			or event.is_action_pressed(&"ui_accept")
+		)
+		if is_joy_btn or is_joy_stick or is_ui_nav:
+			_reclaim_map_focus()
+			get_viewport().set_input_as_handled()
+			return
 
 func _build_ui() -> void:
 	var bg: TextureRect = TextureRect.new()
@@ -91,6 +166,7 @@ func _build_ui() -> void:
 		AudioManager.play_sfx("ui_click")
 		SaveManager.jump_to_boss_battle(-1)
 	)
+	_style_top_bar_button(_fast_boss_btn)
 	top_hbox.add_child(_fast_boss_btn)
 
 	var garage_btn: Button = Button.new()
@@ -100,6 +176,7 @@ func _build_ui() -> void:
 		AudioManager.play_sfx("ui_click")
 		EventBus.request_scene_change.emit(&"GARAGE", {"from_map_button": true})
 	)
+	_style_top_bar_button(garage_btn)
 	top_hbox.add_child(garage_btn)
 
 	var hub_btn: Button = Button.new()
@@ -110,6 +187,7 @@ func _build_ui() -> void:
 		SaveManager.save_run()
 		EventBus.request_scene_change.emit(&"HUB", {})
 	)
+	_style_top_bar_button(hub_btn)
 	top_hbox.add_child(hub_btn)
 
 	var pause_btn: Button = Button.new()
@@ -120,7 +198,15 @@ func _build_ui() -> void:
 		Input.action_press(&"pause")
 		Input.action_release(&"pause")
 	)
+	_style_top_bar_button(pause_btn)
 	top_hbox.add_child(pause_btn)
+
+	_top_bar_buttons = [_fast_boss_btn, garage_btn, hub_btn, pause_btn]
+	for i: int in range(_top_bar_buttons.size()):
+		var left_idx: int = (i - 1 + _top_bar_buttons.size()) % _top_bar_buttons.size()
+		var right_idx: int = (i + 1) % _top_bar_buttons.size()
+		_top_bar_buttons[i].focus_neighbor_left = _top_bar_buttons[left_idx].get_path()
+		_top_bar_buttons[i].focus_neighbor_right = _top_bar_buttons[right_idx].get_path()
 
 	# Горизонтальный скролл графа на 15 этажей
 	var map_panel: PanelContainer = PanelContainer.new()
@@ -142,27 +228,42 @@ func _build_ui() -> void:
 	_graph_canvas.draw.connect(_on_graph_draw)
 	_scroll.add_child(_graph_canvas)
 
-	# Нижняя легенда типов нод
+	# Нижняя легенда типов нод и подсказка контроллера
 	var legend_panel: PanelContainer = PanelContainer.new()
 	legend_panel.position = Vector2(8, 314)
 	legend_panel.size = Vector2(624, 40)
 	legend_panel.add_theme_stylebox_override("panel", st)
 	add_child(legend_panel)
 
+	var leg_vbox: VBoxContainer = VBoxContainer.new()
+	leg_vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	leg_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	leg_vbox.add_theme_constant_override("separation", 2)
+	legend_panel.add_child(leg_vbox)
+
 	var leg_lbl: Label = Label.new()
 	leg_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	leg_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	leg_lbl.add_theme_font_size_override("font_size", 9)
+	leg_lbl.add_theme_font_size_override("font_size", 8)
 	leg_lbl.text = (
-		"ЛЕГЕНДА НОД: [БОЙ: Мародёры]  |  [ЭЛИТА: Модульный дроид + редкая деталь]  |  "
-		+ "[МАСТЕРСКАЯ: Ремонт и сборка]  |  [СИГНАЛ: Диалог Dialogic 2]  |  [БОСС: " + str(max_fl) + " этаж]"
+		"ЛЕГЕНДА: [БОЙ: Мародёры]  |  [ЭЛИТА: Модульный дроид]  |  "
+		+ "[ГАРАЖ: Ремонт]  |  [СИГНАЛ: Диалог]  |  [БОСС: " + str(max_fl) + " этаж]"
 	)
-	legend_panel.add_child(leg_lbl)
+	leg_vbox.add_child(leg_lbl)
+
+	var hint_lbl: Label = Label.new()
+	hint_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hint_lbl.add_theme_font_size_override("font_size", 8)
+	hint_lbl.add_theme_color_override("font_color", Color(1.0, 0.9, 0.4, 0.95))
+	hint_lbl.text = "🎮 ГЕЙМПАД: [D-Pad] Выбор пути  •  [A] В путь  •  [Прав. Стик / LB / RB] Прокрутка карты  •  [Y] Центр пути"
+	leg_vbox.add_child(hint_lbl)
 
 func _populate_map_nodes() -> void:
 	for child: Node in _graph_canvas.get_children():
 		child.queue_free()
 	_node_positions.clear()
+	_selectable_buttons.clear()
 
 	var selectable_ids: Array[int] = _get_selectable_node_ids()
 
@@ -205,6 +306,20 @@ func _populate_map_nodes() -> void:
 		btn.add_theme_stylebox_override("hover", btn_style)
 		btn.add_theme_stylebox_override("disabled", btn_style)
 
+		if is_avail:
+			var focus_sb: StyleBoxFlat = StyleBoxFlat.new()
+			focus_sb.bg_color = btn_style.bg_color
+			focus_sb.border_color = Color(1.0, 0.95, 0.35, 1.0)
+			focus_sb.set_border_width_all(3)
+			focus_sb.set_corner_radius_all(4)
+			focus_sb.set_expand_margin_all(2)
+			btn.add_theme_stylebox_override("focus", focus_sb)
+
+			btn.focus_entered.connect(func() -> void:
+				_center_on_x(pos.x, true)
+			)
+			_selectable_buttons.append(btn)
+
 		btn.pressed.connect(func() -> void:
 			_on_node_clicked(node_dict)
 		)
@@ -212,18 +327,25 @@ func _populate_map_nodes() -> void:
 
 	_graph_canvas.queue_redraw()
 
-	# Focus first selectable node button for gamepad navigation
-	for child: Node in _graph_canvas.get_children():
-		if child is Button and not (child as Button).disabled:
-			(child as Button).grab_focus()
-			break
+	# Связываем соседей фокуса между доступными нодами (D-Pad Вверх / Вниз)
+	if _selectable_buttons.size() > 1:
+		for i: int in range(_selectable_buttons.size()):
+			var prev_i: int = (i - 1 + _selectable_buttons.size()) % _selectable_buttons.size()
+			var next_i: int = (i + 1) % _selectable_buttons.size()
+			_selectable_buttons[i].focus_neighbor_top = _selectable_buttons[prev_i].get_path()
+			_selectable_buttons[i].focus_neighbor_bottom = _selectable_buttons[next_i].get_path()
+	elif _selectable_buttons.size() == 1:
+		if is_instance_valid(_fast_boss_btn):
+			_selectable_buttons[0].focus_neighbor_top = _fast_boss_btn.get_path()
 
-	# Автопрокрутка к текущему этажу
-	await get_tree().process_frame
-	if not is_inside_tree():
-		return
-	var target_floor: int = maxi(1, SaveManager.current_floor)
-	_scroll.scroll_horizontal = maxi(0, int((target_floor - 2) * FLOOR_SPACING_X))
+	# Автоматическое центрование карты по выбираемому пути
+	center_on_selectable_path(false)
+
+	if not _selectable_buttons.is_empty():
+		for tb_btn: Button in _top_bar_buttons:
+			if is_instance_valid(tb_btn):
+				tb_btn.focus_neighbor_bottom = _selectable_buttons[0].get_path()
+		_selectable_buttons[0].grab_focus()
 
 func _get_selectable_node_ids() -> Array[int]:
 	var result: Array[int] = []
@@ -377,3 +499,68 @@ func _type_color(ntype: String) -> Color:
 		"BOSS":
 			return Color(0.75, 0.1, 0.28, 0.98)
 	return Color(0.2, 0.25, 0.35, 0.9)
+
+
+func _center_on_x(target_x: float, animate: bool = true) -> void:
+	if _scroll == null:
+		return
+	var viewport_w: float = _scroll.size.x if _scroll.size.x > 0.0 else 624.0
+	var canvas_w: float = _graph_canvas.custom_minimum_size.x if _graph_canvas != null else 1476.0
+	var max_scroll: float = maxf(0.0, canvas_w - viewport_w)
+	var desired_scroll: int = int(clampf(target_x - (viewport_w * 0.5), 0.0, max_scroll))
+
+	if animate and is_inside_tree():
+		_kill_scroll_tween()
+		_scroll_tween = create_tween()
+		_scroll_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		_scroll_tween.tween_property(_scroll, "scroll_horizontal", desired_scroll, 0.25)
+	else:
+		_kill_scroll_tween()
+		_scroll.scroll_horizontal = desired_scroll
+
+func _kill_scroll_tween() -> void:
+	if _scroll_tween != null and _scroll_tween.is_valid():
+		_scroll_tween.kill()
+		_scroll_tween = null
+
+func center_on_selectable_path(animate: bool = false) -> void:
+	var selectable_ids: Array[int] = _get_selectable_node_ids()
+	if not selectable_ids.is_empty():
+		var first_id: int = selectable_ids[0]
+		if _node_positions.has(first_id):
+			var target_pos: Vector2 = _node_positions[first_id] as Vector2
+			var center_x: float = target_pos.x
+			if SaveManager.current_node_id >= 0 and _node_positions.has(SaveManager.current_node_id):
+				var cur_pos: Vector2 = _node_positions[SaveManager.current_node_id] as Vector2
+				center_x = (cur_pos.x + target_pos.x) * 0.5
+			_center_on_x(center_x, animate)
+			return
+
+	var target_floor: int = maxi(1, SaveManager.current_floor)
+	var fallback_x: float = MAP_LEFT_PAD + float(target_floor - 1) * FLOOR_SPACING_X
+	_center_on_x(fallback_x, animate)
+
+func _scroll_horizontal_by(delta_x: float) -> void:
+	if _scroll == null:
+		return
+	var viewport_w: float = _scroll.size.x if _scroll.size.x > 0.0 else 624.0
+	var canvas_w: float = _graph_canvas.custom_minimum_size.x if _graph_canvas != null else 1476.0
+	var max_scroll: float = maxf(0.0, canvas_w - viewport_w)
+	_scroll.scroll_horizontal = int(clampf(float(_scroll.scroll_horizontal) + delta_x, 0.0, max_scroll))
+
+func _reclaim_map_focus() -> void:
+	for btn: Button in _selectable_buttons:
+		if is_instance_valid(btn) and btn.is_inside_tree() and not btn.disabled:
+			btn.grab_focus()
+			return
+	if is_instance_valid(_fast_boss_btn) and _fast_boss_btn.is_inside_tree():
+		_fast_boss_btn.grab_focus()
+
+func _style_top_bar_button(btn: Button) -> void:
+	var foc_sb: StyleBoxFlat = StyleBoxFlat.new()
+	foc_sb.bg_color = Color(0.18, 0.24, 0.35, 0.95)
+	foc_sb.border_color = Color(1.0, 0.9, 0.35, 1.0)
+	foc_sb.set_border_width_all(2)
+	foc_sb.set_corner_radius_all(3)
+	foc_sb.set_expand_margin_all(1)
+	btn.add_theme_stylebox_override("focus", foc_sb)

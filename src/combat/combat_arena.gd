@@ -109,6 +109,7 @@ func trigger_mid_battle_dialogue(timeline_path: String = "res://data/dialogues/t
 	overlay.dialogue_completed.connect(func(tl: String) -> void:
 		_mid_battle_dialogue = null
 		mid_battle_dialogue_completed.emit(tl)
+		call_deferred("_reclaim_combat_menu_focus")
 	)
 	mid_battle_dialogue_started.emit(timeline_path)
 	return overlay
@@ -177,6 +178,7 @@ func _build_visual_hierarchy() -> void:
 	var pause_btn: Button = Button.new()
 	pause_btn.text = "⏸ МЕНЮ"
 	pause_btn.add_theme_font_size_override("font_size", 8)
+	_style_combat_button(pause_btn, &"default")
 	pause_btn.pressed.connect(func() -> void:
 		AudioManager.play_sfx("ui_click")
 		Input.action_press(&"pause")
@@ -297,11 +299,13 @@ func _build_visual_hierarchy() -> void:
 	_epilogue_btn.text = "СЮЖЕТНЫЙ ЭПИЛОГ: КОНЦЕРТ БРЕМЕНСКИХ МУЗЫКАНТОВ ->"
 	_epilogue_btn.add_theme_font_size_override("font_size", 10)
 	_epilogue_btn.visible = false
+	_style_combat_button(_epilogue_btn, &"fusion")
 	end_vbox.add_child(_epilogue_btn)
 
 	_end_btn = Button.new()
 	_end_btn.text = "ПРОДОЛЖИТЬ"
 	_end_btn.add_theme_font_size_override("font_size", 11)
+	_style_combat_button(_end_btn, &"default")
 	end_vbox.add_child(_end_btn)
 
 func _make_styled_panel(rect: Rect2) -> PanelContainer:
@@ -902,10 +906,13 @@ func _refresh_hud() -> void:
 
 	# Обновляем спрайты, подписи и партиклы врагов
 	for j: int in range(_enemies.size()):
+		if j >= _enemy_rigs.size():
+			continue
 		var en: EnemyInstance = _enemies[j]
 		var erig: Dictionary = _enemy_rigs[j]
-		var eroot: Node2D = erig["root"] as Node2D
-		eroot.visible = en.is_alive()
+		var eroot: Node2D = erig.get("root", null) as Node2D
+		if eroot != null:
+			eroot.visible = en.is_alive()
 
 		var en_is_alive: bool = en.is_alive()
 		if en.is_modular():
@@ -951,8 +958,10 @@ func _refresh_hud() -> void:
 				+ " Оруд:" + str(ea.current_hp)
 				+ " Шасси:" + str(el.current_hp)
 			)
-			(erig["arms_spr"] as Sprite2D).modulate = Color(0.35, 0.2, 0.2, 0.5) if ea.is_broken() else Color(1, 1, 1)
-			(erig["legs_spr"] as Sprite2D).modulate = Color(0.35, 0.2, 0.2, 0.5) if el.is_broken() else Color(1, 1, 1)
+			if erig.get("arms_spr") != null:
+				(erig["arms_spr"] as Sprite2D).modulate = Color(0.35, 0.2, 0.2, 0.5) if ea.is_broken() else Color(1, 1, 1)
+			if erig.get("legs_spr") != null:
+				(erig["legs_spr"] as Sprite2D).modulate = Color(0.35, 0.2, 0.2, 0.5) if el.is_broken() else Color(1, 1, 1)
 		else:
 			elbl.text = en.data.enemy_name + status_tags + "\nHP: " + str(en.current_hp) + "/" + str(en.data.max_hp)
 
@@ -1164,13 +1173,17 @@ func _update_turn_order_header() -> void:
 	for k: int in range(_turn_cursor, _turn_queue.size()):
 		var item: Dictionary = _turn_queue[k]
 		if bool(item["is_player"]):
-			var c: CatMechInstance = _party[int(item["index"])]
-			if c.is_alive():
-				names.append(c.display_name + "(" + str(item["score"]) + ")")
+			var c_idx: int = int(item["index"])
+			if c_idx < _party.size():
+				var c: CatMechInstance = _party[c_idx]
+				if c.is_alive():
+					names.append(c.display_name + "(" + str(item["score"]) + ")")
 		else:
-			var e: EnemyInstance = _enemies[int(item["index"])]
-			if e.is_alive():
-				names.append(e.data.enemy_name + "(" + str(item["score"]) + ")")
+			var e_idx: int = int(item["index"])
+			if e_idx < _enemies.size():
+				var e: EnemyInstance = _enemies[e_idx]
+				if e.is_alive():
+					names.append(e.data.enemy_name + "(" + str(item["score"]) + ")")
 	var ng_prefix: String = (" [NG+ " + str(SaveManager.ng_cycle) + "]" if SaveManager.ng_cycle > 0 else "")
 	_top_bar_label.text = "РАУНД " + str(_round_number) + ng_prefix + " | Очередь: " + " -> ".join(names)
 
@@ -1280,6 +1293,8 @@ func _begin_player_turn(cat_index: int) -> void:
 	header.tooltip_text = header.text
 	_action_box.add_child(header)
 
+	var enabled_action_buttons: Array[Button] = []
+
 	if _pyramid_overheat_rounds > 0 and not _pyramid_active:
 		var cool_lbl: Label = Label.new()
 		cool_lbl.text = "⚡ Резонатор «Бремен» остывает (перегрев)..."
@@ -1313,17 +1328,18 @@ func _begin_player_turn(cat_index: int) -> void:
 				btn.text = "★ " + t_name + " [" + str(cost) + "% Sync] ★"
 				btn.disabled = false
 				btn.tooltip_text = t_tip + "\nПорог активации: " + str(cost) + "% (Доступно! Нажмите для активации)"
-				btn.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
+				_style_combat_button(btn, &"fusion")
 				btn.pressed.connect(func() -> void:
 					AudioManager.play_sfx("ui_click")
 					_activate_fusion_tier(t)
 				)
 				TutorialToast.show_if_needed(self, &"pyramid_ready")
+				enabled_action_buttons.append(btn)
 			else:
 				btn.text = "🔒 " + t_name + " [" + str(cost) + "% Sync]"
 				btn.disabled = true
 				btn.tooltip_text = t_tip + "\nПорог активации: " + str(cost) + "% (Текущий заряд: " + str(SaveManager.sync_gauge) + "% / " + str(cost) + "%)"
-				btn.add_theme_color_override("font_color", Color(0.65, 0.65, 0.7, 0.7))
+				_style_combat_button(btn, &"default")
 			_action_box.add_child(btn)
 
 	var skills: Array[SkillData] = []
@@ -1355,16 +1371,24 @@ func _begin_player_turn(cat_index: int) -> void:
 		btn.clip_text = true
 		btn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		btn.add_theme_font_size_override("font_size", 9)
+		_style_combat_button(btn, &"default")
 		btn.pressed.connect(func() -> void:
 			AudioManager.play_sfx("ui_click")
 			_on_skill_chosen(sk)
 		)
 		_action_box.add_child(btn)
+		enabled_action_buttons.append(btn)
 
-	for child: Node in _action_box.get_children():
-		if child is Button and not (child as Button).disabled:
-			(child as Button).grab_focus()
-			break
+	var hint_lbl: Label = Label.new()
+	var is_touch_a: bool = (SaveManager.settings != null and SaveManager.settings.touch_controls_enabled)
+	hint_lbl.text = "🎮 [D-Pad/Стик] Выбор | [A] Удар" + (" | 👆 Тач" if is_touch_a else "")
+	hint_lbl.add_theme_font_size_override("font_size", 7)
+	hint_lbl.add_theme_color_override("font_color", Color(0.45, 0.72, 0.88, 0.8))
+	_action_box.add_child(hint_lbl)
+
+	_link_button_focus_neighbors(enabled_action_buttons)
+	_focus_first_action_button()
+	call_deferred("_reclaim_combat_menu_focus")
 
 func get_pyramid_current_hp() -> int:
 	if _pyramid_active:
@@ -1688,15 +1712,22 @@ func _on_skill_chosen(sk: SkillData) -> void:
 	_action_box.visible = false
 	_target_box.visible = true
 	for child: Node in _target_box.get_children():
+		_target_box.remove_child(child)
 		child.queue_free()
 
 	var t_lbl: Label = Label.new()
-	t_lbl.text = "ВЫБЕРИТЕ ЦЕЛЬ / ДЕТАЛЬ (" + sk.skill_name + "):"
+	t_lbl.text = "ВЫБЕРИТЕ ЦЕЛЬ (" + sk.skill_name + "):"
 	t_lbl.add_theme_font_size_override("font_size", 9)
 	t_lbl.add_theme_color_override("font_color", Color(0.4, 0.95, 1.0))
 	_target_box.add_child(t_lbl)
 
+	var target_buttons: Array[Button] = []
 	var has_modular_enemy: bool = false
+	var living_enemies_count: int = 0
+	for en_chk: EnemyInstance in _enemies:
+		if en_chk.is_alive():
+			living_enemies_count += 1
+
 	for e_idx: int in range(_enemies.size()):
 		var en: EnemyInstance = _enemies[e_idx]
 		if not en.is_alive():
@@ -1711,6 +1742,7 @@ func _on_skill_chosen(sk: SkillData) -> void:
 			var col_str: String = BossColoredSegment.color_to_russian(seg.affinity_color)
 			var g_col: Color = BossColoredSegment.color_to_godot_color(seg.affinity_color)
 			seg_btn.text = "СЕГМЕНТ [ФАЗА " + str(fbc.current_phase) + "]: " + seg.segment_name + " (" + str(seg.current_hp) + " HP) - " + col_str
+			_style_combat_button(seg_btn, &"default")
 			seg_btn.add_theme_color_override("font_color", g_col)
 			seg_btn.pressed.connect(func() -> void:
 				AudioManager.play_sfx("ui_click")
@@ -1719,35 +1751,62 @@ func _on_skill_chosen(sk: SkillData) -> void:
 				_start_player_qte()
 			)
 			_target_box.add_child(seg_btn)
+			target_buttons.append(seg_btn)
 		elif en.is_modular():
 			has_modular_enemy = true
-			# 3 кнопки выбора конкретной детали у Элитки или Босса!
-			var row: HBoxContainer = HBoxContainer.new()
-			row.add_theme_constant_override("separation", 3)
-			_target_box.add_child(row)
+			if living_enemies_count > 1:
+				var m_hdr: Label = Label.new()
+				m_hdr.text = "► " + str(e_idx + 1) + ". " + en.data.enemy_name + (" [ЭЛИТА]" if (en.data != null and en.data.is_elite) else "") + ":"
+				m_hdr.add_theme_font_size_override("font_size", 8)
+				m_hdr.add_theme_color_override("font_color", Color(0.95, 0.8, 0.4))
+				_target_box.add_child(m_hdr)
 
+			var prefix: String = (str(e_idx + 1) + ". ") if living_enemies_count > 1 else ""
+
+			# Вертикальные полноразмерные кнопки для частей мехов (Front Mission)
 			for slot: PartData.PartSlot in [PartData.PartSlot.BODY, PartData.PartSlot.ARMS, PartData.PartSlot.LEGS]:
 				var p: PartInstance = en.get_part(slot)
+				if p == null:
+					continue
 				var p_btn: Button = Button.new()
 				p_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 				p_btn.add_theme_font_size_override("font_size", 8)
-				var s_name: String = PartData.slot_to_russian(slot)
+				var s_name: String = "КОРПУС"
+				if slot == PartData.PartSlot.ARMS:
+					s_name = "ОРУЖИЕ / РУКИ"
+				elif slot == PartData.PartSlot.LEGS:
+					s_name = "ШАССИ / НОГИ"
+				var max_h: int = p.get_max_hp()
 				if p.is_broken() and slot != PartData.PartSlot.BODY:
-					p_btn.text = s_name + " [ОТСТРЕЛЕНО]"
+					p_btn.text = prefix + s_name + " [ОТСТРЕЛЕНО]"
 					p_btn.disabled = true
+					p_btn.tooltip_text = s_name + " уже отстрелено! Нельзя атаковать."
+					_style_combat_button(p_btn, &"default")
+					_target_box.add_child(p_btn)
 				else:
-					p_btn.text = s_name + " (" + str(p.current_hp) + " HP)"
-				p_btn.pressed.connect(func() -> void:
-					AudioManager.play_sfx("ui_click")
-					_selected_enemy_index = e_idx
-					_selected_part_slot = slot
-					_start_player_qte()
-				)
-				row.add_child(p_btn)
+					p_btn.text = prefix + s_name + " (" + str(p.current_hp) + "/" + str(max_h) + " HP)"
+					if slot == PartData.PartSlot.BODY:
+						p_btn.tooltip_text = "КОРПУС: При HP=0 враг полностью выводится из строя!"
+					elif slot == PartData.PartSlot.ARMS:
+						p_btn.tooltip_text = "ОРУЖИЕ: Отстрел лишает врага всех спецприёмов!"
+					elif slot == PartData.PartSlot.LEGS:
+						p_btn.tooltip_text = "ШАССИ: Отстрел снижает скорость и инициативу на 70%!"
+					_style_combat_button(p_btn, &"default")
+					p_btn.pressed.connect(func() -> void:
+						AudioManager.play_sfx("ui_click")
+						_selected_enemy_index = e_idx
+						_selected_part_slot = slot
+						_start_player_qte()
+					)
+					_target_box.add_child(p_btn)
+					target_buttons.append(p_btn)
 		else:
 			var e_btn: Button = Button.new()
-			e_btn.text = en.data.enemy_name + " (HP: " + str(en.current_hp) + "/" + str(en.data.max_hp) + ")"
+			e_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			var mob_prefix: String = ("► " + str(e_idx + 1) + ". ") if living_enemies_count > 1 else ""
+			e_btn.text = mob_prefix + en.data.enemy_name + " (HP: " + str(en.current_hp) + "/" + str(en.data.max_hp) + ")"
 			e_btn.add_theme_font_size_override("font_size", 9)
+			_style_combat_button(e_btn, &"default")
 			e_btn.pressed.connect(func() -> void:
 				AudioManager.play_sfx("ui_click")
 				_selected_enemy_index = e_idx
@@ -1755,20 +1814,68 @@ func _on_skill_chosen(sk: SkillData) -> void:
 				_start_player_qte()
 			)
 			_target_box.add_child(e_btn)
+			target_buttons.append(e_btn)
 
 	var back_btn: Button = Button.new()
-	back_btn.text = "<- Назад к навыкам"
+	back_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	back_btn.text = "◀ Назад к навыкам [B / ESC]"
 	back_btn.add_theme_font_size_override("font_size", 9)
+	_style_combat_button(back_btn, &"back")
 	back_btn.pressed.connect(func() -> void:
 		_begin_player_turn(_active_cat_index)
 	)
 	_target_box.add_child(back_btn)
+	target_buttons.append(back_btn)
+
+	var t_hint: Label = Label.new()
+	var is_touch_t: bool = (SaveManager.settings != null and SaveManager.settings.touch_controls_enabled)
+	t_hint.text = "🎮 [D-Pad/Стик] Выбор | [A] Удар | [B] Назад" + (" | 👆 Тач" if is_touch_t else "")
+	t_hint.add_theme_font_size_override("font_size", 7)
+	t_hint.add_theme_color_override("font_color", Color(0.45, 0.72, 0.88, 0.8))
+	_target_box.add_child(t_hint)
+
+	_link_button_focus_neighbors(target_buttons)
 	_focus_first_target_button()
+	call_deferred("_reclaim_combat_menu_focus")
 
 	if has_modular_enemy:
 		await TutorialOverlay.show_if_needed(self, &"elite_targeting")
+		if not is_inside_tree():
+			return
+		_reclaim_combat_menu_focus()
+		call_deferred("_reclaim_combat_menu_focus")
+
+func _link_button_focus_neighbors(buttons: Array[Button]) -> void:
+	if buttons.is_empty():
+		return
+	if buttons.size() == 1:
+		var b0: Button = buttons[0]
+		b0.focus_neighbor_top = b0.get_path()
+		b0.focus_neighbor_bottom = b0.get_path()
+		b0.focus_neighbor_left = b0.get_path()
+		b0.focus_neighbor_right = b0.get_path()
+		return
+
+	for i: int in range(buttons.size()):
+		var cur: Button = buttons[i]
+		var prev: Button = buttons[(i - 1 + buttons.size()) % buttons.size()]
+		var nxt: Button = buttons[(i + 1) % buttons.size()]
+		cur.focus_neighbor_top = cur.get_path_to(prev)
+		cur.focus_neighbor_bottom = cur.get_path_to(nxt)
+		cur.focus_neighbor_left = cur.get_path_to(prev)
+		cur.focus_neighbor_right = cur.get_path_to(nxt)
+
+func _focus_first_action_button() -> void:
+	if _action_box == null or not _action_box.visible:
+		return
+	for child: Node in _action_box.get_children():
+		if child is Button and not (child as Button).disabled:
+			(child as Button).grab_focus()
+			return
 
 func _focus_first_target_button() -> void:
+	if _target_box == null or not _target_box.visible:
+		return
 	for child: Node in _target_box.get_children():
 		if child is Button and not (child as Button).disabled:
 			(child as Button).grab_focus()
@@ -1779,11 +1886,158 @@ func _focus_first_target_button() -> void:
 					(sub as Button).grab_focus()
 					return
 
+func _reclaim_combat_menu_focus() -> void:
+	if not is_inside_tree():
+		return
+	if _end_overlay != null and _end_overlay.visible:
+		_focus_end_overlay_btn()
+		return
+	if _target_box != null and _target_box.visible:
+		_focus_first_target_button()
+		return
+	if _action_box != null and _action_box.visible:
+		_focus_first_action_button()
+		return
+
+func _is_node_in_combat_menu(ctrl: Control) -> bool:
+	if ctrl == null:
+		return false
+	if _target_box != null and _target_box.visible and _target_box.is_ancestor_of(ctrl):
+		return true
+	if _action_box != null and _action_box.visible and _action_box.is_ancestor_of(ctrl):
+		return true
+	if _end_overlay != null and _end_overlay.visible and _end_overlay.is_ancestor_of(ctrl):
+		return true
+	return false
+
+func _style_combat_button(btn: Button, style_variant: StringName = &"default") -> void:
+	if btn == null:
+		return
+
+	btn.clip_text = true
+	btn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	btn.focus_mode = Control.FOCUS_ALL
+
+	var normal_box: StyleBoxFlat = StyleBoxFlat.new()
+	var hover_box: StyleBoxFlat = StyleBoxFlat.new()
+	var focus_box: StyleBoxFlat = StyleBoxFlat.new()
+	var pressed_box: StyleBoxFlat = StyleBoxFlat.new()
+	var disabled_box: StyleBoxFlat = StyleBoxFlat.new()
+
+	for box: StyleBoxFlat in [normal_box, hover_box, focus_box, pressed_box, disabled_box]:
+		box.set_corner_radius_all(3)
+		box.content_margin_left = 6
+		box.content_margin_right = 6
+		box.content_margin_top = 3
+		box.content_margin_bottom = 3
+
+	if style_variant == &"fusion":
+		normal_box.bg_color = Color(0.18, 0.15, 0.06, 0.92)
+		normal_box.border_color = Color(0.85, 0.72, 0.22, 0.9)
+		normal_box.set_border_width_all(1)
+
+		hover_box.bg_color = Color(0.28, 0.23, 0.08, 0.98)
+		hover_box.border_color = Color(1.0, 0.9, 0.35, 1.0)
+		hover_box.set_border_width_all(2)
+
+		focus_box.bg_color = Color(0.35, 0.28, 0.1, 1.0)
+		focus_box.border_color = Color(1.0, 0.96, 0.45, 1.0)
+		focus_box.set_border_width_all(2)
+		focus_box.set_expand_margin_all(2)
+
+		pressed_box.bg_color = Color(0.5, 0.4, 0.15, 1.0)
+		pressed_box.border_color = Color(1.0, 1.0, 0.8, 1.0)
+		pressed_box.set_border_width_all(2)
+
+		btn.add_theme_color_override("font_color", Color(1.0, 0.92, 0.4))
+		btn.add_theme_color_override("font_focus_color", Color(1.0, 1.0, 0.7))
+		btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 0.6))
+	elif style_variant == &"back":
+		normal_box.bg_color = Color(0.14, 0.09, 0.12, 0.92)
+		normal_box.border_color = Color(0.55, 0.32, 0.42, 0.85)
+		normal_box.set_border_width_all(1)
+
+		hover_box.bg_color = Color(0.24, 0.13, 0.18, 0.98)
+		hover_box.border_color = Color(0.85, 0.45, 0.58, 1.0)
+		hover_box.set_border_width_all(2)
+
+		focus_box.bg_color = Color(0.3, 0.15, 0.22, 1.0)
+		focus_box.border_color = Color(1.0, 0.55, 0.7, 1.0)
+		focus_box.set_border_width_all(2)
+		focus_box.set_expand_margin_all(2)
+
+		pressed_box.bg_color = Color(0.45, 0.2, 0.3, 1.0)
+		pressed_box.border_color = Color(1.0, 0.85, 0.9, 1.0)
+		pressed_box.set_border_width_all(2)
+
+		btn.add_theme_color_override("font_color", Color(0.95, 0.78, 0.85))
+		btn.add_theme_color_override("font_focus_color", Color(1.0, 0.9, 0.95))
+		btn.add_theme_color_override("font_hover_color", Color(1.0, 0.85, 0.9))
+	else:
+		normal_box.bg_color = Color(0.08, 0.12, 0.18, 0.92)
+		normal_box.border_color = Color(0.24, 0.46, 0.68, 0.85)
+		normal_box.set_border_width_all(1)
+
+		hover_box.bg_color = Color(0.15, 0.25, 0.38, 0.98)
+		hover_box.border_color = Color(0.4, 0.82, 1.0, 1.0)
+		hover_box.set_border_width_all(2)
+
+		focus_box.bg_color = Color(0.18, 0.32, 0.52, 1.0)
+		focus_box.border_color = Color(0.35, 0.95, 1.0, 1.0)
+		focus_box.set_border_width_all(2)
+		focus_box.set_expand_margin_all(2)
+
+		pressed_box.bg_color = Color(0.26, 0.48, 0.75, 1.0)
+		pressed_box.border_color = Color(0.8, 0.96, 1.0, 1.0)
+		pressed_box.set_border_width_all(2)
+
+		btn.add_theme_color_override("font_color", Color(0.88, 0.93, 1.0))
+		btn.add_theme_color_override("font_focus_color", Color(1.0, 1.0, 0.35))
+		btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 0.55))
+
+	disabled_box.bg_color = Color(0.05, 0.07, 0.1, 0.6)
+	disabled_box.border_color = Color(0.2, 0.22, 0.28, 0.45)
+	disabled_box.set_border_width_all(1)
+	btn.add_theme_color_override("font_disabled_color", Color(0.42, 0.45, 0.5, 0.65))
+
+	btn.add_theme_stylebox_override("normal", normal_box)
+	btn.add_theme_stylebox_override("hover", hover_box)
+	btn.add_theme_stylebox_override("focus", focus_box)
+	btn.add_theme_stylebox_override("pressed", pressed_box)
+	btn.add_theme_stylebox_override("disabled", disabled_box)
+
 func _unhandled_input(event: InputEvent) -> void:
-	if _target_box != null and _target_box.visible and event.is_action_pressed(&"ui_cancel"):
-		AudioManager.play_sfx("ui_click")
-		_begin_player_turn(_active_cat_index)
-		get_viewport().set_input_as_handled()
+	if _target_box != null and _target_box.visible:
+		var is_b_pressed: bool = (
+			event is InputEventJoypadButton
+			and (event as InputEventJoypadButton).pressed
+			and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B
+		)
+		if event.is_action_pressed(&"ui_cancel") or is_b_pressed:
+			AudioManager.play_sfx("ui_click")
+			_begin_player_turn(_active_cat_index)
+			get_viewport().set_input_as_handled()
+			return
+
+	if _fsm != null and (
+		_fsm.current_state == CombatFSM.State.PLAYER_SELECT_ACTION
+		or _fsm.current_state == CombatFSM.State.PLAYER_SELECT_TARGET
+	):
+		var current_focus: Control = get_viewport().gui_get_focus_owner()
+		if current_focus == null or (not _is_node_in_combat_menu(current_focus)):
+			var is_joy_btn: bool = (event is InputEventJoypadButton and (event as InputEventJoypadButton).pressed)
+			var is_joy_stick: bool = (event is InputEventJoypadMotion and abs((event as InputEventJoypadMotion).axis_value) > 0.35)
+			var is_ui_nav: bool = (
+				event.is_action_pressed(&"ui_up")
+				or event.is_action_pressed(&"ui_down")
+				or event.is_action_pressed(&"ui_left")
+				or event.is_action_pressed(&"ui_right")
+				or event.is_action_pressed(&"ui_accept")
+			)
+			if is_joy_btn or is_joy_stick or is_ui_nav:
+				_reclaim_combat_menu_focus()
+				get_viewport().set_input_as_handled()
+				return
 
 func _start_player_qte() -> void:
 	_action_box.visible = false
