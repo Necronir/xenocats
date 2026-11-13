@@ -899,6 +899,8 @@ func _refresh_hud() -> void:
 
 	# Обновляем визуальное состояние модульных спрайтов и партиклов котов
 	for i: int in range(_party.size()):
+		if i >= _cat_rigs.size():
+			continue
 		var cat: CatMechInstance = _party[i]
 		var rig: Dictionary = _cat_rigs[i]
 		var root: Node2D = rig["root"] as Node2D
@@ -2557,9 +2559,16 @@ func _handle_victory() -> void:
 			_epilogue_btn.visible = true
 			_epilogue_btn.text = "СЮЖЕТНЫЙ ЭПИЛОГ: ИЗБА И РОК-КОНЦЕРТ ->"
 			_epilogue_btn.pressed.connect(func() -> void:
-				EventBus.request_scene_change.emit(&"EPILOGUE", {
-					"act": 1,
-					"source": "final_boss_victory"
+				EventBus.request_scene_change.emit(&"VIDEO", {
+					"video_path": "res://assets/videos/5-4-tubadur-win.ogv",
+					"image_path": "res://assets/photos/5-4-trubadur-win.jpg",
+					"title": "ТРУБАДУР ПОВЕРЖЕН // ПОБЕДА КВАРТЕТА",
+					"subtitle": "Путь к лесной избе открыт...",
+					"next_scene": &"EPILOGUE",
+					"next_payload": {
+						"act": 1,
+						"source": "final_boss_victory"
+					}
 				})
 			)
 			_end_btn.text = "В ЛАГЕРЬ БРОДЯГ (ХАБ)"
@@ -2664,13 +2673,22 @@ func _handle_victory() -> void:
 							"next_scene": &"EVENT",
 							"next_payload": cabin_dialogue_payload
 						}
+						var quartet_win_video_payload: Dictionary = {
+							"video_path": "res://assets/videos/5-4-tubadur-win.ogv",
+							"image_path": "res://assets/photos/5-4-trubadur-win.jpg",
+							"title": "ТРУБАДУР ПОВЕРЖЕН // ПОБЕДА КВАРТЕТА",
+							"subtitle": "Четыре генератора синхронизированы. Падение дирижёра...",
+							"story_stage": 4,
+							"next_scene": &"VIDEO",
+							"next_payload": cabin_cutscene_payload
+						}
 						var trubadur_quartet_payload: Dictionary = {
 							"timeline": "res://data/dialogues/boss_postlude_trubadur_quartet.dtl",
 							"timeline_name": "boss_postlude_trubadur_quartet",
 							"title": "СОКРУШЕНИЕ 4 СТАНЦИЙ // ТРУБАДУР ПОВЕРЖЕН",
 							"continue_text": "В ИЗБУ РАДИОРУБКИ ->",
 							"next_scene": &"VIDEO",
-							"next_payload": cabin_cutscene_payload
+							"next_payload": quartet_win_video_payload
 						}
 						EventBus.request_scene_change.emit(&"VIDEO", {
 							"image_path": "res://assets/photos/5-1-trubadur-full.jpg",
@@ -2693,6 +2711,7 @@ func _handle_victory() -> void:
 							"action_on_complete": "advance_sector"
 						}
 						var trio_cutscene_payload: Dictionary = {
+							"video_path": "res://assets/videos/2-4-trubadur-win.ogv",
 							"image_path": "res://assets/photos/2-1-cat-and-hound-together.jpg",
 							"title": "ОЧНУТЬСЯ НА СВАЛКЕ // В ПОИСКАХ ПЕТУХА",
 							"story_stage": 2,
@@ -2734,13 +2753,21 @@ func _handle_victory() -> void:
 							"next_scene": &"EVENT",
 							"next_payload": hound_dialogue_payload
 						}
+						var trubadur_solo_win_video_payload: Dictionary = {
+							"video_path": "res://assets/videos/1-fb-taubadur-win.ogv",
+							"image_path": "res://assets/photos/1-5b-trubadur-win.jpg",
+							"title": "ПРОЛОГ: УДАРНАЯ ВОЛНА ТРУБАДУРА",
+							"subtitle": "Два генератора искрят. Выброс на свалку Сектора 1...",
+							"next_scene": &"VIDEO",
+							"next_payload": hound_cutscene_payload
+						}
 						var trubadur_solo_payload: Dictionary = {
 							"timeline": "res://data/dialogues/boss_postlude_sputnik_solo.dtl",
 							"timeline_name": "boss_postlude_sputnik_solo",
 							"title": "АУДИЕНЦИЯ У ТРУБАДУРА // СИНИЙ ГЕНЕРАТОР",
 							"continue_text": "ОЧНУТЬСЯ НА СВАЛКЕ ->",
 							"next_scene": &"VIDEO",
-							"next_payload": hound_cutscene_payload
+							"next_payload": trubadur_solo_win_video_payload
 						}
 						EventBus.request_scene_change.emit(&"VIDEO", {
 							"image_path": "res://assets/photos/1-4b-trubadur-apperiance.jpg",
@@ -2783,6 +2810,7 @@ func _handle_victory() -> void:
 					}
 					var win_photo: String = "res://assets/photos/2-3a-press-boss-win.jpg" if ResourceLoader.exists("res://assets/photos/2-3a-press-boss-win.jpg") else photo_path
 					EventBus.request_scene_change.emit(&"VIDEO", {
+						"video_path": "res://assets/videos/2-3a-press-boss-win.ogv",
 						"image_path": win_photo,
 						"title": "СЕКТОР 1: ПОБЕДА НАД ПРЕССОМ // СПАСЕНИЕ ОСЛА M.U.L.E.",
 						"story_stage": 3,
@@ -2823,6 +2851,7 @@ func _handle_victory() -> void:
 					}
 					var win_photo: String = "res://assets/photos/3-2a-atamansha-boss-win.jpg" if ResourceLoader.exists("res://assets/photos/3-2a-atamansha-boss-win.jpg") else photo_path
 					EventBus.request_scene_change.emit(&"VIDEO", {
+						"video_path": "res://assets/videos/3-2a-atamansha-boss-win.ogv",
 						"image_path": win_photo,
 						"title": "СЕКТОР 2: ПОБЕДА НАД АТАМАНШЕЙ // СПАСЕНИЕ ПЕТУХА C.O.C.K.",
 						"story_stage": 4,

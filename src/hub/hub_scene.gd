@@ -185,18 +185,24 @@ func _build_ui() -> void:
 				"title": "ПРОЛОГ: ИЗГНАНИЕ КОТА (ЧАСТЬ 1)",
 				"continue_text": "В ПУТЬ К ВЫШКЕ БРЕМЕН-4 ->"
 			}
+			var cat_video_payload: Dictionary = {
+				"video_path": "res://assets/videos/1-1-start.ogv",
+				"title": "ПРОЛОГ: ПОБЕГ ФЕЛИКСА",
+				"story_stage": 1,
+				"next_scene": &"EVENT",
+				"next_payload": cat_dtl_payload
+			}
 			var cat_img: String = "res://assets/photos/1-1-cat-start.jpg"
-			if not ResourceLoader.exists(cat_img):
-				cat_img = "res://assets/photos/1-cat-start.jpg"
-
 			if ResourceLoader.exists(cat_img):
 				EventBus.request_scene_change.emit(&"VIDEO", {
 					"image_path": cat_img,
 					"title": "ПРОЛОГ: ИЗГНАНИЕ КОТА ФЕЛИКСА",
 					"story_stage": 1,
-					"next_scene": &"EVENT",
-					"next_payload": cat_dtl_payload
+					"next_scene": &"VIDEO",
+					"next_payload": cat_video_payload
 				})
+			elif ResourceLoader.exists("res://assets/videos/1-1-start.ogv"):
+				EventBus.request_scene_change.emit(&"VIDEO", cat_video_payload)
 			elif ResourceLoader.exists("res://assets/videos/1-cat.ogv"):
 				EventBus.request_scene_change.emit(&"VIDEO", {
 					"video_path": "res://assets/videos/1-cat.ogv",

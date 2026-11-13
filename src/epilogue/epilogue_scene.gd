@@ -30,6 +30,9 @@ var _lines: Array[Dictionary] = []
 var current_cabin_sprite: String = ""
 var sprite_switched_to_animal_pyramid: bool = false
 var last_comic_sfx: String = ""
+var _active_video_overlay: VideoPlayerScene = null
+var last_video_played: String = ""
+var _played_act1_videos: Dictionary = {}
 
 # --- Состояние Акта 2: Победный Рок-Концерт ---
 var _act2_root: Control = null
@@ -78,7 +81,8 @@ const CABIN_LINES: Array[Dictionary] = [
 		"mood": "battle",
 		"text": "КУ-КА-РЕ-КУ! Синтезатор наведения зафиксирован прямо на окне радиорубки!",
 		"sfx": "",
-		"image": "res://assets/photos/6-2-fake-boss-monster.jpg"
+		"image": "res://assets/photos/6-2-fake-boss-monster.jpg",
+		"video": "res://assets/videos/6-2-fake-boss-monster.ogv"
 	},
 	{
 		"speaker": "felix",
@@ -310,10 +314,12 @@ func start_act_1_cabin() -> void:
 
 	sprite_switched_to_animal_pyramid = false
 	last_comic_sfx = ""
-	current_cabin_sprite = "res://assets/photos/6-2-fake-boss-monster.jpg"
+	last_video_played = ""
+	_played_act1_videos.clear()
+	current_cabin_sprite = "res://assets/photos/6-1-fake-boss-apperiance.jpg"
 
-	# Начальный спрайт: Робо-Мега-Пирамида
-	_set_cabin_sprite("res://assets/photos/6-2-fake-boss-monster.jpg")
+	# Начальный спрайт: Квартет у избы разбойников
+	_set_cabin_sprite("res://assets/photos/6-1-fake-boss-apperiance.jpg")
 	AudioManager.play_pyramid_theme(4)
 	_render_act1_dialogue()
 
@@ -366,6 +372,11 @@ func _render_act1_dialogue() -> void:
 	if sfx_to_play != "" and sfx_to_play != "comic_slide":
 		AudioManager.play_sfx(sfx_to_play)
 
+	var vid_path: String = String(item.get("video", ""))
+	if vid_path != "" and not _played_act1_videos.has(_line_cursor):
+		_played_act1_videos[_line_cursor] = true
+		_play_inline_video_overlay(vid_path)
+
 	# Загрузка портрета
 	var p_path: String = "res://assets/sprites/portraits/" + speaker_id + "_" + mood + ".png"
 	if ResourceLoader.exists(p_path):
@@ -414,6 +425,22 @@ func get_dialogue_line(idx: int) -> Dictionary:
 	if idx >= 0 and idx < _lines.size():
 		return _lines[idx]
 	return {}
+
+func _play_inline_video_overlay(video_path: String) -> void:
+	last_video_played = video_path
+	if _active_video_overlay != null and is_instance_valid(_active_video_overlay):
+		_active_video_overlay.queue_free()
+	var overlay: VideoPlayerScene = VideoPlayerScene.new()
+	overlay.name = "InlineVideoOverlay"
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 100
+	add_child(overlay)
+	_active_video_overlay = overlay
+	overlay.setup_video({
+		"video_path": video_path,
+		"title": "СТЫКОВКА: РОБО-МЕГА-ПИРАМИДА",
+		"overlay_mode": true
+	})
 
 # =============================================================================
 # АКТ 2: ПОБЕДНЫЙ РОК-КОНЦЕРТ

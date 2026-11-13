@@ -3,6 +3,8 @@ extends Control
 
 ## VideoPlayerScene: Полноэкранный плеер сюжетных кат-сцен и фото-артов (Issue #24)
 
+signal media_finished
+
 var _payload: Dictionary = {}
 var _video_player: VideoStreamPlayer = null
 var _photo_rect: TextureRect = null
@@ -100,7 +102,33 @@ func _start_media() -> void:
 		img_path = vid_path
 		vid_path = ""
 
-	# Режим фото-арта (Photo Slide Cutscene)
+	# Если video_path указывает на .mp4, пробуем соответствующий .ogv (нативный формат Godot)
+	if vid_path.ends_with(".mp4"):
+		var ogv_candidate: String = vid_path.substr(0, vid_path.length() - 4) + ".ogv"
+		if ResourceLoader.exists(ogv_candidate):
+			vid_path = ogv_candidate
+
+	# Режим видеоролика (Video Player — приоритетнее фото-заглушки при наличии обоих путей)
+	if vid_path != "" and ResourceLoader.exists(vid_path):
+		var stream: VideoStream = ResourceLoader.load(vid_path) as VideoStream
+		if stream != null:
+			var st_stage: int = int(_payload.get("story_stage", 0))
+			if st_stage > 0:
+				AudioManager.play_story_stage(st_stage)
+			else:
+				AudioManager.stop_music()
+			_photo_rect.visible = false
+			_video_player.visible = true
+			_video_player.stream = stream
+			_skip_btn.text = "ПРОПУСТИТЬ [ESC / SPACE] >>"
+			_estimated_duration = 14.0
+			if DisplayServer.get_name() != "headless":
+				_video_player.play()
+			else:
+				call_deferred("_finish_media")
+			return
+
+	# Режим фото-арта (Photo Slide Cutscene / fallback)
 	if img_path != "":
 		var tex: Texture2D = null
 		if ResourceLoader.exists(img_path):
@@ -126,22 +154,6 @@ func _start_media() -> void:
 				AudioManager.play_boss_theme(int(_payload["boss_theme"]))
 
 			if DisplayServer.get_name() == "headless":
-				call_deferred("_finish_media")
-			return
-
-	# Режим видеоролика (Video Player)
-	if vid_path != "" and ResourceLoader.exists(vid_path):
-		var stream: VideoStream = ResourceLoader.load(vid_path) as VideoStream
-		if stream != null:
-			AudioManager.stop_music()
-			_photo_rect.visible = false
-			_video_player.visible = true
-			_video_player.stream = stream
-			_skip_btn.text = "ПРОПУСТИТЬ [ESC / SPACE] >>"
-			_estimated_duration = 14.0
-			if DisplayServer.get_name() != "headless":
-				_video_player.play()
-			else:
 				call_deferred("_finish_media")
 			return
 
@@ -189,6 +201,11 @@ func _finish_media() -> void:
 	if _video_player != null and is_instance_valid(_video_player):
 		_video_player.stop()
 
+	if bool(_payload.get("overlay_mode", false)):
+		media_finished.emit()
+		queue_free()
+		return
+
 	var action: String = String(_payload.get("action_on_complete", ""))
 	if action == "advance_sector":
 		SaveManager.advance_to_next_sector()
@@ -197,6 +214,7 @@ func _finish_media() -> void:
 	else:
 		SaveManager.save_run()
 
+	media_finished.emit()
 	if _payload.has("next_scene"):
 		var next_scene: StringName = _payload.get("next_scene", &"HUB")
 		var next_payload: Dictionary = _payload.get("next_payload", {})
