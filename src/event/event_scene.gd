@@ -20,6 +20,8 @@ var _continue_btn: Button = null
 var _lines: Array[Dictionary] = []
 var _choices: Array[Dictionary] = []
 var _line_cursor: int = 0
+var _active_video_overlay: VideoPlayerScene = null
+var last_video_played: String = ""
 
 const TIMELINE_FILES: Array[String] = [
 	"res://data/dialogues/event_scrap_container.dtl",
@@ -171,6 +173,8 @@ func _build_ui() -> void:
 	root_vbox.add_child(_continue_btn)
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _active_video_overlay != null and is_instance_valid(_active_video_overlay):
+		return
 	# Автоматический перехват и возврат фокуса в окне текстового события при потере
 	var cur_focus: Control = get_viewport().gui_get_focus_owner()
 	var is_focus_valid: bool = cur_focus != null and (
@@ -280,7 +284,9 @@ func _parse_dtl_timeline(path: String) -> void:
 			"mood": "normal",
 			"text": "Пойман слабый сигнал с ретранслятора Бремен-4.",
 			"image": "res://assets/sprites/story/story_cat_alone_road.png",
-			"sfx": ""
+			"sfx": "",
+			"video": "",
+			"video_played": false
 		})
 		_choices.append({"label": "Собрать лом (+30 Лома)", "signal": "safe_scrap", "branch_lines": []})
 		return
@@ -292,6 +298,7 @@ func _parse_dtl_timeline(path: String) -> void:
 	var current_choice: Dictionary = {}
 	var current_image: String = String(_payload.get("image_path", _payload.get("image", _payload.get("photo_path", ""))))
 	var current_sfx: String = ""
+	var current_video: String = ""
 	for raw: String in raw_lines:
 		var line: String = raw.strip_edges()
 		if line == "" or line.begins_with("#"):
@@ -301,6 +308,11 @@ func _parse_dtl_timeline(path: String) -> void:
 			var img_q2: int = line.rfind("\"")
 			if img_q1 != -1 and img_q2 > img_q1:
 				current_image = line.substr(img_q1 + 1, img_q2 - img_q1 - 1)
+		elif line.begins_with("[video"):
+			var vid_q1: int = line.find("\"")
+			var vid_q2: int = line.rfind("\"")
+			if vid_q1 != -1 and vid_q2 > vid_q1:
+				current_video = line.substr(vid_q1 + 1, vid_q2 - vid_q1 - 1)
 		elif line.begins_with("[sound") or line.begins_with("[audio") or line.begins_with("[sfx"):
 			var sfx_q1: int = line.find("\"")
 			var sfx_q2: int = line.rfind("\"")
@@ -333,8 +345,17 @@ func _parse_dtl_timeline(path: String) -> void:
 				mood = head.substr(p_open + 1, p_close - p_open - 1).strip_edges().to_lower()
 			else:
 				char_id = head.to_lower()
-			var parsed_item: Dictionary = {"char": char_id, "mood": mood, "text": body, "image": current_image, "sfx": current_sfx}
+			var parsed_item: Dictionary = {
+				"char": char_id,
+				"mood": mood,
+				"text": body,
+				"image": current_image,
+				"sfx": current_sfx,
+				"video": current_video,
+				"video_played": false
+			}
 			current_sfx = ""
+			current_video = ""
 			if not _choices.is_empty() and (raw.begins_with("\t") or raw.begins_with("  ")):
 				var bl: Array = current_choice.get("branch_lines", []) as Array
 				bl.append(parsed_item)
@@ -382,6 +403,13 @@ func _render_dialogue_state() -> void:
 		var line_sfx: String = String(item.get("sfx", ""))
 		if line_sfx != "":
 			AudioManager.play_sfx(line_sfx)
+
+		var line_video: String = String(item.get("video", ""))
+		var video_already_played: bool = bool(item.get("video_played", false))
+		if line_video != "" and not video_already_played:
+			item["video_played"] = true
+			_lines[_line_cursor] = item
+			_play_inline_video_overlay(line_video)
 
 		_speaker_label.text = String(SPEAKER_NAMES.get(cid, cid.to_upper())) + " [" + mood.to_upper() + "]"
 		_dialogue_text.text = String(item["text"])
@@ -638,3 +666,19 @@ func _style_event_button(btn: Button) -> void:
 	btn.add_theme_stylebox_override("hover", hover_box)
 	btn.add_theme_stylebox_override("focus", focus_box)
 	btn.add_theme_stylebox_override("pressed", pressed_box)
+
+func _play_inline_video_overlay(video_path: String) -> void:
+	last_video_played = video_path
+	if _active_video_overlay != null and is_instance_valid(_active_video_overlay):
+		_active_video_overlay.queue_free()
+	var overlay: VideoPlayerScene = VideoPlayerScene.new()
+	overlay.name = "InlineVideoOverlay"
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 100
+	add_child(overlay)
+	_active_video_overlay = overlay
+	overlay.setup_video({
+		"video_path": video_path,
+		"title": "СТЫКОВКА: РОБО-МЕГА-ПИРАМИДА",
+		"overlay_mode": true
+	})

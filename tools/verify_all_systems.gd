@@ -2104,9 +2104,12 @@ func _ready() -> void:
 	assert(p1_trubadur["timeline_name"] == "boss_postlude_trubadur_quartet", "Must route to boss_postlude_trubadur_quartet")
 	assert(captured_payload_23[0]["next_scene"] == &"EVENT", "Next scene after video must be EVENT")
 
-	# Step 2: Cabin exterior cutscene payload
-	var p2_cabin_cutscene: Dictionary = p1_trubadur["next_payload"] as Dictionary
+	# Step 2: 5-4-tubadur-win.ogv victory video -> Cabin exterior cutscene payload
+	var p2_quartet_win_video: Dictionary = p1_trubadur["next_payload"] as Dictionary
 	assert(p1_trubadur["next_scene"] == &"VIDEO", "Next scene after quartet postlude must be VIDEO")
+	assert(p2_quartet_win_video.get("video_path", "") == "res://assets/videos/5-4-tubadur-win.ogv", "Must play 5-4-tubadur-win.ogv")
+	assert(p2_quartet_win_video["next_scene"] == &"VIDEO", "Next scene after quartet win video must be VIDEO")
+	var p2_cabin_cutscene: Dictionary = p2_quartet_win_video["next_payload"] as Dictionary
 	assert(p2_cabin_cutscene["image_path"] == "res://assets/photos/6-1-fake-boss-apperiance.jpg", "Must show 6-1-fake-boss-apperiance.jpg")
 
 	# Step 3: Cabin dialogue payload (played ONCE as boss_postlude_sector3)
@@ -2813,6 +2816,169 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	print("[25] Issue #48: Mobile menu button, font glyphs & dev menu check toggle verified OK")
+
+	# --- [26] VERIFYING ISSUE #51: 7 NEW PLOT CUTSCENE VIDEOS ---
+	print("\n--- [26] VERIFYING ISSUE #51: 7 NEW PLOT CUTSCENE VIDEOS ---")
+
+	# 26.1 All 7 converted .ogv assets must exist and load cleanly as VideoStream
+	var issue_51_videos: Array[String] = [
+		"res://assets/videos/1-1-start.ogv",
+		"res://assets/videos/1-fb-taubadur-win.ogv",
+		"res://assets/videos/2-3a-press-boss-win.ogv",
+		"res://assets/videos/2-4-trubadur-win.ogv",
+		"res://assets/videos/3-2a-atamansha-boss-win.ogv",
+		"res://assets/videos/5-4-tubadur-win.ogv",
+		"res://assets/videos/6-2-fake-boss-monster.ogv"
+	]
+	for v_path: String in issue_51_videos:
+		assert(ResourceLoader.exists(v_path), "Cutscene video must exist: " + v_path)
+		var v_stream: VideoStream = ResourceLoader.load(v_path) as VideoStream
+		assert(v_stream != null, "Cutscene video must load as VideoStream: " + v_path)
+
+	var cap_scene_51: Array[StringName] = [&""]
+	var cap_payload_51: Array[Dictionary] = [{}]
+	var on_sc_51: Callable = func(sn: StringName, sp: Dictionary) -> void:
+		cap_scene_51[0] = sn
+		cap_payload_51[0] = sp
+	EventBus.request_scene_change.connect(on_sc_51)
+
+	# 26.2 Prologue (HubScene -> 1-1-cat-start.jpg -> 1-1-start.ogv -> story_intro_cat.dtl)
+	SaveManager.set_story_phase(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT)
+	SaveManager.start_new_run()
+	var hub_51_packed: PackedScene = load("res://src/hub/hub_scene.tscn") as PackedScene
+	var hub_51: HubScene = hub_51_packed.instantiate() as HubScene
+	add_child(hub_51)
+	await get_tree().process_frame
+	hub_51._new_run_btn.pressed.emit()
+	await get_tree().process_frame
+	assert(cap_scene_51[0] == &"VIDEO", "Prologue must start with VIDEO scene")
+	assert(String(cap_payload_51[0].get("image_path", "")) == "res://assets/photos/1-1-cat-start.jpg", "Prologue must show 1-1-cat-start.jpg first")
+	assert(cap_payload_51[0].get("next_scene", &"") == &"VIDEO", "1-1-cat-start.jpg must chain to 1-1-start.ogv VIDEO")
+	var prologue_vid_pl: Dictionary = cap_payload_51[0].get("next_payload", {}) as Dictionary
+	assert(String(prologue_vid_pl.get("video_path", "")) == "res://assets/videos/1-1-start.ogv", "Prologue must play 1-1-start.ogv before text")
+	assert(prologue_vid_pl.get("next_scene", &"") == &"EVENT", "1-1-start.ogv must chain to story_intro_cat EVENT")
+	var prologue_dtl_pl: Dictionary = prologue_vid_pl.get("next_payload", {}) as Dictionary
+	assert(String(prologue_dtl_pl.get("timeline", "")) == "res://data/dialogues/story_intro_cat.dtl", "Must launch story_intro_cat.dtl")
+	hub_51.queue_free()
+	await get_tree().process_frame
+
+	# 26.3 Cycle 0 Solo Felix -> 1st Trubadur victory -> 1-fb-taubadur-win.ogv before scrap heap
+	SaveManager.set_story_phase(StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT)
+	SaveManager.start_new_run()
+	assert(SaveManager.party.size() == 1, "Cycle 0 solo run must have 1 member")
+	var arena_51_packed: PackedScene = load("res://src/combat/combat_arena.tscn") as PackedScene
+	var solo_arena_51: CombatArena = arena_51_packed.instantiate() as CombatArena
+	solo_arena_51.setup_battle({"node_id": 91, "node_type": "BOSS", "boss_id": "boss_satellite", "biome_theme": "BLUE"})
+	add_child(solo_arena_51)
+	await get_tree().process_frame
+	solo_arena_51._enemies[0].body_part.current_hp = 0
+	solo_arena_51._handle_victory()
+	solo_arena_51._end_btn.pressed.emit()
+	await get_tree().process_frame
+	var s0_ev: Dictionary = cap_payload_51[0].get("next_payload", {}) as Dictionary
+	assert(String(s0_ev.get("timeline_name", "")) == "boss_postlude_sputnik_solo", "Solo Sputnik win must run boss_postlude_sputnik_solo")
+	var s0_win_vid: Dictionary = s0_ev.get("next_payload", {}) as Dictionary
+	assert(String(s0_win_vid.get("video_path", "")) == "res://assets/videos/1-fb-taubadur-win.ogv", "Must play 1-fb-taubadur-win.ogv after 1st Trubadur win")
+	var s0_scrap_pic: Dictionary = s0_win_vid.get("next_payload", {}) as Dictionary
+	assert(String(s0_scrap_pic.get("image_path", "")) == "res://assets/photos/2-1-cat-and-hound-together.jpg", "Must show scrap heap wakeup after 1-fb-taubadur-win.ogv")
+	solo_arena_51.queue_free()
+	await get_tree().process_frame
+
+	# 26.4 Press Boss victory -> 2-3a-press-boss-win.ogv
+	SaveManager.set_story_phase(StoryProgressionData.StoryPhase.CYCLE_1_DUO)
+	SaveManager.start_new_run()
+	var press_arena_51: CombatArena = arena_51_packed.instantiate() as CombatArena
+	press_arena_51.setup_battle({"node_id": 92, "node_type": "BOSS", "boss_id": "boss_press", "biome_theme": "ORANGE"})
+	add_child(press_arena_51)
+	await get_tree().process_frame
+	press_arena_51._enemies[0].body_part.current_hp = 0
+	press_arena_51._handle_victory()
+	press_arena_51._end_btn.pressed.emit()
+	await get_tree().process_frame
+	assert(cap_scene_51[0] == &"VIDEO", "Press defeat must emit VIDEO")
+	assert(String(cap_payload_51[0].get("video_path", "")) == "res://assets/videos/2-3a-press-boss-win.ogv", "Must play 2-3a-press-boss-win.ogv after defeating Press")
+	press_arena_51.queue_free()
+	await get_tree().process_frame
+
+	# 26.5 Cycle 1 Trio -> 2nd Trubadur victory -> 2-4-trubadur-win.ogv
+	SaveManager.set_story_phase(StoryProgressionData.StoryPhase.CYCLE_1_DUO)
+	SaveManager.start_new_run()
+	SaveManager.recruit_cat("MULE")
+	assert(SaveManager.party.size() == 3, "Trio run must have 3 members")
+	var trio_arena_51: CombatArena = arena_51_packed.instantiate() as CombatArena
+	trio_arena_51.setup_battle({"node_id": 93, "node_type": "BOSS", "boss_id": "boss_satellite", "biome_theme": "BLUE"})
+	add_child(trio_arena_51)
+	await get_tree().process_frame
+	trio_arena_51._enemies[0].body_part.current_hp = 0
+	trio_arena_51._handle_victory()
+	trio_arena_51._end_btn.pressed.emit()
+	await get_tree().process_frame
+	var s1_ev: Dictionary = cap_payload_51[0].get("next_payload", {}) as Dictionary
+	assert(String(s1_ev.get("timeline_name", "")) == "boss_postlude_trubadur_trio", "Trio Sputnik win must run boss_postlude_trubadur_trio")
+	var s1_win_vid: Dictionary = s1_ev.get("next_payload", {}) as Dictionary
+	assert(String(s1_win_vid.get("video_path", "")) == "res://assets/videos/2-4-trubadur-win.ogv", "Must play 2-4-trubadur-win.ogv after 2nd Trubadur win")
+	trio_arena_51.queue_free()
+	await get_tree().process_frame
+
+	# 26.6 Atamansha Boss victory -> 3-2a-atamansha-boss-win.ogv
+	SaveManager.set_story_phase(StoryProgressionData.StoryPhase.CYCLE_1_DUO)
+	SaveManager.start_new_run()
+	SaveManager.recruit_cat("MULE")
+	SaveManager.current_sector = 2
+	var atamansha_arena_51: CombatArena = arena_51_packed.instantiate() as CombatArena
+	atamansha_arena_51.setup_battle({"node_id": 94, "node_type": "BOSS", "boss_id": "boss_atamansha", "biome_theme": "PURPLE"})
+	add_child(atamansha_arena_51)
+	await get_tree().process_frame
+	atamansha_arena_51._enemies[0].body_part.current_hp = 0
+	atamansha_arena_51._handle_victory()
+	atamansha_arena_51._end_btn.pressed.emit()
+	await get_tree().process_frame
+	assert(cap_scene_51[0] == &"VIDEO", "Atamansha defeat must emit VIDEO")
+	assert(String(cap_payload_51[0].get("video_path", "")) == "res://assets/videos/3-2a-atamansha-boss-win.ogv", "Must play 3-2a-atamansha-boss-win.ogv after defeating Atamansha")
+	atamansha_arena_51.queue_free()
+	await get_tree().process_frame
+
+	EventBus.request_scene_change.disconnect(on_sc_51)
+
+	# 26.7 Inline monster transformation video (6-2-fake-boss-monster.ogv) in EventScene & EpilogueScene
+	var ev_51_packed: PackedScene = load("res://src/event/event_scene.tscn") as PackedScene
+	var ev_51: EventScene = ev_51_packed.instantiate() as EventScene
+	ev_51.setup_event({"timeline": "res://data/dialogues/boss_postlude_sector3.dtl"})
+	add_child(ev_51)
+	await get_tree().process_frame
+	assert(ev_51.last_video_played == "", "Line 0 must not play monster video yet")
+	ev_51._line_cursor = 1
+	ev_51._render_dialogue_state()
+	await get_tree().process_frame
+	assert(ev_51.last_video_played == "res://assets/videos/6-2-fake-boss-monster.ogv", "EventScene must play 6-2-fake-boss-monster.ogv before transforming into monster")
+	ev_51.queue_free()
+	await get_tree().process_frame
+
+	var ep_51_packed: PackedScene = load("res://src/epilogue/epilogue_scene.tscn") as PackedScene
+	var ep_51: EpilogueScene = ep_51_packed.instantiate() as EpilogueScene
+	ep_51.setup_epilogue({"act": 1})
+	add_child(ep_51)
+	await get_tree().process_frame
+	assert(ep_51.last_video_played == "", "Act 1 line 0 must not play monster video yet")
+	ep_51._line_cursor = 3
+	ep_51._render_act1_dialogue()
+	await get_tree().process_frame
+	assert(ep_51.last_video_played == "res://assets/videos/6-2-fake-boss-monster.ogv", "EpilogueScene Act 1 must play 6-2-fake-boss-monster.ogv before monster line")
+	ep_51.queue_free()
+	await get_tree().process_frame
+
+	# 26.8 VideoPlayerScene .mp4 -> .ogv resolution & overlay_mode self-cleanup
+	var vp_51: VideoPlayerScene = VideoPlayerScene.new()
+	var vp_finished: Array[bool] = [false]
+	vp_51.media_finished.connect(func() -> void:
+		vp_finished[0] = true
+	)
+	add_child(vp_51)
+	vp_51.setup_video({"video_path": "res://assets/videos/1-1-start.mp4", "overlay_mode": true})
+	await get_tree().process_frame
+	assert(vp_finished[0], "VideoPlayerScene overlay_mode must emit media_finished and self-close")
+
+	print("[26] Issue #51: All 7 plot cutscene videos verified OK")
 
 	AudioManager.stop_music()
 	await get_tree().process_frame
