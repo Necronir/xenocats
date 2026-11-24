@@ -10,6 +10,8 @@ var _perks_box: VBoxContainer = null
 var _tapes_box: VBoxContainer = null
 var _new_run_btn: Button = null
 var _continue_run_btn: Button = null
+var _ng_cycle_btn: Button = null
+var _selected_ng_cycle: int = 0
 var _settings_btn: Button = null
 var _settings_backdrop: ColorRect = null
 var _settings_panel: SettingsPanel = null
@@ -18,20 +20,17 @@ const SHUTTLE_MODULES: Array[Dictionary] = [
 	{
 		"key": "hull_reinforce",
 		"title": "Кузница корпусов",
-		"desc": "+12 HP ко всем Корпусам за ур.",
-		"cost": 40
+		"desc": "+12 HP ко всем Корпусам за ур."
 	},
 	{
 		"key": "scrap_recycler",
 		"title": "Магнитный сепаратор",
-		"desc": "+35 стартового Лома в забеге за ур.",
-		"cost": 35
+		"desc": "+35 стартового Лома в забеге за ур."
 	},
 	{
 		"key": "harmonic_battery",
 		"title": "Резонатор «Бремен»",
-		"desc": "+25% стартовой Гармонии за ур.",
-		"cost": 45
+		"desc": "+12% стартовой Гармонии за ур."
 	}
 ]
 
@@ -60,6 +59,10 @@ const CAT_PERKS: Array[Dictionary] = [
 
 func _ready() -> void:
 	DataCatalog.ensure_loaded()
+	if SaveManager.highest_ng_cycle > 0 and SaveManager.get_story_phase() == StoryProgressionData.StoryPhase.COMPLETED:
+		_selected_ng_cycle = SaveManager.highest_ng_cycle
+	elif SaveManager.ng_cycle > 0:
+		_selected_ng_cycle = clampi(SaveManager.ng_cycle, 0, SaveManager.highest_ng_cycle)
 	AudioManager.play_tape(SaveManager.equipped_tape_id)
 	_build_ui()
 	_refresh_hub()
@@ -109,7 +112,7 @@ func _build_ui() -> void:
 	_settings_btn = Button.new()
 	_settings_btn.text = "⚙ НАСТРОЙКИ"
 	_settings_btn.add_theme_font_size_override("font_size", 9)
-	_settings_btn.add_theme_color_override("font_color", Color(0.95, 0.9, 0.5))
+	_style_hub_button(_settings_btn, Color(0.95, 0.9, 0.5))
 	_settings_btn.pressed.connect(func() -> void:
 		AudioManager.play_sfx("ui_click")
 		if _settings_backdrop != null:
@@ -162,18 +165,36 @@ func _build_ui() -> void:
 
 	var bot_hbox: HBoxContainer = HBoxContainer.new()
 	bot_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	bot_hbox.add_theme_constant_override("separation", 12)
+	bot_hbox.add_theme_constant_override("separation", 8)
 	bot_panel.add_child(bot_hbox)
+
+	_ng_cycle_btn = Button.new()
+	_ng_cycle_btn.custom_minimum_size = Vector2(165, 34)
+	_ng_cycle_btn.add_theme_font_size_override("font_size", 9)
+	_ng_cycle_btn.visible = false
+	_style_hub_button(_ng_cycle_btn, Color(1.0, 0.85, 0.35))
+	_ng_cycle_btn.pressed.connect(func() -> void:
+		AudioManager.play_sfx("ui_click")
+		if SaveManager.highest_ng_cycle > 0:
+			_selected_ng_cycle = (_selected_ng_cycle + 1) % (SaveManager.highest_ng_cycle + 1)
+		_refresh_hub()
+		if _ng_cycle_btn != null and _ng_cycle_btn.visible:
+			_ng_cycle_btn.grab_focus()
+	)
+	bot_hbox.add_child(_ng_cycle_btn)
 
 	_new_run_btn = Button.new()
 	var new_run_btn: Button = _new_run_btn
 	new_run_btn.custom_minimum_size = Vector2(260, 34)
 	new_run_btn.text = "★ НОВЫЙ ЗАБЕГ К ВЫШКЕ БРЕМЕН-4 ★"
-	new_run_btn.add_theme_font_size_override("font_size", 11)
-	new_run_btn.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
+	new_run_btn.add_theme_font_size_override("font_size", 10)
+	_style_hub_button(new_run_btn, Color(0.4, 1.0, 0.55))
 	new_run_btn.pressed.connect(func() -> void:
 		AudioManager.play_sfx("ui_click")
 		SaveManager.start_new_run()
+		if _selected_ng_cycle > 0 and SaveManager.highest_ng_cycle > 0:
+			SaveManager.ng_cycle = clampi(_selected_ng_cycle, 0, SaveManager.highest_ng_cycle)
+			SaveManager.save_run()
 
 		var is_cycle_0: bool = SaveManager.story_progression != null and SaveManager.story_progression.current_phase == StoryProgressionData.StoryPhase.CYCLE_0_SOLO_CAT
 
@@ -220,6 +241,7 @@ func _build_ui() -> void:
 	_continue_run_btn = Button.new()
 	_continue_run_btn.custom_minimum_size = Vector2(260, 34)
 	_continue_run_btn.add_theme_font_size_override("font_size", 10)
+	_style_hub_button(_continue_run_btn, Color(0.45, 0.95, 1.0))
 	_continue_run_btn.pressed.connect(func() -> void:
 		AudioManager.play_sfx("ui_click")
 		if not SaveManager.pending_battle.is_empty():
@@ -241,6 +263,9 @@ func _build_ui() -> void:
 	_settings_panel.closed.connect(func() -> void:
 		if _settings_backdrop != null:
 			_settings_backdrop.visible = false
+		_refresh_hub()
+		if _settings_btn != null and _settings_btn.is_inside_tree():
+			_settings_btn.grab_focus()
 	)
 	add_child(_settings_panel)
 
@@ -253,8 +278,13 @@ func _refresh_hub() -> void:
 		+ ng_str
 	)
 
+	var col1_btns: Array[Button] = []
+	var col2_btns: Array[Button] = []
+	var col3_btns: Array[Button] = []
+
 	# 1. Модули шаттла
 	for ch: Node in _shuttle_box.get_children():
+		_shuttle_box.remove_child(ch)
 		ch.queue_free()
 	var h1: Label = Label.new()
 	h1.text = "МОДУЛИ ШАТТЛА (Титановый лом):"
@@ -279,15 +309,19 @@ func _refresh_hub() -> void:
 		else:
 			m_btn.text = "Улучшить (" + str(cost) + " Сплава)"
 			m_btn.disabled = SaveManager.titanium_scrap < cost
+		_style_hub_button(m_btn, Color(0.95, 0.88, 0.45))
 		m_btn.pressed.connect(func() -> void:
 			if SaveManager.upgrade_shuttle_module(mkey, cost):
 				AudioManager.play_sfx("heal")
 				_refresh_hub()
 		)
 		_shuttle_box.add_child(m_btn)
+		if not m_btn.disabled:
+			col1_btns.append(m_btn)
 
 	# 2. Перки котов за AI Cores
 	for ch2: Node in _perks_box.get_children():
+		_perks_box.remove_child(ch2)
 		ch2.queue_free()
 	var h2: Label = Label.new()
 	h2.text = "НЕЙРО-ПЕРКИ КОТОВ (AI Cores):"
@@ -307,15 +341,19 @@ func _refresh_hub() -> void:
 		else:
 			p_btn.text = String(pk["title"]) + " (" + str(pcost) + " Ядро)"
 			p_btn.disabled = SaveManager.ai_cores < pcost
+		_style_hub_button(p_btn, Color(0.45, 0.95, 1.0))
 		p_btn.pressed.connect(func() -> void:
 			if SaveManager.unlock_perk(pid, pcost):
 				AudioManager.play_sfx("qte_perfect")
 				_refresh_hub()
 		)
 		_perks_box.add_child(p_btn)
+		if not p_btn.disabled:
+			col2_btns.append(p_btn)
 
 	# 3. Аварийные кассеты (Music Tapes)
 	for ch3: Node in _tapes_box.get_children():
+		_tapes_box.remove_child(ch3)
 		ch3.queue_free()
 	var h3: Label = Label.new()
 	h3.text = "АВАРИЙНЫЕ КАССЕТЫ (Ауры):"
@@ -346,14 +384,29 @@ func _refresh_hub() -> void:
 		else:
 			t_btn.text = "Вставить кассету"
 			t_btn.disabled = false
+		_style_hub_button(t_btn, Color(0.9, 0.7, 1.0))
 		t_btn.pressed.connect(func() -> void:
 			SaveManager.equip_tape(tape.tape_id)
 			AudioManager.play_tape(tape.tape_id)
 			_refresh_hub()
 		)
 		_tapes_box.add_child(t_btn)
+		if not t_btn.disabled:
+			col3_btns.append(t_btn)
 
-	# 4. Кнопка продолжения забега
+	# 4. Переключатель New Game+ и кнопки старта / продолжения забега
+	if _ng_cycle_btn != null:
+		if SaveManager.highest_ng_cycle > 0:
+			_selected_ng_cycle = clampi(_selected_ng_cycle, 0, SaveManager.highest_ng_cycle)
+			_ng_cycle_btn.visible = true
+			if _selected_ng_cycle <= 0:
+				_ng_cycle_btn.text = "СЛОЖНОСТЬ: ОБЫЧНАЯ"
+			else:
+				_ng_cycle_btn.text = "★ ЦИКЛ: NG+ " + str(_selected_ng_cycle) + " ★"
+		else:
+			_selected_ng_cycle = 0
+			_ng_cycle_btn.visible = false
+
 	if SaveManager.has_active_run:
 		_continue_run_btn.visible = true
 		var prefix_txt: String = (
@@ -368,17 +421,136 @@ func _refresh_hub() -> void:
 	else:
 		_continue_run_btn.visible = false
 
-	var active_run_btn: Button = _continue_run_btn if (_continue_run_btn != null and _continue_run_btn.visible) else _new_run_btn
-	if _settings_btn != null and active_run_btn != null:
-		_settings_btn.focus_neighbor_bottom = active_run_btn.get_path()
-		active_run_btn.focus_neighbor_top = _settings_btn.get_path()
+	var compact_bot: bool = (_ng_cycle_btn != null and _ng_cycle_btn.visible and _continue_run_btn != null and _continue_run_btn.visible)
+	if _new_run_btn != null:
+		_new_run_btn.custom_minimum_size.x = 205.0 if compact_bot else 260.0
+	if _continue_run_btn != null:
+		_continue_run_btn.custom_minimum_size.x = 205.0 if compact_bot else 260.0
+
+	_wire_hub_focus_grid([col1_btns, col2_btns, col3_btns])
 
 	if _continue_run_btn != null and _continue_run_btn.visible:
 		_continue_run_btn.grab_focus()
 	elif _new_run_btn != null and _new_run_btn.visible:
 		_new_run_btn.grab_focus()
 
+func _wire_hub_focus_grid(columns: Array) -> void:
+	var bot_btns: Array[Button] = []
+	for b: Button in [_ng_cycle_btn, _new_run_btn, _continue_run_btn]:
+		if b != null and b.visible and not b.disabled:
+			bot_btns.append(b)
+
+	for bi: int in range(bot_btns.size()):
+		var b_cur: Button = bot_btns[bi]
+		var b_prev: Button = bot_btns[(bi - 1 + bot_btns.size()) % bot_btns.size()]
+		var b_next: Button = bot_btns[(bi + 1) % bot_btns.size()]
+		b_cur.focus_neighbor_left = b_cur.get_path_to(b_prev)
+		b_cur.focus_neighbor_right = b_cur.get_path_to(b_next)
+
+	var non_empty_cols: Array = []
+	for col_v: Variant in columns:
+		var col_arr: Array = col_v as Array
+		if not col_arr.is_empty():
+			non_empty_cols.append(col_arr)
+
+	var primary_bot: Button = _continue_run_btn if (_continue_run_btn != null and _continue_run_btn.visible) else _new_run_btn
+	if non_empty_cols.is_empty():
+		if _settings_btn != null and primary_bot != null:
+			_settings_btn.focus_neighbor_bottom = _settings_btn.get_path_to(primary_bot)
+			for b2: Button in bot_btns:
+				b2.focus_neighbor_top = b2.get_path_to(_settings_btn)
+		return
+
+	var first_col_top: Button = (non_empty_cols[0] as Array)[0] as Button
+	if _settings_btn != null and first_col_top != null:
+		_settings_btn.focus_neighbor_bottom = _settings_btn.get_path_to(first_col_top)
+
+	for c_idx: int in range(non_empty_cols.size()):
+		var col_btns: Array = non_empty_cols[c_idx] as Array
+		var left_col: Array = non_empty_cols[(c_idx - 1 + non_empty_cols.size()) % non_empty_cols.size()] as Array
+		var right_col: Array = non_empty_cols[(c_idx + 1) % non_empty_cols.size()] as Array
+		for r_idx: int in range(col_btns.size()):
+			var cur_btn: Button = col_btns[r_idx] as Button
+			if r_idx == 0:
+				if _settings_btn != null:
+					cur_btn.focus_neighbor_top = cur_btn.get_path_to(_settings_btn)
+			else:
+				var up_btn: Button = col_btns[r_idx - 1] as Button
+				cur_btn.focus_neighbor_top = cur_btn.get_path_to(up_btn)
+
+			if r_idx == col_btns.size() - 1:
+				if primary_bot != null:
+					cur_btn.focus_neighbor_bottom = cur_btn.get_path_to(primary_bot)
+			else:
+				var dn_btn: Button = col_btns[r_idx + 1] as Button
+				cur_btn.focus_neighbor_bottom = cur_btn.get_path_to(dn_btn)
+
+			var l_target: Button = left_col[mini(r_idx, left_col.size() - 1)] as Button
+			var r_target: Button = right_col[mini(r_idx, right_col.size() - 1)] as Button
+			cur_btn.focus_neighbor_left = cur_btn.get_path_to(l_target)
+			cur_btn.focus_neighbor_right = cur_btn.get_path_to(r_target)
+
+	var first_col_bottom: Button = (non_empty_cols[0] as Array)[(non_empty_cols[0] as Array).size() - 1] as Button
+	for b3: Button in bot_btns:
+		if first_col_bottom != null:
+			b3.focus_neighbor_top = b3.get_path_to(first_col_bottom)
+
+func _style_hub_button(btn: Button, font_col: Color) -> void:
+	if btn == null:
+		return
+	btn.clip_text = true
+	btn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	btn.focus_mode = Control.FOCUS_ALL
+
+	var normal_box: StyleBoxFlat = StyleBoxFlat.new()
+	var hover_box: StyleBoxFlat = StyleBoxFlat.new()
+	var focus_box: StyleBoxFlat = StyleBoxFlat.new()
+	var pressed_box: StyleBoxFlat = StyleBoxFlat.new()
+	var disabled_box: StyleBoxFlat = StyleBoxFlat.new()
+
+	for box: StyleBoxFlat in [normal_box, hover_box, focus_box, pressed_box, disabled_box]:
+		box.set_corner_radius_all(3)
+		box.content_margin_left = 5
+		box.content_margin_right = 5
+		box.content_margin_top = 3
+		box.content_margin_bottom = 3
+
+	normal_box.bg_color = Color(0.08, 0.11, 0.18, 0.92)
+	normal_box.border_color = Color(0.3, 0.5, 0.7, 0.8)
+	normal_box.set_border_width_all(1)
+
+	hover_box.bg_color = Color(0.15, 0.22, 0.34, 0.98)
+	hover_box.border_color = Color(0.45, 0.85, 1.0, 1.0)
+	hover_box.set_border_width_all(2)
+
+	focus_box.bg_color = Color(0.2, 0.3, 0.48, 1.0)
+	focus_box.border_color = Color(1.0, 0.92, 0.35, 1.0)
+	focus_box.set_border_width_all(2)
+	focus_box.set_expand_margin_all(1)
+
+	pressed_box.bg_color = Color(0.28, 0.44, 0.68, 1.0)
+	pressed_box.border_color = Color(1.0, 1.0, 0.85, 1.0)
+	pressed_box.set_border_width_all(2)
+
+	disabled_box.bg_color = Color(0.05, 0.07, 0.1, 0.6)
+	disabled_box.border_color = Color(0.2, 0.22, 0.28, 0.45)
+	disabled_box.set_border_width_all(1)
+
+	btn.add_theme_color_override("font_color", font_col)
+	btn.add_theme_color_override("font_focus_color", Color(1.0, 1.0, 0.4))
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 0.65))
+	btn.add_theme_color_override("font_disabled_color", Color(0.45, 0.48, 0.52, 0.7))
+
+	btn.add_theme_stylebox_override("normal", normal_box)
+	btn.add_theme_stylebox_override("hover", hover_box)
+	btn.add_theme_stylebox_override("focus", focus_box)
+	btn.add_theme_stylebox_override("pressed", pressed_box)
+	btn.add_theme_stylebox_override("disabled", disabled_box)
+
 func _unhandled_input(event: InputEvent) -> void:
+	if _settings_panel != null and _settings_panel.visible:
+		return
+
 	var is_joy_pause: bool = (
 		event is InputEventJoypadButton
 		and event.is_pressed()
@@ -390,4 +562,22 @@ func _unhandled_input(event: InputEvent) -> void:
 			if _settings_backdrop != null:
 				_settings_backdrop.visible = true
 			_settings_panel.open_panel()
+			get_viewport().set_input_as_handled()
+			return
+
+	if get_viewport().gui_get_focus_owner() == null:
+		var is_joy_btn: bool = (event is InputEventJoypadButton and (event as InputEventJoypadButton).pressed)
+		var is_joy_stick: bool = (event is InputEventJoypadMotion and absf((event as InputEventJoypadMotion).axis_value) > 0.35)
+		var is_ui_nav: bool = (
+			event.is_action_pressed(&"ui_up")
+			or event.is_action_pressed(&"ui_down")
+			or event.is_action_pressed(&"ui_left")
+			or event.is_action_pressed(&"ui_right")
+			or event.is_action_pressed(&"ui_accept")
+		)
+		if is_joy_btn or is_joy_stick or is_ui_nav:
+			if _continue_run_btn != null and _continue_run_btn.visible:
+				_continue_run_btn.grab_focus()
+			elif _new_run_btn != null and _new_run_btn.visible:
+				_new_run_btn.grab_focus()
 			get_viewport().set_input_as_handled()
