@@ -2,9 +2,19 @@ extends Node
 
 ## SaveManager: Управление user://meta_save.json и user://current_run.json (ADR-001 Section 2.8)
 
-const META_SAVE_PATH: String = "user://meta_save.json"
-const RUN_SAVE_PATH: String = "user://current_run.json"
-const SETTINGS_PATH: String = "user://settings.cfg"
+const DEFAULT_META_SAVE_PATH: String = "user://meta_save.json"
+const DEFAULT_RUN_SAVE_PATH: String = "user://current_run.json"
+const DEFAULT_SETTINGS_PATH: String = "user://settings.cfg"
+
+const TEST_META_SAVE_PATH: String = "user://verify_meta_save.json"
+const TEST_RUN_SAVE_PATH: String = "user://verify_current_run.json"
+const TEST_SETTINGS_PATH: String = "user://verify_settings.cfg"
+
+var META_SAVE_PATH: String = DEFAULT_META_SAVE_PATH
+var RUN_SAVE_PATH: String = DEFAULT_RUN_SAVE_PATH
+var SETTINGS_PATH: String = DEFAULT_SETTINGS_PATH
+var _is_test_mode: bool = false
+
 const VICTORY_BONUS_SCRAP: int = 250
 const VICTORY_BONUS_CORES: int = 5
 
@@ -46,13 +56,38 @@ var run_enemies_defeated: int = 0
 var run_scrap_earned: int = 0
 var run_cores_earned: int = 0
 
+func _detect_automated_test_mode() -> bool:
+	for arg: String in OS.get_cmdline_args():
+		if arg.contains("verify_scene") or arg.contains("verify_all_systems"):
+			return true
+	for uarg: String in OS.get_cmdline_user_args():
+		if uarg.contains("verify_scene") or uarg.contains("verify_all_systems") or uarg == "--test-saves":
+			return true
+	return false
+
+func use_test_save_paths() -> void:
+	_is_test_mode = true
+	META_SAVE_PATH = TEST_META_SAVE_PATH
+	RUN_SAVE_PATH = TEST_RUN_SAVE_PATH
+	SETTINGS_PATH = TEST_SETTINGS_PATH
+
+func cleanup_test_save_files() -> void:
+	for p: String in [TEST_META_SAVE_PATH, TEST_RUN_SAVE_PATH, TEST_SETTINGS_PATH]:
+		if FileAccess.file_exists(p):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
+
 func _ready() -> void:
+	if _detect_automated_test_mode():
+		use_test_save_paths()
 	DataCatalog.ensure_loaded()
 	story_progression = StoryProgressionData.new()
 	settings = GameSettings.new()
 	if not settings.load_from_disk(SETTINGS_PATH):
 		settings.save_to_disk(SETTINGS_PATH)
-	settings.apply_all()
+	if not _is_test_mode:
+		settings.apply_all()
+	else:
+		settings.apply_audio()
 	load_meta()
 	load_run()
 
@@ -64,9 +99,17 @@ func _process(delta: float) -> void:
 		run_elapsed_sec += delta
 
 func _exit_tree() -> void:
+	if _is_test_mode:
+		cleanup_test_save_files()
 	party.clear()
-	CatMechInstance.clear_static_cache()
-	DataCatalog.clear_cache()
+	CatMechInstance._emergency_poke_skill = null
+	DataCatalog._skills.clear()
+	DataCatalog._parts.clear()
+	DataCatalog._enemies.clear()
+	DataCatalog._cats.clear()
+	DataCatalog._tapes.clear()
+	DataCatalog._tutorials.clear()
+	DataCatalog._initialized = false
 
 # --- Сюжетная мета-прогрессия (ADR-002, Issue #28) ---
 

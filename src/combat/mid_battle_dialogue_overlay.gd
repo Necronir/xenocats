@@ -143,10 +143,10 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if (
 		event.is_action_pressed("ui_accept")
-		or (event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER])
-		or (event is InputEventJoypadButton and event.pressed and event.button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_START])
-		or (event is InputEventScreenTouch and event.pressed)
-		or (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT)
+		or (event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo and (event as InputEventKey).keycode in [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER])
+		or (event is InputEventJoypadButton and (event as InputEventJoypadButton).pressed and (event as InputEventJoypadButton).button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_START])
+		or (event is InputEventScreenTouch and (event as InputEventScreenTouch).pressed)
+		or (event is InputEventMouseButton and (event as InputEventMouseButton).pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT)
 	):
 		if advance():
 			get_viewport().set_input_as_handled()
@@ -178,14 +178,8 @@ func _parse_dtl_timeline(path: String) -> void:
 	_choices.clear()
 	_line_cursor = 0
 
-	var full_path: String = path
-	if not FileAccess.file_exists(full_path):
-		if not full_path.begins_with("res://"):
-			full_path = "res://data/dialogues/" + full_path
-		if not full_path.ends_with(".dtl"):
-			full_path += ".dtl"
-
-	if not FileAccess.file_exists(full_path):
+	var parsed: Dictionary = DtlTimelineParser.parse_timeline(path, "", false)
+	if not bool(parsed.get("found", false)):
 		_lines.append({
 			"char": "hound",
 			"mood": "battle",
@@ -194,67 +188,8 @@ func _parse_dtl_timeline(path: String) -> void:
 		})
 		return
 
-	var file: FileAccess = FileAccess.open(full_path, FileAccess.READ)
-	var raw_lines: PackedStringArray = file.get_as_text().split("\n")
-	file.close()
-
-	var current_choice: Dictionary = {}
-	var current_sfx: String = ""
-
-	for raw: String in raw_lines:
-		var line: String = raw.strip_edges()
-		if line == "" or line.begins_with("#"):
-			continue
-
-		if line.begins_with("[image"):
-			continue
-		elif line.begins_with("[sound") or line.begins_with("[audio") or line.begins_with("[sfx"):
-			var q1: int = line.find("\"")
-			var q2: int = line.rfind("\"")
-			if q1 != -1 and q2 > q1:
-				current_sfx = line.substr(q1 + 1, q2 - q1 - 1)
-		elif line.begins_with("- "):
-			var choice_dict: Dictionary = {
-				"label": line.substr(2).strip_edges(),
-				"signal": "",
-				"branch_lines": []
-			}
-			_choices.append(choice_dict)
-			current_choice = choice_dict
-		elif line.begins_with("[signal"):
-			var sq1: int = line.find("\"")
-			var sq2: int = line.rfind("\"")
-			if sq1 != -1 and sq2 > sq1 and not current_choice.is_empty():
-				current_choice["signal"] = line.substr(sq1 + 1, sq2 - sq1 - 1)
-		elif not line.begins_with("[") and line.find(":") != -1:
-			var colon_idx: int = line.find(":")
-			var head: String = line.substr(0, colon_idx).strip_edges()
-			var body: String = line.substr(colon_idx + 1).strip_edges()
-			var char_id: String = "felix"
-			var mood: String = "normal"
-			var p_open: int = head.find("(")
-			var p_close: int = head.find(")")
-			if p_open != -1 and p_close > p_open:
-				char_id = head.substr(0, p_open).strip_edges().to_lower()
-				mood = head.substr(p_open + 1, p_close - p_open - 1).strip_edges().to_lower()
-			else:
-				char_id = head.to_lower()
-
-			var parsed_line: Dictionary = {
-				"char": char_id,
-				"mood": mood,
-				"text": body,
-				"sfx": current_sfx
-			}
-			current_sfx = ""
-
-			# Если строка реплики находится под выбором (с отступом табуляции или пробелов)
-			if not _choices.is_empty() and (raw.begins_with("\t") or raw.begins_with("  ")):
-				var bl: Array = current_choice.get("branch_lines", []) as Array
-				bl.append(parsed_line)
-				current_choice["branch_lines"] = bl
-			else:
-				_lines.append(parsed_line)
+	_lines = parsed["lines"] as Array[Dictionary]
+	_choices = parsed["choices"] as Array[Dictionary]
 
 func _render_dialogue_state() -> void:
 	for child: Node in _choices_box.get_children():

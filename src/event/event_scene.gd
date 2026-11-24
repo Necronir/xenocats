@@ -196,10 +196,10 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if (
 		event.is_action_pressed("ui_accept")
-		or (event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER])
-		or (event is InputEventJoypadButton and event.pressed and event.button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_START])
-		or (event is InputEventScreenTouch and event.pressed)
-		or (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT)
+		or (event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo and (event as InputEventKey).keycode in [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER])
+		or (event is InputEventJoypadButton and (event as InputEventJoypadButton).pressed and (event as InputEventJoypadButton).button_index in [JOY_BUTTON_A, JOY_BUTTON_X, JOY_BUTTON_START])
+		or (event is InputEventScreenTouch and (event as InputEventScreenTouch).pressed)
+		or (event is InputEventMouseButton and (event as InputEventMouseButton).pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT)
 	):
 		if _advance_dialogue_or_continue():
 			get_viewport().set_input_as_handled()
@@ -268,17 +268,9 @@ func _parse_dtl_timeline(path: String) -> void:
 	_choices.clear()
 	_line_cursor = 0
 
-	var full_path: String = path
-	if not FileAccess.file_exists(full_path):
-		var cand: String = full_path
-		if not cand.begins_with("res://"):
-			cand = "res://data/dialogues/" + cand
-		if not cand.ends_with(".dtl"):
-			cand += ".dtl"
-		if FileAccess.file_exists(cand):
-			full_path = cand
-
-	if not FileAccess.file_exists(full_path):
+	var initial_img: String = String(_payload.get("image_path", _payload.get("image", _payload.get("photo_path", ""))))
+	var parsed: Dictionary = DtlTimelineParser.parse_timeline(path, initial_img, true)
+	if not bool(parsed.get("found", false)):
 		_lines.append({
 			"char": "felix",
 			"mood": "normal",
@@ -291,77 +283,8 @@ func _parse_dtl_timeline(path: String) -> void:
 		_choices.append({"label": "Собрать лом (+30 Лома)", "signal": "safe_scrap", "branch_lines": []})
 		return
 
-	var file: FileAccess = FileAccess.open(full_path, FileAccess.READ)
-	var raw_lines: PackedStringArray = file.get_as_text().split("\n")
-	file.close()
-
-	var current_choice: Dictionary = {}
-	var current_image: String = String(_payload.get("image_path", _payload.get("image", _payload.get("photo_path", ""))))
-	var current_sfx: String = ""
-	var current_video: String = ""
-	for raw: String in raw_lines:
-		var line: String = raw.strip_edges()
-		if line == "" or line.begins_with("#"):
-			continue
-		if line.begins_with("[image"):
-			var img_q1: int = line.find("\"")
-			var img_q2: int = line.rfind("\"")
-			if img_q1 != -1 and img_q2 > img_q1:
-				current_image = line.substr(img_q1 + 1, img_q2 - img_q1 - 1)
-		elif line.begins_with("[video"):
-			var vid_q1: int = line.find("\"")
-			var vid_q2: int = line.rfind("\"")
-			if vid_q1 != -1 and vid_q2 > vid_q1:
-				current_video = line.substr(vid_q1 + 1, vid_q2 - vid_q1 - 1)
-		elif line.begins_with("[sound") or line.begins_with("[audio") or line.begins_with("[sfx"):
-			var sfx_q1: int = line.find("\"")
-			var sfx_q2: int = line.rfind("\"")
-			if sfx_q1 != -1 and sfx_q2 > sfx_q1:
-				current_sfx = line.substr(sfx_q1 + 1, sfx_q2 - sfx_q1 - 1)
-		elif line.begins_with("- "):
-			var def_sig: String = "safe_scrap"
-			var lbl: String = line.substr(2).strip_edges()
-			if lbl.find("Yes") != -1 or lbl.find("Да") != -1:
-				def_sig = "boomer_true"
-			elif lbl.find("No") != -1 or lbl.find("Нет") != -1:
-				def_sig = "boomer_false"
-			current_choice = {"label": lbl, "signal": def_sig, "branch_lines": []}
-			_choices.append(current_choice)
-		elif line.begins_with("[signal"):
-			var start_q: int = line.find("\"")
-			var end_q: int = line.rfind("\"")
-			if start_q != -1 and end_q > start_q and not current_choice.is_empty():
-				current_choice["signal"] = line.substr(start_q + 1, end_q - start_q - 1)
-		elif not line.begins_with("[") and line.find(":") != -1:
-			var colon_idx: int = line.find(":")
-			var head: String = line.substr(0, colon_idx).strip_edges()
-			var body: String = line.substr(colon_idx + 1).strip_edges()
-			var char_id: String = "felix"
-			var mood: String = "normal"
-			var p_open: int = head.find("(")
-			var p_close: int = head.find(")")
-			if p_open != -1 and p_close > p_open:
-				char_id = head.substr(0, p_open).strip_edges().to_lower()
-				mood = head.substr(p_open + 1, p_close - p_open - 1).strip_edges().to_lower()
-			else:
-				char_id = head.to_lower()
-			var parsed_item: Dictionary = {
-				"char": char_id,
-				"mood": mood,
-				"text": body,
-				"image": current_image,
-				"sfx": current_sfx,
-				"video": current_video,
-				"video_played": false
-			}
-			current_sfx = ""
-			current_video = ""
-			if not _choices.is_empty() and (raw.begins_with("\t") or raw.begins_with("  ")):
-				var bl: Array = current_choice.get("branch_lines", []) as Array
-				bl.append(parsed_item)
-				current_choice["branch_lines"] = bl
-			else:
-				_lines.append(parsed_item)
+	_lines = parsed["lines"] as Array[Dictionary]
+	_choices = parsed["choices"] as Array[Dictionary]
 
 func _render_dialogue_state() -> void:
 	for child: Node in _choices_box.get_children():
@@ -418,37 +341,39 @@ func _render_dialogue_state() -> void:
 		if (
 			img_path.ends_with("story_cat_exile.png")
 			or img_path.ends_with("story_cat_alone_road.png")
-			or img_path.ends_with("1-cat-start.jpg")
+			or img_path.ends_with("1-1-cat-start.jpg")
 		):
 			AudioManager.play_story_stage(1)
-		elif img_path.ends_with("story_meet_hound.png") or img_path.ends_with("2-cat-and-hound-together.jpg"):
+		elif img_path.ends_with("story_meet_hound.png") or img_path.ends_with("2-1-cat-and-hound-together.jpg"):
 			AudioManager.play_story_stage(2)
-		elif img_path.ends_with("story_mill_mule_captive.png") or img_path.ends_with("3-press-boss-appirance.jpg"):
+		elif img_path.ends_with("story_mill_mule_captive.png") or img_path.ends_with("2-2-press-boss-appirance.jpg"):
 			AudioManager.play_boss_theme(1)
 		elif (
 			img_path.ends_with("story_mule_joins.png")
-			or img_path.ends_with("4a-press-boss-win.jpg")
+			or img_path.ends_with("2-3a-press-boss-win.jpg")
 			or img_path.find("rescue_mule") != -1
 		):
 			AudioManager.play_story_stage(3)
-		elif img_path.ends_with("story_tavern_cock_soup.png") or img_path.ends_with("5-atamansha-boss-apperiance.jpg"):
+		elif img_path.ends_with("story_tavern_cock_soup.png") or img_path.ends_with("3-1-atamansha-boss-apperiance.jpg"):
 			AudioManager.play_boss_theme(2)
 		elif (
 			img_path.ends_with("story_cock_joins_quartet.png")
-			or img_path.ends_with("6a-atamansha-boss-win.jpg")
+			or img_path.ends_with("3-2a-atamansha-boss-win.jpg")
 			or img_path.find("rescue_cock") != -1
 		):
 			AudioManager.play_story_stage(4)
 		elif (
 			img_path.ends_with("story_cabin_mega_pyramid.png")
 			or img_path.ends_with("story_bremen_window_pyramid.png")
-			or img_path.ends_with("7-sputnik-boss-apperiance.jpg")
+			or img_path.ends_with("4-1-sputnik-boss-apperiance.jpg")
+			or img_path.ends_with("6-1-fake-boss-apperiance.jpg")
 		):
 			AudioManager.play_boss_theme(3)
 		elif (
 			img_path.ends_with("story_bremen_victory_concert.png")
-			or img_path.ends_with("8a-sputnik-boss-win.jpg")
-			or img_path.ends_with("9-final.jpg")
+			or img_path.ends_with("4-2a-sputnik-boss-win.jpg")
+			or img_path.ends_with("6-4-fake-boss-win.jpg")
+			or img_path.ends_with("7-final.jpg")
 		):
 			AudioManager.play_pyramid_theme(4)
 		else:
