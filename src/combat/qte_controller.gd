@@ -100,30 +100,58 @@ func _process(delta: float) -> void:
 func _input(event: InputEvent) -> void:
 	if not _active or _resolved:
 		return
+	if event.is_action_pressed(&"pause"):
+		return
+	if event is InputEventJoypadButton:
+		var joy_pause_btn: int = (event as InputEventJoypadButton).button_index
+		if joy_pause_btn in [JOY_BUTTON_START, JOY_BUTTON_BACK, JOY_BUTTON_GUIDE]:
+			return
+
 	var is_strike: bool = false
 	if event.is_action_pressed(&"qte_strike") or event.is_action_pressed(&"ui_accept"):
 		is_strike = true
 	elif event is InputEventKey:
 		var k: InputEventKey = event as InputEventKey
-
 		if k.pressed and not k.echo and (k.keycode in [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER, KEY_Z]):
 			is_strike = true
 	elif event is InputEventJoypadButton:
 		var jb: InputEventJoypadButton = event as InputEventJoypadButton
-		if jb.pressed and jb.button_index in [JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_X, JOY_BUTTON_Y, JOY_BUTTON_RIGHT_SHOULDER, JOY_BUTTON_START]:
+		if jb.pressed and jb.button_index in [JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_X, JOY_BUTTON_Y, JOY_BUTTON_RIGHT_SHOULDER]:
 			is_strike = true
 	elif event is InputEventScreenTouch:
 		var st: InputEventScreenTouch = event as InputEventScreenTouch
 		if st.pressed:
+			if _hits_external_button(st.position):
+				return
 			is_strike = true
 	elif event is InputEventMouseButton:
 		var mb: InputEventMouseButton = event as InputEventMouseButton
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			if _hits_external_button(mb.position):
+				return
 			is_strike = true
 
 	if is_strike:
 		get_viewport().set_input_as_handled()
 		trigger_strike()
+
+func _hits_external_button(screen_pos: Vector2) -> bool:
+	var parent_node: Node = get_parent()
+	if parent_node == null:
+		return false
+	return _node_tree_has_hit_button(parent_node, screen_pos)
+
+func _node_tree_has_hit_button(root_node: Node, screen_pos: Vector2) -> bool:
+	if root_node == self:
+		return false
+	if root_node is BaseButton:
+		var btn: BaseButton = root_node as BaseButton
+		if btn.is_visible_in_tree() and not btn.disabled and btn.get_global_rect().has_point(screen_pos):
+			return true
+	for child: Node in root_node.get_children():
+		if _node_tree_has_hit_button(child, screen_pos):
+			return true
+	return false
 
 
 

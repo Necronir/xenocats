@@ -120,6 +120,12 @@ func _ready() -> void:
 	_build_segmented_avatar()
 	_detect_touch_mode()
 	_build_touch_dpad()
+	if SaveManager.settings != null and not SaveManager.settings.changed.is_connected(_detect_touch_mode):
+		SaveManager.settings.changed.connect(_detect_touch_mode)
+
+func _exit_tree() -> void:
+	if SaveManager.settings != null and SaveManager.settings.changed.is_connected(_detect_touch_mode):
+		SaveManager.settings.changed.disconnect(_detect_touch_mode)
 
 func _build_segmented_avatar() -> void:
 	_avatar_root = Node2D.new()
@@ -459,43 +465,56 @@ func _process(delta: float) -> void:
 	else:
 		_avatar_root.modulate.a = 1.0
 
-	# Управление аватаром (WASD / Стрелки)
-	# Управление аватаром (Gamepad Stick/D-Pad, WASD, Стрелки, Тач)
-	var dir: Vector2 = Vector2.ZERO
-
-	# 1. Action vector (Gamepad stick, D-Pad, Arrow keys, WASD)
+	# Управление аватаром (Gamepad Stick/D-Pad, WASD, Стрелки, Тач) без двойного суммирования стика
+	var action_dir: Vector2 = Vector2.ZERO
 	if InputMap.has_action(&"dodge_left") and InputMap.has_action(&"dodge_right") and InputMap.has_action(&"dodge_up") and InputMap.has_action(&"dodge_down"):
-		dir = Input.get_vector(&"dodge_left", &"dodge_right", &"dodge_up", &"dodge_down")
+		action_dir = Input.get_vector(&"dodge_left", &"dodge_right", &"dodge_up", &"dodge_down")
 	else:
-		dir = Input.get_vector(&"ui_left", &"ui_right", &"ui_up", &"ui_down")
+		action_dir = Input.get_vector(&"ui_left", &"ui_right", &"ui_up", &"ui_down")
 
 	# 2. Keyboard keys fallback
+	var key_dir: Vector2 = Vector2.ZERO
 	if Input.is_key_pressed(KEY_LEFT) or Input.is_key_pressed(KEY_A):
-
-		dir.x -= 1.0
+		key_dir.x -= 1.0
 	if Input.is_key_pressed(KEY_RIGHT) or Input.is_key_pressed(KEY_D):
-		dir.x += 1.0
+		key_dir.x += 1.0
 	if Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_W):
-		dir.y -= 1.0
+		key_dir.y -= 1.0
 	if Input.is_key_pressed(KEY_DOWN) or Input.is_key_pressed(KEY_S):
-		dir.y += 1.0
+		key_dir.y += 1.0
+	if key_dir.length_squared() > 1.0:
+		key_dir = key_dir.normalized()
 
-	# 3. Direct joypad axis & button fallback for all connected controllers
+	# 3. Direct joypad axis & button fallback (только если сильнее action_dir, без удвоения чувствительности)
+	var joy_dir: Vector2 = Vector2.ZERO
 	for joy_id: int in Input.get_connected_joypads():
+		var pad_vec: Vector2 = Vector2.ZERO
 		var jx: float = Input.get_joy_axis(joy_id, JOY_AXIS_LEFT_X)
 		var jy: float = Input.get_joy_axis(joy_id, JOY_AXIS_LEFT_Y)
 		if absf(jx) > 0.18:
-			dir.x += jx
+			pad_vec.x += ((absf(jx) - 0.18) / 0.82) * signf(jx)
 		if absf(jy) > 0.18:
-			dir.y += jy
+			pad_vec.y += ((absf(jy) - 0.18) / 0.82) * signf(jy)
 		if Input.is_joy_button_pressed(joy_id, JOY_BUTTON_DPAD_LEFT):
-			dir.x -= 1.0
+			pad_vec.x -= 1.0
 		if Input.is_joy_button_pressed(joy_id, JOY_BUTTON_DPAD_RIGHT):
-			dir.x += 1.0
+			pad_vec.x += 1.0
 		if Input.is_joy_button_pressed(joy_id, JOY_BUTTON_DPAD_UP):
-			dir.y -= 1.0
+			pad_vec.y -= 1.0
 		if Input.is_joy_button_pressed(joy_id, JOY_BUTTON_DPAD_DOWN):
-			dir.y += 1.0
+			pad_vec.y += 1.0
+		if pad_vec.length_squared() > 1.0:
+			pad_vec = pad_vec.normalized()
+		if pad_vec.length_squared() > joy_dir.length_squared():
+			joy_dir = pad_vec
+
+	var hw_dir: Vector2 = action_dir
+	if key_dir.length_squared() > hw_dir.length_squared():
+		hw_dir = key_dir
+	if joy_dir.length_squared() > hw_dir.length_squared():
+		hw_dir = joy_dir
+
+	var dir: Vector2 = hw_dir
 
 	# 4. Touch D-Pad buttons
 	if _dpad_dir.length_squared() > 0.0:
