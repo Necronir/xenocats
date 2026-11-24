@@ -13,9 +13,20 @@ var sfx_volume: float = 0.90
 var fullscreen: bool = false
 var tutorials_enabled: bool = true
 var strict_weight_limit: bool = false
-var touch_controls_enabled: bool = true
+var touch_controls_enabled: bool = false
 var dev_menu_enabled: bool = false
 var seen_tutorials: Array[String] = []
+
+func _init() -> void:
+	touch_controls_enabled = _default_touch_controls()
+
+static func _default_touch_controls() -> bool:
+	return (
+		DisplayServer.is_touchscreen_available()
+		or OS.has_feature("mobile")
+		or OS.has_feature("web_android")
+		or OS.has_feature("web_ios")
+	)
 
 func load_from_disk(path: String = DEFAULT_PATH) -> bool:
 	var cfg: ConfigFile = ConfigFile.new()
@@ -29,7 +40,7 @@ func load_from_disk(path: String = DEFAULT_PATH) -> bool:
 	fullscreen = bool(cfg.get_value("display", "fullscreen", false))
 	tutorials_enabled = bool(cfg.get_value("tutorial", "enabled", true))
 	strict_weight_limit = bool(cfg.get_value("gameplay", "strict_weight_limit", false))
-	touch_controls_enabled = bool(cfg.get_value("gameplay", "touch_controls", true))
+	touch_controls_enabled = bool(cfg.get_value("gameplay", "touch_controls", _default_touch_controls()))
 	dev_menu_enabled = bool(cfg.get_value("gameplay", "dev_menu_enabled", false))
 
 	seen_tutorials.clear()
@@ -81,11 +92,15 @@ func apply_audio() -> void:
 
 func set_fullscreen(enabled: bool) -> void:
 	fullscreen = enabled
+	apply_display()
+	changed.emit()
+
+func set_touch_controls_enabled(enabled: bool) -> void:
+	touch_controls_enabled = enabled
+	changed.emit()
 
 func set_dev_menu_enabled(enabled: bool) -> void:
 	dev_menu_enabled = enabled
-	changed.emit()
-	apply_display()
 	changed.emit()
 
 func apply_display() -> void:

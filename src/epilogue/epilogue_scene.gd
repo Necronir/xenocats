@@ -38,6 +38,7 @@ var _played_act1_videos: Dictionary = {}
 var _act2_root: Control = null
 var _concert_bg: TextureRect = null
 var _concert_stage: Node2D = null
+var _lighting_canvas: Node2D = null
 var _character_rigs: Array[Dictionary] = []
 var _spotlights: Array[Node2D] = []
 var _pyro_cannons: Array[CPUParticles2D] = []
@@ -520,6 +521,12 @@ func _build_act2_ui() -> void:
 
 func _build_stage_lighting() -> void:
 	_spotlights.clear()
+	_lighting_canvas = Node2D.new()
+	_lighting_canvas.name = "LightingCanvas"
+	_lighting_canvas.z_index = 2
+	_lighting_canvas.draw.connect(_on_lighting_canvas_draw)
+	_concert_stage.add_child(_lighting_canvas)
+
 	var light_colors: Array[Color] = [
 		Color(0.25, 0.65, 1.0, 0.45), # Синий (Felix)
 		Color(1.0, 0.35, 0.35, 0.45), # Красный (Hound)
@@ -776,13 +783,14 @@ func _process(delta: float) -> void:
 		var base_pos: Vector2 = spot.get_meta("base_pos") as Vector2
 		var p_phase: float = spot.get_meta("phase") as float
 		spot.position.x = base_pos.x + sin(_beat_timer * 2.2 + p_phase) * 18.0
-		spot.queue_redraw()
+	if _lighting_canvas != null:
+		_lighting_canvas.queue_redraw()
 
-func _draw() -> void:
-	# Отрисовка лучей сценических прожекторов в Акте 2
-	if current_act == Act.CONCERT and _is_concert_active:
+func _on_lighting_canvas_draw() -> void:
+	# Отрисовка лучей сценических прожекторов в Акте 2 поверх фона концерта
+	if current_act == Act.CONCERT and _is_concert_active and _lighting_canvas != null:
 		for spot: Node2D in _spotlights:
-			var spos: Vector2 = spot.global_position
+			var spos: Vector2 = spot.position
 			var scol: Color = spot.get_meta("color") as Color
 			var intensity: float = 0.35 + 0.25 * sin(_beat_timer * 6.0 + (spot.get_meta("phase") as float))
 			var draw_col: Color = Color(scol.r, scol.g, scol.b, intensity)
@@ -793,7 +801,7 @@ func _draw() -> void:
 				target_pt + Vector2(28, 0),
 				target_pt + Vector2(-28, 0)
 			])
-			draw_colored_polygon(beam_poly, draw_col)
+			_lighting_canvas.draw_colored_polygon(beam_poly, draw_col)
 
 func _unhandled_input(event: InputEvent) -> void:
 	var should_advance: bool = false
