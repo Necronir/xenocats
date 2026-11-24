@@ -169,9 +169,10 @@ func choose_next_skill(rng: RandomNumberGenerator) -> SkillData:
 			for s: SkillData in legs_part.data.skills:
 				if s != null:
 					pool.append(s)
-	for s: SkillData in data.skills:
-		if s != null:
-			pool.append(s)
+	else:
+		for s: SkillData in data.skills:
+			if s != null:
+				pool.append(s)
 	if pool.is_empty():
 		var fallback: SkillData = SkillData.new()
 		fallback.skill_id = &"enemy_ram"

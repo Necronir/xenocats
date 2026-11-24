@@ -2,15 +2,7 @@
 
 [ext_resource type="Script" path="res://src/models/part_data.gd" id="1_jvjsw"]
 [ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_xcm5a"]
-
-[sub_resource type="Resource" id="Resource_gtp8e"]
-script = ExtResource("2_xcm5a")
-skill_id = &"enemy_saw_slash"
-skill_name = "Циркулярный рез"
-description = "Враг запускает дисковые пилы по арене."
-target_type = 0
-base_damage = 14
-qte_profile = 3
+[ext_resource type="Resource" path="res://data/resources/skills/enemy_saw_slash.tres" id="3_xcm5a"]
 
 [resource]
 script = ExtResource("1_jvjsw")
@@ -20,6 +12,7 @@ description = "Боевой блок вооружения (отстрелите,
 slot = 1
 max_hp = 85
 armor = 3
+weight = 20
 base_speed = 13
-skills = Array[ExtResource("2_xcm5a")]([SubResource("Resource_gtp8e")])
+skills = Array[ExtResource("2_xcm5a")]([ExtResource("3_xcm5a")])
 texture_path = "res://assets/sprites/enemies/elite_driller_arms.png"

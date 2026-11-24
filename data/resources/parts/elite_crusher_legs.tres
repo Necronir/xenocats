@@ -10,5 +10,6 @@ part_name = "Шасси (ЭЛИТА: Погрузчик-Крушитель)"
 description = "Ходовая часть (отстрелите, чтобы обрушить инициативу врага!)."
 slot = 2
 max_hp = 70
+weight = 15
 base_speed = 11
 texture_path = "res://assets/sprites/enemies/elite_crusher_legs.png"

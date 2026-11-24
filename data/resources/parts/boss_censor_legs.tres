@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_3npad"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_cjqeo"]
+
+[resource]
+script = ExtResource("1_3npad")
+part_id = &"boss_censor_legs"
+part_name = "Шасси (Главный Ревизор эфира // Худсовет Бремен-4)"
+description = "Ходовая часть (отстрелите, чтобы обрушить инициативу врага!)."
+slot = 2
+max_hp = 200
+armor = 4
+weight = 15
+base_speed = 18
+texture_path = "res://assets/sprites/enemies/boss_satellite_legs.png"

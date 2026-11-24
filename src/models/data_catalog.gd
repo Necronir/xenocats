@@ -53,8 +53,12 @@ static func get_all_parts() -> Dictionary:
 static func get_loot_parts() -> Array[PartData]:
 	ensure_loaded()
 	var arr: Array[PartData] = []
-	for key: Variant in _parts.keys():
-		var p: PartData = _parts[key] as PartData
+	var part_keys: Array = _parts.keys()
+	for i: int in range(part_keys.size()):
+		var key_str: String = String(part_keys[i])
+		if key_str.begins_with("boss_") or key_str.begins_with("elite_"):
+			continue
+		var p: PartData = _parts[part_keys[i]] as PartData
 		if p != null:
 			arr.append(p)
 	return arr
@@ -193,6 +197,8 @@ static func _make_part(
 			existing.weight = p_weight
 			if p_power > 0 or existing.power_output == 0:
 				existing.power_output = p_power
+			if not p_skills.is_empty():
+				existing.skills = p_skills
 		return existing
 	var p: PartData = PartData.new()
 	p.part_id = StringName(p_id)
@@ -459,6 +465,20 @@ static func _build_default_catalog_if_needed() -> void:
 	esk_satellite.dodge_pattern_id = &"boss_satellite_orbital"
 	esk_satellite.dodge_patterns = [&"boss_satellite_orbital", &"boss_satellite_homing", &"boss_satellite_interference"]
 
+	var esk_censor_barrage: SkillData = _make_skill(
+		"enemy_censor_interference", "Глушение частот", "Акустические помехи и глушение эфирного диапазона.",
+		SkillData.TargetType.SINGLE_ENEMY, 22, SkillData.QTEProfile.NONE
+	)
+	esk_censor_barrage.dodge_pattern_id = &"boss_satellite_interference"
+	esk_censor_barrage.dodge_patterns = [&"boss_satellite_interference", &"boss_satellite_homing"]
+
+	var esk_censor_laser: SkillData = _make_skill(
+		"enemy_censor_laser", "Ревизорский лазер", "Направленный луч подавления творческой свободы.",
+		SkillData.TargetType.ALL_ENEMIES, 25, SkillData.QTEProfile.NONE
+	)
+	esk_censor_laser.dodge_pattern_id = &"boss_satellite_orbital"
+	esk_censor_laser.dodge_patterns = [&"boss_satellite_orbital", &"boss_satellite_homing", &"boss_satellite_interference"]
+
 	# Обычные мобы (единая шкала HP: is_modular = false)
 	_register_regular_enemy("scrap_drone", "Дрон-уборщик", 1, 52, 1, 11, "scrap_drone", "saw_sweep", [esk_saw], 22)
 	_register_regular_enemy("acid_cleaner", "Кислотный чистильщик", 1, 58, 1, 10, "acid_cleaner", "acid_rain", [esk_acid], 25)
@@ -499,6 +519,12 @@ static func _build_default_catalog_if_needed() -> void:
 		"boss_satellite", "ФИНАЛ: Спящий Спутник Бремен-4", 3, false, true, "boss_satellite", "boss_satellite_orbital",
 		290, 160, 140, 5, 16, [esk_satellite, esk_press], [esk_acid, esk_satellite], 220, 5,
 		[&"boss_satellite_orbital", &"boss_satellite_homing", &"boss_satellite_interference"]
+	)
+	_register_modular_enemy(
+		"boss_censor", "Главный Ревизор эфира // Худсовет Бремен-4", 4, false, true, "boss_satellite", "boss_satellite_interference",
+		810, 220, 200, 5, 18, [esk_censor_barrage, esk_censor_laser], [esk_censor_barrage, esk_censor_laser], 350, 10,
+		[&"boss_satellite_orbital", &"boss_satellite_homing", &"boss_satellite_interference"],
+		true
 	)
 
 	# Музыкальные кассеты
@@ -567,6 +593,7 @@ static func _register_regular_enemy(
 		if existing != null:
 			existing.dodge_pattern_id = StringName(p_dodge)
 			existing.dodge_patterns = p_dodge_patterns
+			existing.skills = p_skills
 		return
 	var e: EnemyData = EnemyData.new()
 	e.enemy_id = StringName(p_id)
@@ -591,14 +618,9 @@ static func _register_modular_enemy(
 	p_sprite: String, p_dodge: String, p_bhp: int, p_ahp: int, p_lhp: int,
 	p_armor: int, p_spd: int, p_arm_skills: Array[SkillData], p_body_skills: Array[SkillData],
 	p_scrap: int, p_cores: int,
-	p_dodge_patterns: Array[StringName] = []
+	p_dodge_patterns: Array[StringName] = [],
+	p_final_boss: bool = false
 ) -> void:
-	if _enemies.has(p_id):
-		var existing: EnemyData = _enemies[p_id] as EnemyData
-		if existing != null:
-			existing.dodge_pattern_id = StringName(p_dodge)
-			existing.dodge_patterns = p_dodge_patterns
-		return
 	var bp: PartData = _make_part(
 		p_id + "_body", "Ядро (" + p_name + ")", "Центральный процессор и реактор.",
 		PartData.PartSlot.BODY, p_bhp, p_armor, p_spd,
@@ -617,12 +639,24 @@ static func _register_modular_enemy(
 		"res://assets/sprites/enemies/" + p_sprite + "_legs.png", [],
 		15, 0
 	)
+	if _enemies.has(p_id):
+		var existing: EnemyData = _enemies[p_id] as EnemyData
+		if existing != null:
+			existing.is_final_boss = existing.is_final_boss or p_final_boss
+			existing.dodge_pattern_id = StringName(p_dodge)
+			existing.dodge_patterns = p_dodge_patterns
+			existing.body_part = bp
+			existing.arms_part = ap
+			existing.legs_part = lp
+			existing.skills = p_body_skills
+		return
 	var e: EnemyData = EnemyData.new()
 	e.enemy_id = StringName(p_id)
 	e.enemy_name = p_name
 	e.is_modular = true
 	e.is_elite = p_elite
 	e.is_boss = p_boss
+	e.is_final_boss = p_final_boss
 	e.sector_level = p_sec
 	e.max_hp = p_bhp
 	e.armor = p_armor

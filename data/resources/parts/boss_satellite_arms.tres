@@ -2,24 +2,8 @@
 
 [ext_resource type="Script" path="res://src/models/part_data.gd" id="1_d4syk"]
 [ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_yjle3"]
-
-[sub_resource type="Resource" id="Resource_qpbeq"]
-script = ExtResource("2_yjle3")
-skill_id = &"enemy_laser_barrage"
-skill_name = "Лазерная засечка"
-description = "Прицельный обстрел высокоточными лучами."
-target_type = 0
-base_damage = 20
-qte_profile = 3
-
-[sub_resource type="Resource" id="Resource_ghj83"]
-script = ExtResource("2_yjle3")
-skill_id = &"enemy_heavy_press"
-skill_name = "Гидравлический пресс"
-description = "Огромные прессы обрушиваются сверху и сбоку!"
-target_type = 2
-base_damage = 18
-qte_profile = 3
+[ext_resource type="Resource" path="res://data/resources/skills/enemy_satellite_strike.tres" id="3_4vfqn"]
+[ext_resource type="Resource" path="res://data/resources/skills/enemy_heavy_press.tres" id="4_d0035"]
 
 [resource]
 script = ExtResource("1_d4syk")
@@ -29,6 +13,7 @@ description = "Боевой блок вооружения (отстрелите,
 slot = 1
 max_hp = 160
 armor = 4
+weight = 20
 base_speed = 16
-skills = Array[ExtResource("2_yjle3")]([SubResource("Resource_qpbeq"), SubResource("Resource_ghj83")])
+skills = Array[ExtResource("2_yjle3")]([ExtResource("3_4vfqn"), ExtResource("4_d0035")])
 texture_path = "res://assets/sprites/enemies/boss_satellite_arms.png"
