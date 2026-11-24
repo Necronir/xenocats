@@ -2,6 +2,7 @@ extends Node
 
 func _ready() -> void:
 	print("=== XENOCATS: BREMEN-4 AUTOMATED VERIFICATION ===")
+	SaveManager.use_test_save_paths()
 	DataCatalog.ensure_loaded()
 	SaveManager.hard_reset_all_progress()
 	if SaveManager.settings != null:
@@ -86,8 +87,8 @@ func _ready() -> void:
 				var arms_j: Marker2D = body_s.get_node("ArmsJoint") as Marker2D
 				var legs_j: Marker2D = body_s.get_node("LegsJoint") as Marker2D
 				assert(arms_j != null and legs_j != null, "Joints must be Marker2D")
-				assert(crig["arms_spr"].get_parent() == arms_j, "ArmsSprite must be child of ArmsJoint")
-				assert(crig["legs_spr"].get_parent() == legs_j, "LegsSprite must be child of LegsJoint")
+				assert((crig["arms_spr"] as Node).get_parent() == arms_j, "ArmsSprite must be child of ArmsJoint")
+				assert((crig["legs_spr"] as Node).get_parent() == legs_j, "LegsSprite must be child of LegsJoint")
 				assert(crig["body_smoke"] is CPUParticles2D and crig["body_sparks"] is CPUParticles2D, "Body must have smoke/sparks CPUParticles2D")
 				assert(crig["arms_smoke"] is CPUParticles2D and crig["arms_sparks"] is CPUParticles2D, "Arms must have smoke/sparks CPUParticles2D")
 				assert(crig["legs_smoke"] is CPUParticles2D and crig["legs_sparks"] is CPUParticles2D, "Legs must have smoke/sparks CPUParticles2D")
@@ -274,7 +275,7 @@ func _ready() -> void:
 	# Test VideoPlayerScene with Photo Slide
 	var photo_scene: VideoPlayerScene = vid_packed.instantiate() as VideoPlayerScene
 	photo_scene.setup_video({
-		"image_path": "res://assets/photos/1-cat-start.jpg",
+		"image_path": "res://assets/photos/1-1-cat-start.jpg",
 		"title": "ТЕСТОВОЕ ФОТО",
 		"next_scene": &"HUB",
 		"next_payload": {}
@@ -886,11 +887,14 @@ func _ready() -> void:
 	assert(SaveManager.settings.strict_weight_limit, "Strict weight limit setting must be enabled")
 	SaveManager.settings.strict_weight_limit = false
 
-	# Persist/export all .tres parts with power_output and weight
-	for pid: Variant in DataCatalog._parts.keys():
-		var pt: PartData = DataCatalog._parts[pid] as PartData
-		if pt != null:
-			ResourceSaver.save(pt, "res://data/resources/parts/" + String(pid) + ".tres")
+	# Verify PartData .tres roundtrip in temporary user:// sandbox without dirtying res:// working tree
+	var sample_part: PartData = DataCatalog.get_part("felix_body")
+	var temp_part_path: String = "user://verify_part_roundtrip.tres"
+	assert(sample_part != null and ResourceSaver.save(sample_part, temp_part_path) == OK, "PartData ResourceSaver roundtrip must succeed")
+	var loaded_part: PartData = ResourceLoader.load(temp_part_path) as PartData
+	assert(loaded_part != null and loaded_part.power_output == sample_part.power_output and loaded_part.weight == sample_part.weight, "Saved PartData must preserve power_output and weight")
+	if FileAccess.file_exists(temp_part_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(temp_part_path))
 
 	print("[13] Front Mission Weight & Power Output System (Issue #8) verified OK")
 
@@ -926,7 +930,7 @@ func _ready() -> void:
 	var test_cat: CatMechInstance = SaveManager.party[0]
 	test_cat.arms_part.current_hp = 15
 	var damaged_hp: int = test_cat.arms_part.current_hp
-	var garage_inst: GarageScene = load("res://src/garage/garage_scene.tscn").instantiate() as GarageScene
+	var garage_inst: GarageScene = (load("res://src/garage/garage_scene.tscn") as PackedScene).instantiate() as GarageScene
 	add_child(garage_inst)
 	await get_tree().process_frame
 	var scrap_pdata: PartData = DataCatalog.get_part("scrap_arms")
@@ -1681,7 +1685,7 @@ func _ready() -> void:
 	assert(SaveManager.story_progression.player_is_boomer == true, "Selecting Yes must set player_is_boomer to true")
 	assert(SaveManager.story_progression.seen_boomer_dialog == true, "Selecting choice must set seen_boomer_dialog to true")
 	assert(ev_fusion._lines.size() >= 1, "Branch lines must be loaded into _lines")
-	assert(ev_fusion._lines[0]["text"].find("пали контору") != -1, "Felix blow cover response must be displayed")
+	assert(String(ev_fusion._lines[0]["text"]).find("пали контору") != -1, "Felix blow cover response must be displayed")
 	ev_fusion.queue_free()
 	await get_tree().process_frame
 
@@ -1692,7 +1696,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	ev_fusion2._on_choice_selected(ev_fusion2._choices[1])
 	assert(SaveManager.story_progression.player_is_boomer == false, "Selecting No must set player_is_boomer to false")
-	assert(ev_fusion2._lines[0]["text"].find("замоггаю") != -1, "Felix mogging response must be displayed")
+	assert(String(ev_fusion2._lines[0]["text"]).find("замоггаю") != -1, "Felix mogging response must be displayed")
 	ev_fusion2.queue_free()
 	await get_tree().process_frame
 
@@ -1741,7 +1745,7 @@ func _ready() -> void:
 	# Select choice 0: Yes -> sets player_is_boomer = true
 	dlg_overlay.select_choice(0)
 	assert(SaveManager.story_progression.player_is_boomer == true, "Overlay select_choice(0) must set player_is_boomer = true")
-	assert(dlg_overlay.get_current_line()["text"].find("пали контору") != -1, "Felix response displayed in overlay")
+	assert(String(dlg_overlay.get_current_line()["text"]).find("пали контору") != -1, "Felix response displayed in overlay")
 
 	# Advance past Felix response to close dialogue
 	dlg_overlay.close_dialogue()
@@ -1765,7 +1769,7 @@ func _ready() -> void:
 	assert(auto_dlg != null, "Overlay ref must be valid")
 	auto_dlg.select_choice(1)
 	assert(SaveManager.story_progression.player_is_boomer == false, "Selecting choice 1 must set player_is_boomer = false")
-	assert(auto_dlg.get_current_line()["text"].find("замоггаю") != -1, "Felix mogging response displayed in auto overlay")
+	assert(String(auto_dlg.get_current_line()["text"]).find("замоггаю") != -1, "Felix mogging response displayed in auto overlay")
 
 	auto_dlg.close_dialogue()
 	await get_tree().process_frame
@@ -2315,7 +2319,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	# 24.6 UI Focus Navigation for Gamepad in Combat Arena
-	var combat_test: CombatArena = load("res://src/combat/combat_arena.tscn").instantiate() as CombatArena
+	var combat_test: CombatArena = (load("res://src/combat/combat_arena.tscn") as PackedScene).instantiate() as CombatArena
 	add_child(combat_test)
 	await get_tree().process_frame
 	combat_test._begin_player_turn(0)
@@ -2494,7 +2498,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	# 24.8 Event Scene Gamepad Choice Navigation
-	var ev_scene: EventScene = load("res://src/event/event_scene.tscn").instantiate() as EventScene
+	var ev_scene: EventScene = (load("res://src/event/event_scene.tscn") as PackedScene).instantiate() as EventScene
 	add_child(ev_scene)
 	ev_scene.setup_event({"timeline": "res://data/dialogues/event_overloaded_core.dtl"})
 	await get_tree().process_frame
@@ -2520,7 +2524,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	# 24.9 Garage Parts List Gamepad Navigation & Scrolling
-	var garage_test: GarageScene = load("res://src/garage/garage_scene.tscn").instantiate() as GarageScene
+	var garage_test: GarageScene = (load("res://src/garage/garage_scene.tscn") as PackedScene).instantiate() as GarageScene
 	SaveManager.spare_parts_inventory = [
 		{"part_id": "titan_body", "current_hp": 80},
 		{"part_id": "titan_arms", "current_hp": 60},
@@ -2980,8 +2984,18 @@ func _ready() -> void:
 
 	print("[26] Issue #51: All 7 plot cutscene videos verified OK")
 
+	# 27. Verify T-13: Test Save Isolation & DtlTimelineParser
+	assert(SaveManager.META_SAVE_PATH == SaveManager.TEST_META_SAVE_PATH, "Test suite must isolate META_SAVE_PATH from real user saves")
+	assert(SaveManager.RUN_SAVE_PATH == SaveManager.TEST_RUN_SAVE_PATH, "Test suite must isolate RUN_SAVE_PATH from real user saves")
+	assert(SaveManager.SETTINGS_PATH == SaveManager.TEST_SETTINGS_PATH, "Test suite must isolate SETTINGS_PATH from real user saves")
+	var parsed_dtl: Dictionary = DtlTimelineParser.parse_timeline("timeline_first_fusion", "", false)
+	assert(bool(parsed_dtl.get("found", false)), "DtlTimelineParser must resolve short timeline name")
+	assert((parsed_dtl["lines"] as Array).size() >= 3 and (parsed_dtl["choices"] as Array).size() >= 2, "DtlTimelineParser must extract lines and choices")
+	print("[27] T-13: Save path isolation & shared DtlTimelineParser verified OK")
+
 	AudioManager.stop_music()
 	await get_tree().process_frame
 	SaveManager.delete_run_save()
+	SaveManager.cleanup_test_save_files()
 	print("=== ALL SYSTEMS VERIFIED SUCCESSFULLY WITH 0 ERRORS ===")
 	get_tree().quit(0)
