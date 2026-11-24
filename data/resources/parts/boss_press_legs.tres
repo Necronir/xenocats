@@ -10,4 +10,5 @@ part_name = "Шасси (БОСС: Трёхголовый Пресс)"
 description = "Ходовая часть (отстрелите, чтобы обрушить инициативу врага!)."
 slot = 2
 max_hp = 95
+weight = 15
 texture_path = "res://assets/sprites/enemies/boss_press_legs.png"

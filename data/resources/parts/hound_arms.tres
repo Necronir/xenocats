@@ -2,16 +2,7 @@
 
 [ext_resource type="Script" path="res://src/models/part_data.gd" id="1_4wylv"]
 [ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_a6ft2"]
-
-[sub_resource type="Resource" id="Resource_0bnxm"]
-script = ExtResource("2_a6ft2")
-skill_id = &"hound_saw_bite"
-skill_name = "Пилообразный укус"
-description = "Разрывает обшивку детали, вызывая Утечку масла (Bleed)."
-base_damage = 22
-status_effect = 2
-status_stacks = 3
-sync_gain = 20
+[ext_resource type="Resource" path="res://data/resources/skills/hound_saw_bite.tres" id="3_a6ft2"]
 
 [resource]
 script = ExtResource("1_4wylv")
@@ -22,5 +13,5 @@ slot = 1
 max_hp = 65
 weight = 14
 base_speed = 13
-skills = Array[ExtResource("2_a6ft2")]([SubResource("Resource_0bnxm")])
+skills = Array[ExtResource("2_a6ft2")]([ExtResource("3_a6ft2")])
 texture_path = "res://assets/sprites/cats/hound_arms.png"

@@ -11,5 +11,6 @@ description = "Ходовая часть (отстрелите, чтобы об�
 slot = 2
 max_hp = 80
 armor = 3
+weight = 15
 base_speed = 13
 texture_path = "res://assets/sprites/enemies/elite_driller_legs.png"

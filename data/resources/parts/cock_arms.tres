@@ -2,16 +2,7 @@
 
 [ext_resource type="Script" path="res://src/models/part_data.gd" id="1_12yjp"]
 [ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_n4ld0"]
-
-[sub_resource type="Resource" id="Resource_60frm"]
-script = ExtResource("2_n4ld0")
-skill_id = &"cock_sonic_wave"
-skill_name = "Акустический залп"
-description = "Удар звуковой волной, шанс оглушить врага (Stun)."
-base_damage = 16
-status_effect = 5
-status_stacks = 1
-sync_gain = 22
+[ext_resource type="Resource" path="res://data/resources/skills/cock_sonic_wave.tres" id="3_n4ld0"]
 
 [resource]
 script = ExtResource("1_12yjp")
@@ -23,5 +14,5 @@ max_hp = 50
 armor = 1
 weight = 11
 base_speed = 15
-skills = Array[ExtResource("2_n4ld0")]([SubResource("Resource_60frm")])
+skills = Array[ExtResource("2_n4ld0")]([ExtResource("3_n4ld0")])
 texture_path = "res://assets/sprites/cats/cock_arms.png"

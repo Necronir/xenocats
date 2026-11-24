@@ -2,17 +2,7 @@
 
 [ext_resource type="Script" path="res://src/models/part_data.gd" id="1_dpeyf"]
 [ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_wgixw"]
-
-[sub_resource type="Resource" id="Resource_shgom"]
-script = ExtResource("2_wgixw")
-skill_id = &"mule_bucket_bash"
-skill_name = "Удар ковшом"
-description = "Тяжелый удар щитом-отвалом и Провокация (Taunt) на 2 хода."
-base_damage = 15
-shield_amount = 10
-status_effect = 3
-status_stacks = 2
-sync_gain = 20
+[ext_resource type="Resource" path="res://data/resources/skills/mule_bucket_bash.tres" id="3_wgixw"]
 
 [resource]
 script = ExtResource("1_dpeyf")
@@ -24,5 +14,5 @@ max_hp = 75
 armor = 4
 weight = 17
 base_speed = 9
-skills = Array[ExtResource("2_wgixw")]([SubResource("Resource_shgom")])
+skills = Array[ExtResource("2_wgixw")]([ExtResource("3_wgixw")])
 texture_path = "res://assets/sprites/cats/mule_arms.png"

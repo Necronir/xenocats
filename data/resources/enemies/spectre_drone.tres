@@ -2,15 +2,7 @@
 
 [ext_resource type="Script" path="res://src/models/enemy_data.gd" id="1_pjekl"]
 [ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_fd5hw"]
-
-[sub_resource type="Resource" id="Resource_qpbeq"]
-script = ExtResource("2_fd5hw")
-skill_id = &"enemy_laser_barrage"
-skill_name = "Лазерная засечка"
-description = "Прицельный обстрел высокоточными лучами."
-target_type = 0
-base_damage = 20
-qte_profile = 3
+[ext_resource type="Resource" path="res://data/resources/skills/enemy_laser_barrage.tres" id="3_fd5hw"]
 
 [resource]
 script = ExtResource("1_pjekl")
@@ -20,7 +12,7 @@ sector_level = 3
 max_hp = 90
 armor = 3
 speed = 16
-skills = Array[ExtResource("2_fd5hw")]([SubResource("Resource_qpbeq")])
+skills = Array[ExtResource("2_fd5hw")]([ExtResource("3_fd5hw")])
 dodge_pattern_id = &"laser_grid"
 sprite_prefix = "spectre_drone"
 scrap_reward = 45

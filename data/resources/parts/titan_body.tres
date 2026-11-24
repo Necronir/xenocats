@@ -2,18 +2,7 @@
 
 [ext_resource type="Script" path="res://src/models/part_data.gd" id="1_57buo"]
 [ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_b2lco"]
-
-[sub_resource type="Resource" id="Resource_u4ffv"]
-script = ExtResource("2_b2lco")
-skill_id = &"mule_heat_shield"
-skill_name = "Экран перегрева"
-description = "Раздаёт всей группе силовые щиты (+14 Щит)."
-target_type = 5
-base_damage = 0
-shield_amount = 14
-status_effect = 4
-status_stacks = 1
-sync_gain = 20
+[ext_resource type="Resource" path="res://data/resources/skills/mule_heat_shield.tres" id="3_b2lco"]
 
 [resource]
 script = ExtResource("1_57buo")
@@ -24,5 +13,5 @@ max_hp = 110
 armor = 5
 weight = 22
 power_output = 65
-skills = Array[ExtResource("2_b2lco")]([SubResource("Resource_u4ffv")])
+skills = Array[ExtResource("2_b2lco")]([ExtResource("3_b2lco")])
 texture_path = "res://assets/sprites/cats/titan_body.png"

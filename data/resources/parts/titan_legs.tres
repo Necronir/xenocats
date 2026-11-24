@@ -2,17 +2,7 @@
 
 [ext_resource type="Script" path="res://src/models/part_data.gd" id="1_tra20"]
 [ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_bf326"]
-
-[sub_resource type="Resource" id="Resource_04sj1"]
-script = ExtResource("2_bf326")
-skill_id = &"felix_overdrive"
-skill_name = "Форсаж сервоприводов"
-description = "Ускоряет всю партию (+Скорость на 2 хода)."
-target_type = 5
-base_damage = 0
-status_effect = 7
-status_stacks = 2
-qte_profile = 3
+[ext_resource type="Resource" path="res://data/resources/skills/felix_overdrive.tres" id="3_bf326"]
 
 [resource]
 script = ExtResource("1_tra20")
@@ -24,5 +14,5 @@ max_hp = 85
 armor = 4
 weight = 20
 base_speed = 15
-skills = Array[ExtResource("2_bf326")]([SubResource("Resource_04sj1")])
+skills = Array[ExtResource("2_bf326")]([ExtResource("3_bf326")])
 texture_path = "res://assets/sprites/cats/titan_legs.png"

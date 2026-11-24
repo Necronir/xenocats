@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_8fg4v"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_ypt58"]
+[ext_resource type="Resource" path="res://data/resources/skills/enemy_censor_interference.tres" id="3_v4sgh"]
+[ext_resource type="Resource" path="res://data/resources/skills/enemy_censor_laser.tres" id="4_0aw6r"]
+
+[resource]
+script = ExtResource("1_8fg4v")
+part_id = &"boss_censor_arms"
+part_name = "Орудия (Главный Ревизор эфира // Худсовет Бремен-4)"
+description = "Боевой блок вооружения (отстрелите, чтобы ослабить атаки!)."
+slot = 1
+max_hp = 220
+armor = 4
+weight = 20
+base_speed = 18
+skills = Array[ExtResource("2_ypt58")]([ExtResource("3_v4sgh"), ExtResource("4_0aw6r")])
+texture_path = "res://assets/sprites/enemies/boss_satellite_arms.png"

@@ -220,13 +220,31 @@ func to_dict() -> Dictionary:
 		"legs": legs_part.to_dict() if legs_part != null else {}
 	}
 
+const DEFAULT_INSTRUMENTS: Dictionary = {
+	"FELIX": "Гитара",
+	"MULE": "Бас",
+	"HOUND": "Барабан",
+	"COCK": "Синтезатор",
+	"PYRAMID": "Резонатор «Бремен»"
+}
+
+const DEFAULT_THEME_PATHS: Dictionary = {
+	"FELIX": "res://assets/audio/themes/theme_felix_guitar.wav",
+	"MULE": "res://assets/audio/themes/theme_mule_bass.wav",
+	"HOUND": "res://assets/audio/themes/theme_hound_drums.wav",
+	"COCK": "res://assets/audio/themes/theme_cock_synth.wav"
+}
+
 static func from_dict(d: Dictionary, part_catalog: Dictionary) -> CatMechInstance:
 	var inst: CatMechInstance = CatMechInstance.new()
-	inst.cat_id = StringName(String(d.get("cat_id", "FELIX")))
+	var cid_str: String = String(d.get("cat_id", "FELIX"))
+	inst.cat_id = StringName(cid_str)
 	inst.display_name = String(d.get("display_name", "FELIX"))
 	inst.role_title = String(d.get("role_title", ""))
-	inst.instrument_name = String(d.get("instrument_name", AudioManager.get_character_instrument(inst.cat_id)))
-	inst.theme_path = String(d.get("theme_path", AudioManager.get_character_theme_path(inst.cat_id)))
+	var def_inst: String = String(DEFAULT_INSTRUMENTS.get(cid_str.to_upper(), "Гитара"))
+	var def_theme: String = String(DEFAULT_THEME_PATHS.get(cid_str.to_upper(), "res://assets/audio/themes/theme_felix_guitar.wav"))
+	inst.instrument_name = String(d.get("instrument_name", def_inst))
+	inst.theme_path = String(d.get("theme_path", def_theme))
 	inst.portrait_prefix = String(d.get("portrait_prefix", "felix"))
 	if d.has("body") and d["body"] is Dictionary:
 		inst.body_part = PartInstance.from_dict(d["body"] as Dictionary, part_catalog)

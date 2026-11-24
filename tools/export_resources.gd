@@ -3,35 +3,55 @@ extends SceneTree
 func _init() -> void:
 	DataCatalog.ensure_loaded()
 
-	# Save all skills as .tres
-	for sid: Variant in DataCatalog._skills.keys():
-		var sk: SkillData = DataCatalog._skills[sid] as SkillData
+	# Save all skills as .tres and bind canonical resource_path for ExtResource linking
+	var skill_keys: Array = DataCatalog._skills.keys()
+	for i: int in range(skill_keys.size()):
+		var sid: String = String(skill_keys[i])
+		var sk: SkillData = DataCatalog._skills[skill_keys[i]] as SkillData
 		if sk != null:
-			ResourceSaver.save(sk, "res://data/resources/skills/" + String(sid) + ".tres")
+			var sk_path: String = "res://data/resources/skills/" + sid + ".tres"
+			sk.take_over_path(sk_path)
+			ResourceSaver.save(sk, sk_path)
 
-	# Save all parts as .tres
-	for pid: Variant in DataCatalog._parts.keys():
-		var pt: PartData = DataCatalog._parts[pid] as PartData
+	# Save all parts as .tres and bind canonical resource_path for ExtResource linking
+	var part_keys: Array = DataCatalog._parts.keys()
+	for i: int in range(part_keys.size()):
+		var pid: String = String(part_keys[i])
+		var pt: PartData = DataCatalog._parts[part_keys[i]] as PartData
 		if pt != null:
-			ResourceSaver.save(pt, "res://data/resources/parts/" + String(pid) + ".tres")
+			var pt_path: String = "res://data/resources/parts/" + pid + ".tres"
+			pt.take_over_path(pt_path)
+			ResourceSaver.save(pt, pt_path)
 
 	# Save all enemies as .tres
-	for eid: Variant in DataCatalog._enemies.keys():
-		var en: EnemyData = DataCatalog._enemies[eid] as EnemyData
+	var enemy_keys: Array = DataCatalog._enemies.keys()
+	for i: int in range(enemy_keys.size()):
+		var eid: String = String(enemy_keys[i])
+		var en: EnemyData = DataCatalog._enemies[enemy_keys[i]] as EnemyData
 		if en != null:
-			ResourceSaver.save(en, "res://data/resources/enemies/" + String(eid) + ".tres")
+			var en_path: String = "res://data/resources/enemies/" + eid + ".tres"
+			en.take_over_path(en_path)
+			ResourceSaver.save(en, en_path)
 
 	# Save all music tapes as .tres
-	for tid: Variant in DataCatalog._tapes.keys():
-		var tp: MusicTapeData = DataCatalog._tapes[tid] as MusicTapeData
+	var tape_keys: Array = DataCatalog._tapes.keys()
+	for i: int in range(tape_keys.size()):
+		var tid: String = String(tape_keys[i])
+		var tp: MusicTapeData = DataCatalog._tapes[tape_keys[i]] as MusicTapeData
 		if tp != null:
-			ResourceSaver.save(tp, "res://data/resources/music_tapes/" + String(tid) + ".tres")
+			var tp_path: String = "res://data/resources/music_tapes/" + tid + ".tres"
+			tp.take_over_path(tp_path)
+			ResourceSaver.save(tp, tp_path)
 
 	# Save all tutorials as .tres
-	for tut_id: Variant in DataCatalog._tutorials.keys():
-		var td: TutorialData = DataCatalog._tutorials[tut_id] as TutorialData
+	var tut_keys: Array = DataCatalog._tutorials.keys()
+	for i: int in range(tut_keys.size()):
+		var tut_id: String = String(tut_keys[i])
+		var td: TutorialData = DataCatalog._tutorials[tut_keys[i]] as TutorialData
 		if td != null:
-			ResourceSaver.save(td, "res://data/resources/tutorials/" + String(tut_id) + ".tres")
+			var td_path: String = "res://data/resources/tutorials/" + tut_id + ".tres"
+			td.take_over_path(td_path)
+			ResourceSaver.save(td, td_path)
 
 	print("Successfully exported all .tres resources to res://data/resources/!")
 	quit(0)

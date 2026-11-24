@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="PartData" format=3]
+
+[ext_resource type="Script" path="res://src/models/part_data.gd" id="1_888kc"]
+[ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_u8e08"]
+[ext_resource type="Resource" path="res://data/resources/skills/enemy_censor_interference.tres" id="3_ad3ko"]
+[ext_resource type="Resource" path="res://data/resources/skills/enemy_censor_laser.tres" id="4_a7uas"]
+
+[resource]
+script = ExtResource("1_888kc")
+part_id = &"boss_censor_body"
+part_name = "Ядро (Главный Ревизор эфира // Худсовет Бремен-4)"
+description = "Центральный процессор и реактор."
+max_hp = 810
+armor = 5
+weight = 20
+power_output = 80
+base_speed = 18
+skills = Array[ExtResource("2_u8e08")]([ExtResource("3_ad3ko"), ExtResource("4_a7uas")])
+texture_path = "res://assets/sprites/enemies/boss_satellite_body.png"

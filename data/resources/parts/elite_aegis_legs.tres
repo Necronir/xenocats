@@ -11,5 +11,6 @@ description = "Ходовая часть (отстрелите, чтобы об�
 slot = 2
 max_hp = 90
 armor = 4
+weight = 15
 base_speed = 14
 texture_path = "res://assets/sprites/enemies/elite_aegis_legs.png"

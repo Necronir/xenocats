@@ -2,15 +2,7 @@
 
 [ext_resource type="Script" path="res://src/models/enemy_data.gd" id="1_gegna"]
 [ext_resource type="Script" path="res://src/models/skill_data.gd" id="2_4f3so"]
-
-[sub_resource type="Resource" id="Resource_qpbeq"]
-script = ExtResource("2_4f3so")
-skill_id = &"enemy_laser_barrage"
-skill_name = "Лазерная засечка"
-description = "Прицельный обстрел высокоточными лучами."
-target_type = 0
-base_damage = 20
-qte_profile = 3
+[ext_resource type="Resource" path="res://data/resources/skills/enemy_laser_barrage.tres" id="3_4f3so"]
 
 [resource]
 script = ExtResource("1_gegna")
@@ -20,7 +12,7 @@ sector_level = 2
 max_hp = 72
 armor = 2
 speed = 13
-skills = Array[ExtResource("2_4f3so")]([SubResource("Resource_qpbeq")])
+skills = Array[ExtResource("2_4f3so")]([ExtResource("3_4f3so")])
 dodge_pattern_id = &"laser_grid"
 sprite_prefix = "welder_raider"
 scrap_reward = 32

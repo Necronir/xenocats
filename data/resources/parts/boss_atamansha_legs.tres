@@ -11,5 +11,6 @@ description = "Ходовая часть (отстрелите, чтобы об�
 slot = 2
 max_hp = 115
 armor = 3
+weight = 15
 base_speed = 14
 texture_path = "res://assets/sprites/enemies/boss_atamansha_legs.png"
