@@ -22,7 +22,8 @@ const MAP_HEIGHT_SPAN: float = 152.0
 const SECTOR_NAMES: Dictionary = {
 	1: "СЕКТОР 1: Тракт у Старой Мельницы (Отряд: Кот и Пёс)",
 	2: "СЕКТОР 2: Притон Разбойников (Отряд: Кот, Пёс и Осёл)",
-	3: "СЕКТОР 3: Вершина Бремен-4 (Квартет в сборе!)"
+	3: "СЕКТОР 3: Вершина Бремен-4 (Квартет в сборе!)",
+	4: "СЕКТОР 4: Шпиль Худсовета Бремен-4 (Финал)"
 }
 
 func _ready() -> void:
@@ -126,7 +127,8 @@ func _build_ui() -> void:
 	bg.stretch_mode = TextureRect.STRETCH_SCALE
 	bg.modulate = Color(0.55, 0.55, 0.65, 1.0)
 	var sec: int = clampi(SaveManager.current_sector, 1, 4)
-	var bg_path: String = "res://assets/sprites/backgrounds/bg_sector" + str(sec) + ".png"
+	var bg_sec: int = clampi(sec, 1, 3)
+	var bg_path: String = "res://assets/sprites/backgrounds/bg_sector" + str(bg_sec) + ".png"
 	if ResourceLoader.exists(bg_path):
 		bg.texture = load(bg_path) as Texture2D
 	add_child(bg)

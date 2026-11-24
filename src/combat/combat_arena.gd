@@ -38,6 +38,8 @@ var _pyramid_initial_hp: int = 0
 var _pyramid_damage_taken: int = 0
 var _pyramid_overheat_rounds: int = 0
 var _pyramid_action_used: bool = false
+var _pyramid_single_shot_mode: bool = false
+var _fusion_just_activated: bool = false
 var _pyramid_hp_bar: ProgressBar = null
 var _pyramid_hp_label: Label = null
 
@@ -214,6 +216,8 @@ func _build_visual_hierarchy() -> void:
 	_dev_win_btn.pressed.connect(func() -> void:
 		AudioManager.play_sfx("ui_click")
 		for en: EnemyInstance in _enemies:
+			if en.final_boss_controller != null:
+				en.final_boss_controller.is_defeated = true
 			if en.is_modular():
 				en.body_part.current_hp = 0
 			else:
@@ -352,6 +356,8 @@ func _init_combat_entities() -> void:
 	_pyramid_turns_left = 0
 	_pyramid_overheat_rounds = 0
 	_pyramid_action_used = false
+	_pyramid_single_shot_mode = false
+	_fusion_just_activated = false
 
 	# Определяем состав врагов по типу ноды
 	_enemies.clear()
@@ -362,6 +368,15 @@ func _init_combat_entities() -> void:
 		var p_val: int = int(SaveManager.story_progression.current_phase) if SaveManager.story_progression != null else -1
 		var th: String = MapGenerator.get_sector_theme(SaveManager.current_sector, p_val)
 		if sec >= 4 or String(_battle_payload.get("boss_id", "")) == "boss_censor":
+			if sec >= 4 and not _battle_payload.has("boss_id"):
+				# Прямой прыжок через DevMenu к Боссу 4: гарантируем полный квартет и тиры слияний
+				for req_id: String in ["HOUND", "MULE", "COCK"]:
+					if not SaveManager.has_party_member(req_id):
+						SaveManager.recruit_cat(req_id)
+				if SaveManager.story_progression != null:
+					for ft_idx: int in [1, 2, 3]:
+						SaveManager.story_progression.unlock_fusion_tier(ft_idx)
+				_party = SaveManager.party
 			var censor_ed: EnemyData = DataCatalog.get_enemy("boss_censor")
 			if censor_ed == null:
 				var b_list: Array[EnemyData] = DataCatalog.get_enemies_for_sector(sec, false, true)
@@ -973,7 +988,20 @@ func _refresh_hud() -> void:
 			status_tags += " [ОГЛУШ]"
 
 		var elbl: Label = erig["label"] as Label
-		if en.is_modular():
+		if en.final_boss_controller != null:
+			var fbc: FinalBossController = en.final_boss_controller
+			var fseg: BossColoredSegment = fbc.get_current_segment()
+			var phase_num: int = int(fbc.current_phase)
+			var seg_hp: int = fbc.get_current_hp()
+			var seg_max: int = fbc.get_current_max_hp()
+			var sh_tag: String = (" [ЩИТ:" + str(fseg.shield) + "]") if (fseg != null and fseg.shield > 0) else ""
+			var col_name: String = fseg.segment_name if fseg != null else ("Фаза " + str(phase_num))
+			elbl.text = (
+				en.data.enemy_name + status_tags + "\n"
+				+ "Ф" + str(phase_num) + "/4 (" + col_name + "): "
+				+ str(seg_hp) + "/" + str(seg_max) + sh_tag
+			)
+		elif en.is_modular():
 			var eb: PartInstance = en.body_part
 			var ea: PartInstance = en.arms_part
 			var el: PartInstance = en.legs_part
@@ -1145,10 +1173,38 @@ func _make_part_hp_row(prefix: String, part: PartInstance, col: Color) -> Label:
 
 # --- Логика раундов и очереди инициативы (по Ногам) ---
 
+func _is_cat_in_active_fusion(cat: CatMechInstance) -> bool:
+	return _pyramid_active and cat != null and (_fusion_participating_ids.is_empty() or _fusion_participating_ids.has(cat.cat_id))
+
+func _get_alive_party_ids() -> Array[StringName]:
+	var alive_ids: Array[StringName] = []
+	for ally_m: CatMechInstance in _party:
+		if ally_m != null and ally_m.is_alive():
+			alive_ids.append(ally_m.cat_id)
+	return alive_ids
+
+func _get_active_fusion_tier_for_turn(is_fusion_action: bool) -> int:
+	if not is_fusion_action:
+		return 0
+	if _fusion_controller != null and _fusion_controller.is_active():
+		return int(_fusion_controller.current_tier)
+	if _pyramid_active:
+		match _pyramid_tier:
+			2: return 1
+			3: return 2
+			4: return 3
+			_: return 3
+	return 0
+
 func _start_new_round() -> void:
 	_fsm.transition_to(CombatFSM.State.TURN_ORDER_CALC)
 	_turn_queue.clear()
 	_turn_cursor = 0
+	_pyramid_action_used = false
+	_fusion_just_activated = false
+
+	if _pyramid_overheat_rounds > 0:
+		_pyramid_overheat_rounds -= 1
 
 	if _pyramid_active:
 		_pyramid_turns_left -= 1
@@ -1156,9 +1212,6 @@ func _start_new_round() -> void:
 			_fusion_controller.turns_remaining = _pyramid_turns_left
 		if _pyramid_turns_left <= 0:
 			_deactivate_bremen_pyramid()
-
-	if _pyramid_overheat_rounds > 0:
-		_pyramid_overheat_rounds -= 1
 
 	for i: int in range(_party.size()):
 		var cat: CatMechInstance = _party[i]
@@ -1226,13 +1279,15 @@ func _advance_turn() -> void:
 			var cat: CatMechInstance = _party[idx]
 			if not cat.is_alive():
 				continue
+			if _is_cat_in_active_fusion(cat) and _pyramid_action_used:
+				continue
 			if cat.bleed_stacks > 0:
 				if _pyramid_active and _fusion_controller != null and _fusion_controller.current_tier == CombatFusionController.FusionTier.ROBO_MEGA_PYRAMID:
 					cat.bleed_stacks = 0
 				else:
 					var bleed_dmg: int = cat.bleed_stacks * 2
 					cat.bleed_stacks = maxi(0, cat.bleed_stacks - 1)
-					if _pyramid_active:
+					if _is_cat_in_active_fusion(cat):
 						apply_pyramid_damage(bleed_dmg, true)
 						if _check_battle_end():
 							return
@@ -1242,11 +1297,11 @@ func _advance_turn() -> void:
 							var crig: Dictionary = _cat_rigs[idx]
 							_play_rig_hurt(crig, 4.0, PartData.PartSlot.BODY)
 							spawn_damage_number((crig["root"] as Node2D).position, "МАСЛО -" + str(bleed_dmg), Color(0.85, 0.45, 1.0))
+						_refresh_hud()
 						if not cat.is_alive():
-							_refresh_hud()
-						if _check_battle_end():
-							return
-						continue
+							if _check_battle_end():
+								return
+							continue
 			if cat.stunned:
 				cat.stunned = false
 				_log_label.text = cat.display_name + " перегружен (Оглушение) и пропускает ход!"
@@ -1263,9 +1318,16 @@ func _advance_turn() -> void:
 				continue
 			if en.bleed_stacks > 0:
 				var bleed_dmg: int = en.bleed_stacks * 4
-				en.take_damage(bleed_dmg, PartData.PartSlot.BODY, true)
+				if en.final_boss_controller != null:
+					var fbc_seg: BossColoredSegment = en.final_boss_controller.get_current_segment()
+					var max_safe_bleed: int = maxi(0, en.final_boss_controller.get_current_hp() - 1)
+					bleed_dmg = mini(bleed_dmg, max_safe_bleed)
+					if bleed_dmg > 0 and fbc_seg != null:
+						en.take_damage(bleed_dmg, PartData.PartSlot.BODY, true, fbc_seg.constituent_hero, 0, _get_alive_party_ids())
+				else:
+					en.take_damage(bleed_dmg, PartData.PartSlot.BODY, true)
 				en.bleed_stacks = maxi(0, en.bleed_stacks - 1)
-				if idx < _enemy_rigs.size():
+				if bleed_dmg > 0 and idx < _enemy_rigs.size():
 					var erig: Dictionary = _enemy_rigs[idx]
 					_play_rig_hurt(erig, 4.0, PartData.PartSlot.BODY)
 					spawn_damage_number((erig["root"] as Node2D).position, "МАСЛО -" + str(bleed_dmg), Color(0.85, 0.45, 1.0))
@@ -1305,10 +1367,11 @@ func _begin_player_turn(cat_index: int) -> void:
 		child.queue_free()
 
 	var header: Label = Label.new()
+	var is_fusion_turn: bool = _pyramid_active and (_is_cat_in_active_fusion(cat) or _fusion_just_activated)
 	var f_title: String = CombatFusionController.get_tier_title(_fusion_controller.current_tier) if (_fusion_controller != null and _fusion_controller.is_active()) else get_pyramid_title(_pyramid_tier)
 	header.text = (
 		("ХОД: " + f_title + " [+Резонатор «Бремен»]:")
-		if _pyramid_active
+		if is_fusion_turn
 		else ("ХОД: " + cat.display_name + " (" + cat.role_title + " | " + cat.instrument_name + ")")
 	)
 	header.add_theme_font_size_override("font_size", 10)
@@ -1368,7 +1431,7 @@ func _begin_player_turn(cat_index: int) -> void:
 			_action_box.add_child(btn)
 
 	var skills: Array[SkillData] = []
-	if _pyramid_active:
+	if is_fusion_turn:
 		var storm_id: String = "pyramid_acoustic_storm"
 		var cascade_id: String = "pyramid_cascade_overload"
 		var cur_t: CombatFusionController.FusionTier = _fusion_controller.current_tier if _fusion_controller != null else CombatFusionController.FusionTier.NONE
@@ -1455,9 +1518,11 @@ func _get_default_fusion_tier_for_party() -> CombatFusionController.FusionTier:
 	return CombatFusionController.FusionTier.ROBO_CATDOG
 
 func _activate_bremen_pyramid(tier: CombatFusionController.FusionTier = CombatFusionController.FusionTier.NONE) -> void:
-	if tier == CombatFusionController.FusionTier.NONE:
+	var single_shot: bool = (tier == CombatFusionController.FusionTier.NONE)
+	if single_shot:
 		tier = _get_default_fusion_tier_for_party()
 	_activate_fusion_tier(tier)
+	_pyramid_single_shot_mode = single_shot
 
 func _activate_fusion_tier(tier: CombatFusionController.FusionTier) -> void:
 	if _fusion_controller == null:
@@ -1468,6 +1533,8 @@ func _activate_fusion_tier(tier: CombatFusionController.FusionTier) -> void:
 
 	_pyramid_active = true
 	_pyramid_action_used = false
+	_pyramid_single_shot_mode = false
+	_fusion_just_activated = true
 	_fusion_controller.current_tier = tier
 
 	match tier:
@@ -1705,6 +1772,10 @@ func _deactivate_bremen_pyramid() -> Dictionary:
 	var dist_res: Dictionary = _distribute_pyramid_damage_on_undock()
 	_pyramid_active = false
 	_pyramid_turns_left = 0
+	_pyramid_action_used = false
+	_pyramid_single_shot_mode = false
+	_fusion_just_activated = false
+	_pyramid_overheat_rounds = 1
 	_fusion_participating_ids.clear()
 	if _fusion_controller != null:
 		_fusion_controller.deactivate()
@@ -2101,10 +2172,18 @@ func _on_qte_completed(multiplier: float, rating_label: String, bonus_sync: int)
 
 	var cat: CatMechInstance = _party[_active_cat_index]
 	var sk: SkillData = _selected_skill
+	var was_fusion_turn: bool = _pyramid_active and (_is_cat_in_active_fusion(cat) or _fusion_just_activated)
+	_fusion_just_activated = false
 	if not _pyramid_active and _pyramid_overheat_rounds <= 0:
 		SaveManager.add_sync(sk.sync_gain + bonus_sync)
 
-	var scaled_dmg: int = int(round(float(sk.base_damage) * multiplier))
+	var active_tape: MusicTapeData = SaveManager.get_active_tape()
+	var aura_dmg_mult: float = 1.0
+	if active_tape != null and active_tape.passive_aura_type == &"TRIUMPH_AURA":
+		aura_dmg_mult += float(active_tape.passive_aura_value) / 100.0
+	var scaled_dmg: int = int(round(float(sk.base_damage) * multiplier * aura_dmg_mult))
+	var active_fusion_tier: int = _get_active_fusion_tier_for_turn(was_fusion_turn)
+	var alive_party_ids: Array[StringName] = _get_alive_party_ids()
 	var log_parts: PackedStringArray = PackedStringArray()
 	log_parts.append(cat.display_name + " -> " + sk.skill_name + " [" + rating_label + "]")
 
@@ -2134,24 +2213,85 @@ func _on_qte_completed(multiplier: float, rating_label: String, bonus_sync: int)
 		log_parts.append("Поддержка отряда выполнена!")
 	elif sk.target_type == SkillData.TargetType.ALL_ENEMIES:
 		AudioManager.play_sfx("laser")
+		var finisher_target: EnemyInstance = null
 		for e_idx: int in range(_enemies.size()):
 			var en: EnemyInstance = _enemies[e_idx]
 			if not en.is_alive():
 				continue
-			var res: Dictionary = en.take_damage(scaled_dmg, PartData.PartSlot.BODY, sk.ignore_armor)
-			_apply_skill_status_to_enemy(en, sk, multiplier)
-			var dealt_dmg: int = int(res["damage"])
-			log_parts.append(en.data.enemy_name + ": -" + str(dealt_dmg) + " HP")
+			var res: Dictionary = en.take_damage(
+				scaled_dmg,
+				PartData.PartSlot.BODY,
+				sk.ignore_armor,
+				cat.cat_id,
+				active_fusion_tier,
+				alive_party_ids
+			)
+			if bool(res.get("ejected", false)):
+				var alert_text_aoe: String = String(res.get("floating_text", "0! МУЗЫКА СЛИШКОМ СЛАБАЯ!"))
+				AudioManager.play_sfx(String(res.get("sfx", "dissonance")))
+				if e_idx < _enemy_rigs.size():
+					var erig_ej: Dictionary = _enemy_rigs[e_idx]
+					var epos_ej: Vector2 = (erig_ej["root"] as Node2D).position
+					spawn_damage_number(epos_ej, alert_text_aoe, Color(1.0, 0.25, 0.4), true)
+					_trigger_screenshake(7.0, 0.35)
+				var rej_reason_aoe: String = String(res.get("ejection_reason", "Музыка слишком слабая. Прослушивание не пройдено!"))
+				var new_phase_aoe: StoryProgressionData.StoryPhase = res.get("target_story_phase", StoryProgressionData.StoryPhase.CYCLE_1_DUO) as StoryProgressionData.StoryPhase
+				log_parts.append("РЕВИЗОР ЭФИРА: " + rej_reason_aoe)
+				_log_label.text = " | ".join(log_parts)
+				_refresh_hud()
+				await get_tree().create_timer(1.2, false).timeout
+				if not is_inside_tree():
+					return
+				if SaveManager.story_progression != null:
+					SaveManager.set_story_phase(new_phase_aoe)
+				SaveManager.delete_run_save()
+				EventBus.request_scene_change.emit(&"HUB", {
+					"ejected": true,
+					"ejection_reason": rej_reason_aoe
+				})
+				return
 
-			if e_idx < _enemy_rigs.size():
-				var erig: Dictionary = _enemy_rigs[e_idx]
-				var epos: Vector2 = (erig["root"] as Node2D).position
-				_play_rig_hurt(erig, 5.0, PartData.PartSlot.BODY)
-				spawn_damage_number(epos, ("КРИТ! -" if is_crit_sync else "-") + str(dealt_dmg), Color(1.0, 0.9, 0.25) if is_crit_sync else Color(1.0, 0.35, 0.35), is_crit_sync)
-				_emit_spark_burst(epos, 16 if is_crit_sync else 8)
-				if not en.is_alive():
-					_emit_spark_burst(epos, 26)
-					_trigger_screenshake(8.0, 0.25)
+			if bool(res.get("immune", false)):
+				var alert_imm: String = String(res.get("floating_text", "0! МУЗЫКА СЛИШКОМ СЛАБАЯ!"))
+				AudioManager.play_sfx(String(res.get("sfx", "dissonance")))
+				if e_idx < _enemy_rigs.size():
+					var erig_imm: Dictionary = _enemy_rigs[e_idx]
+					var epos_imm: Vector2 = (erig_imm["root"] as Node2D).position
+					spawn_damage_number(epos_imm, alert_imm, Color(1.0, 0.25, 0.4), true)
+					_trigger_screenshake(4.0, 0.2)
+				log_parts.append(en.data.enemy_name + ": 0 УРОНА! МУЗЫКА СЛИШКОМ СЛАБАЯ!")
+			else:
+				_apply_skill_status_to_enemy(en, sk, multiplier)
+				var dealt_dmg: int = int(res["damage"])
+				log_parts.append(en.data.enemy_name + ": -" + str(dealt_dmg) + " HP")
+
+				if e_idx < _enemy_rigs.size():
+					var erig: Dictionary = _enemy_rigs[e_idx]
+					var epos: Vector2 = (erig["root"] as Node2D).position
+					_play_rig_hurt(erig, 5.0, PartData.PartSlot.BODY)
+					spawn_damage_number(epos, ("КРИТ! -" if is_crit_sync else "-") + str(dealt_dmg), Color(1.0, 0.9, 0.25) if is_crit_sync else Color(1.0, 0.35, 0.35), is_crit_sync)
+					_emit_spark_burst(epos, 16 if is_crit_sync else 8)
+					if bool(res.get("gate_blocked", false)):
+						AudioManager.play_sfx(String(res.get("sfx", "dissonance")))
+						spawn_damage_number(epos + Vector2(0, -14), String(res.get("floating_text", "ТРЕБУЕТСЯ СЛИЯНИЕ!")), Color(1.0, 0.55, 0.25), true)
+					elif bool(res.get("phase_transition", false)):
+						AudioManager.play_sfx("part_break")
+						spawn_damage_number(epos + Vector2(0, -14), String(res.get("floating_text", "НОВАЯ ФАЗА!")), Color(0.4, 0.95, 1.0), true)
+					elif not en.is_alive():
+						_emit_spark_burst(epos, 26)
+						_trigger_screenshake(8.0, 0.25)
+
+			if bool(res.get("finisher_triggered", false)) or (en.final_boss_controller != null and en.final_boss_controller.is_finisher_ready and not en.final_boss_controller.finisher_succeeded):
+				finisher_target = en
+
+		if finisher_target != null:
+			_log_label.text = "ФИНАЛЬНЫЙ АККОРД! ВЫПОЛНИТЕ РИТМ-ДОБИВАНИЕ ВСЕМ АНСАМБЛЕМ!"
+			_trigger_screenshake(10.0, 0.4)
+			await get_tree().create_timer(0.4, false).timeout
+			if not is_inside_tree():
+				return
+			await _start_ensemble_finisher(finisher_target)
+			return
 	else:
 		AudioManager.play_sfx("laser")
 		if sk.shield_amount > 0:
@@ -2170,19 +2310,6 @@ func _on_qte_completed(multiplier: float, rating_label: String, bonus_sync: int)
 					actual_e_idx = fallback_idx
 					break
 		if target_en != null and target_en.is_alive():
-			var active_fusion_tier: int = 0
-			if _fusion_controller != null and _fusion_controller.is_active():
-				active_fusion_tier = int(_fusion_controller.current_tier)
-			elif _pyramid_active:
-				match _pyramid_tier:
-					2: active_fusion_tier = 1
-					3: active_fusion_tier = 2
-					4: active_fusion_tier = 3
-					_: active_fusion_tier = 3
-			var alive_party_ids: Array[StringName] = []
-			for ally_m: CatMechInstance in _party:
-				if ally_m != null and ally_m.is_alive():
-					alive_party_ids.append(ally_m.cat_id)
 			var hit_res: Dictionary = target_en.take_damage(
 				scaled_dmg,
 				_selected_part_slot,
@@ -2191,7 +2318,6 @@ func _on_qte_completed(multiplier: float, rating_label: String, bonus_sync: int)
 				active_fusion_tier,
 				alive_party_ids
 			)
-			_apply_skill_status_to_enemy(target_en, sk, multiplier)
 			# Проверка сюжетного катапультирования (ADR-002, Issue #30)
 			if bool(hit_res.get("ejected", false)):
 				var alert_text: String = String(hit_res.get("floating_text", "0! МУЗЫКА СЛИШКОМ СЛАБАЯ!"))
@@ -2229,6 +2355,7 @@ func _on_qte_completed(multiplier: float, rating_label: String, bonus_sync: int)
 					_trigger_screenshake(4.0, 0.2)
 				log_parts.append(target_en.data.enemy_name + ": 0 УРОНА! МУЗЫКА СЛИШКОМ СЛАБАЯ!")
 			else:
+				_apply_skill_status_to_enemy(target_en, sk, multiplier)
 				var slot_str: String = PartData.slot_to_russian(hit_res["slot"] as PartData.PartSlot)
 				var dealt_dmg: int = int(hit_res["damage"])
 				log_parts.append(target_en.data.enemy_name + " (" + slot_str + "): -" + str(dealt_dmg) + " HP")
@@ -2242,6 +2369,12 @@ func _on_qte_completed(multiplier: float, rating_label: String, bonus_sync: int)
 					var d_col: Color = Color(1.0, 0.9, 0.25) if is_crit_hit else Color(1.0, 0.35, 0.35)
 					spawn_damage_number(epos, d_text, d_col, is_crit_hit)
 					_emit_spark_burst(epos, 16 if is_crit_hit else 9)
+					if bool(hit_res.get("gate_blocked", false)):
+						AudioManager.play_sfx(String(hit_res.get("sfx", "dissonance")))
+						spawn_damage_number(epos + Vector2(0, -14), String(hit_res.get("floating_text", "ТРЕБУЕТСЯ СЛИЯНИЕ!")), Color(1.0, 0.55, 0.25), true)
+					elif bool(hit_res.get("phase_transition", false)):
+						AudioManager.play_sfx("part_break")
+						spawn_damage_number(epos + Vector2(0, -14), String(hit_res.get("floating_text", "НОВАЯ ФАЗА!")), Color(0.4, 0.95, 1.0), true)
 
 				if bool(hit_res["triggered_mark"]):
 					if not _pyramid_active and _pyramid_overheat_rounds <= 0:
@@ -2276,11 +2409,12 @@ func _on_qte_completed(multiplier: float, rating_label: String, bonus_sync: int)
 	_log_label.text = " | ".join(log_parts)
 	_refresh_hud()
 
-	# Одно действие на Пирамиду: после ультимативного удара происходит расстыковка и перегрев (Issue #26)
-	if _pyramid_active:
-		_deactivate_bremen_pyramid()
-		_pyramid_overheat_rounds = 1
-		_pyramid_action_used = false
+	# Многоходовые слияния (T1/T2: 2 хода, T3: 3 хода) против legacy single-shot вызова (Issue #26 / #29)
+	if _pyramid_active and was_fusion_turn:
+		if _pyramid_single_shot_mode:
+			_deactivate_bremen_pyramid()
+		else:
+			_pyramid_action_used = true
 
 	await get_tree().create_timer(0.65, false).timeout
 	if not is_inside_tree():
@@ -2316,7 +2450,15 @@ func _begin_enemy_turn(enemy_index: int) -> void:
 	# Отдача назад врага при атаке (Issue #11)
 	_play_enemy_attack_recoil(enemy_index)
 
-	var target_title: String = "ПИРАМИДА БРЕМЕНА" if _pyramid_active else defender.display_name
+	var target_is_totem: bool = _pyramid_active and (
+		_is_cat_in_active_fusion(defender)
+		or (_fusion_controller != null and _fusion_controller.current_tier == CombatFusionController.FusionTier.ROBO_CATDOG_DONKEY)
+	)
+	var target_title: String = (
+		(CombatFusionController.get_tier_title(_fusion_controller.current_tier) if (_fusion_controller != null and _fusion_controller.is_active()) else "ПИРАМИДА БРЕМЕНА")
+		if target_is_totem
+		else defender.display_name
+	)
 	_log_label.text = (
 		en.data.enemy_name + " применяет «" + _enemy_skill.skill_name
 		+ "» по " + target_title + "! Уклоняйтесь в боксе!"
@@ -2346,11 +2488,16 @@ func _begin_enemy_turn(enemy_index: int) -> void:
 		target_title,
 		chosen_pattern,
 		final_enemy_dmg,
-		1.0 if _pyramid_active else defender.get_dodge_speed_multiplier(),
+		1.0 if target_is_totem else defender.get_dodge_speed_multiplier(),
 		3.5
 	)
 
 func _pick_target_cat_index() -> int:
+	# Тир 2 (Робокотопсоосёл) автоматически провоцирует врагов на тотем (ADR-002 Section 2.2)
+	if _pyramid_active and _fusion_controller != null and _fusion_controller.current_tier == CombatFusionController.FusionTier.ROBO_CATDOG_DONKEY:
+		for fi: int in range(_party.size()):
+			if _party[fi].is_alive() and _is_cat_in_active_fusion(_party[fi]):
+				return fi
 	# Сначала проверяем котов с активной провокацией (Taunt)
 	var taunt_indices: Array[int] = []
 	var alive_indices: Array[int] = []
@@ -2366,8 +2513,14 @@ func _pick_target_cat_index() -> int:
 	return 0
 
 func _on_dodge_part_hit(slot: PartData.PartSlot, raw_damage: int) -> void:
-	# Если активна Пирамида Бремена — маршрутизируем урон в общий пул тотема (Issue #9)
-	if _pyramid_active:
+	# Если удар приходится по участнику активного слияния (или тотему с провокацией) — маршрутизируем в общий пул (Issue #9 / #29)
+	var hit_defender: CatMechInstance = _party[_defending_cat_index] if (_defending_cat_index >= 0 and _defending_cat_index < _party.size()) else null
+	var route_to_totem: bool = _pyramid_active and (
+		hit_defender == null
+		or _is_cat_in_active_fusion(hit_defender)
+		or (_fusion_controller != null and _fusion_controller.current_tier == CombatFusionController.FusionTier.ROBO_CATDOG_DONKEY)
+	)
+	if route_to_totem:
 		if _pyramid_current_hp <= 0:
 			_dodge_arena.call_deferred("force_finish")
 			return
@@ -2820,24 +2973,24 @@ func _handle_victory() -> void:
 					return
 
 				elif enemy_boss_id == "boss_atamansha" or cid == "COCK":
-					# Atamansha defeat -> Rescue COCK cutscene & dialogue -> IMMEDIATELY launch Sputnik boss battle!
+					# Atamansha defeat -> Rescue COCK cutscene & dialogue -> IMMEDIATELY launch Final 4-Phase Censor Boss battle!
 					var sputnik_battle_payload: Dictionary = {
 						"node_id": SaveManager.current_node_id,
 						"node_type": "BOSS",
-						"boss_id": "boss_satellite",
+						"boss_id": "boss_censor",
 						"biome_theme": "BLUE"
 					}
 					var sputnik_prelude_payload: Dictionary = {
-						"timeline": "res://data/dialogues/boss_prelude_sputnik_solo.dtl",
-						"timeline_name": "boss_prelude_sputnik_solo",
-						"title": "ВЕРШИНА ВЫШКИ // СПЯЩИЙ СПУТНИК",
-						"continue_text": "В БОЙ СО СПУТНИКОМ ->",
+						"timeline": "res://data/dialogues/boss_prelude_sector3.dtl",
+						"timeline_name": "boss_prelude_sector3",
+						"title": "ШПИЛЬ БРЕМЕН-4 // ГЛАВНЫЙ РЕВИЗОР ЭФИРА",
+						"continue_text": "ВЛОМИТЬСЯ В ОКНО (ФИНАЛЬНЫЙ БОЙ) ->",
 						"next_scene": &"BATTLE",
 						"next_payload": sputnik_battle_payload
 					}
 					var sputnik_video_payload: Dictionary = {
-						"image_path": "res://assets/photos/4-1-sputnik-boss-apperiance.jpg",
-						"title": "ВЕРШИНА ВЫШКИ: СПЯЩИЙ СПУТНИК БРЕМЕН-4",
+						"image_path": "res://assets/photos/6-1-fake-boss-apperiance.jpg",
+						"title": "ШПИЛЬ БРЕМЕН-4: ХУДСОВЕТ И РЕВИЗОР ЭФИРА",
 						"next_scene": &"EVENT",
 						"next_payload": sputnik_prelude_payload
 					}
@@ -2845,7 +2998,7 @@ func _handle_victory() -> void:
 						"timeline": "res://data/dialogues/dialogic_rescue_cock.dtl",
 						"timeline_name": "dialogic_rescue_cock",
 						"title": "СЕКТОР 2: ПОБЕДА НАД АТАМАНШЕЙ // СПАСЕНИЕ ПЕТУХА C.O.C.K.",
-						"continue_text": "ШТУРМ ВЫШКИ: В БОЙ СО СПУТНИКОМ ->",
+						"continue_text": "ШТУРМ ШПИЛЯ: ФИНАЛЬНЫЙ БОЙ КВАРТЕТА ->",
 						"next_scene": &"VIDEO",
 						"next_payload": sputnik_video_payload
 					}
@@ -3008,17 +3161,35 @@ func _start_ensemble_finisher(target_en: EnemyInstance) -> void:
 	if not _enemy_rigs.is_empty():
 		boss_pos = (_enemy_rigs[0]["root"] as Node2D).position
 
-	for beat_idx: int in range(1, 5):
+	var beat_idx: int = 1
+	var retries_on_beat: int = 0
+	while beat_idx <= 4:
 		var beat_info: Dictionary = beats[beat_idx - 1]
 		_log_label.text = "РИТМ-АККОРД [" + str(beat_idx) + "/4]: " + String(beat_info["name"]) + " (" + String(beat_info["inst"]) + ")"
 		_qte.start_qte("АККОРД " + str(beat_idx) + "/4: " + String(beat_info["inst"]))
 		var qte_res: Array = await _qte.qte_completed
-		var step_res: Dictionary = fbc.execute_finisher_beat(beat_idx, true)
+		if not is_inside_tree():
+			return
+		var qte_mult: float = float(qte_res[0]) if not qte_res.is_empty() else 1.0
+		var hit_ok: bool = (qte_mult >= 1.0) or (retries_on_beat >= 3)
+		var step_res: Dictionary = fbc.execute_finisher_beat(beat_idx, hit_ok)
+		if not bool(step_res.get("success", false)):
+			retries_on_beat += 1
+			var miss_col: Color = step_res.get("color", Color(1.0, 0.4, 0.4)) as Color
+			spawn_damage_number(boss_pos + Vector2(0, -20), String(step_res.get("floating_text", "СБОЙ РИТМА! ПОВТОРИТЕ НОТУ!")), miss_col, true)
+			_trigger_screenshake(4.5, 0.18)
+			AudioManager.play_sfx("dissonance")
+			await get_tree().create_timer(0.35, false).timeout
+			if not is_inside_tree():
+				return
+			continue
+
+		retries_on_beat = 0
 		var b_color: Color = beat_info["color"] as Color
 		spawn_damage_number(boss_pos + Vector2(0, -20), String(step_res.get("floating_text", "В РИТМЕ!")), b_color, true)
 		_emit_spark_burst(boss_pos, 22)
 		_trigger_screenshake(8.0, 0.25)
-		AudioManager.play_sfx("qte_perfect")
+		AudioManager.play_sfx("qte_perfect" if qte_mult >= 1.4 else "qte_good")
 		if _bg_rect != null:
 			match beat_idx:
 				1:
@@ -3033,6 +3204,7 @@ func _start_ensemble_finisher(target_en: EnemyInstance) -> void:
 				4:
 					if ResourceLoader.exists("res://assets/photos/5-4-trubadur-win.jpg"):
 						_bg_rect.texture = ResourceLoader.load("res://assets/photos/5-4-trubadur-win.jpg") as Texture2D
+		beat_idx += 1
 		await get_tree().create_timer(0.3, false).timeout
 		if not is_inside_tree():
 			return
