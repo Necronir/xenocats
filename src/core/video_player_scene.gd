@@ -11,6 +11,7 @@ var _photo_rect: TextureRect = null
 var _title_label: Label = null
 var _skip_btn: Button = null
 var _is_finishing: bool = false
+var _is_playing_video_stream: bool = false
 var _elapsed_time: float = 0.0
 var _estimated_duration: float = 6.0
 
@@ -47,7 +48,7 @@ func _build_ui() -> void:
 	_video_player.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_video_player.expand = true
 	_video_player.loop = false
-	_video_player.bus = AudioManager.BUS_MASTER
+	_video_player.bus = AudioManager.BUS_MUSIC
 	_video_player.finished.connect(_on_video_finished)
 	_video_player.visible = false
 	add_child(_video_player)
@@ -89,6 +90,7 @@ func _build_ui() -> void:
 
 func _start_media() -> void:
 	_elapsed_time = 0.0
+	_is_playing_video_stream = false
 
 	var title_text: String = String(_payload.get("title", ""))
 	if title_text != "":
@@ -121,7 +123,8 @@ func _start_media() -> void:
 			_video_player.visible = true
 			_video_player.stream = stream
 			_skip_btn.text = "ПРОПУСТИТЬ [ESC / SPACE] >>"
-			_estimated_duration = 14.0
+			_is_playing_video_stream = true
+			_estimated_duration = float(_payload.get("duration", 120.0))
 			if DisplayServer.get_name() != "headless":
 				_video_player.play()
 			else:
@@ -163,7 +166,11 @@ func _process(delta: float) -> void:
 	if _is_finishing:
 		return
 	_elapsed_time += delta
-	# Автоматический переход по истечении длительности (6 сек для фото)
+	# Для видеороликов ждём сигнал finished (или резервный таймаут при зависании декодера), для фото — автопереход
+	if _is_playing_video_stream and _video_player != null and _video_player.is_playing():
+		if _elapsed_time > _estimated_duration:
+			_finish_media()
+		return
 	if _elapsed_time > _estimated_duration:
 		_finish_media()
 
@@ -211,7 +218,7 @@ func _finish_media() -> void:
 		SaveManager.advance_to_next_sector()
 	elif action == "finish_run":
 		SaveManager.delete_run_save()
-	else:
+	elif SaveManager.has_active_run:
 		SaveManager.save_run()
 
 	media_finished.emit()
