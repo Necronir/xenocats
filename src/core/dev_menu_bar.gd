@@ -8,6 +8,7 @@ var _current_boss_btn: Button = null
 var _boss1_btn: Button = null
 var _boss2_btn: Button = null
 var _boss3_btn: Button = null
+var _boss4_btn: Button = null
 
 func _ready() -> void:
 	position = Vector2(8, 4)
@@ -32,9 +33,9 @@ func _ready() -> void:
 	_title_label.add_theme_color_override("font_color", Color(1.0, 0.72, 0.28))
 	hbox.add_child(_title_label)
 
-	var sec: int = clampi(SaveManager.current_sector if SaveManager.has_active_run else 1, 1, 3)
+	var sec: int = clampi(SaveManager.current_sector if SaveManager.has_active_run else 1, 1, 4)
 	_current_boss_btn = _make_dev_button(
-		"⚡ К БОССУ УРОВНЯ (Сектор " + str(sec) + ")",
+		"⚡ К БОССУ (С" + str(sec) + ")",
 		Color(1.0, 0.92, 0.35),
 		func() -> void:
 			_trigger_boss_jump(-1)
@@ -66,6 +67,14 @@ func _ready() -> void:
 	)
 	hbox.add_child(_boss3_btn)
 
+	_boss4_btn = _make_dev_button(
+		"БОСС 4: Ревизор",
+		Color(0.55, 1.0, 0.65),
+		func() -> void:
+			_trigger_boss_jump(4)
+	)
+	hbox.add_child(_boss4_btn)
+
 	var epilogue_btn: Button = _make_dev_button(
 		"★ ЭПИЛОГ",
 		Color(1.0, 0.85, 0.35),
@@ -88,8 +97,8 @@ func _sync_visibility() -> void:
 
 func refresh_labels() -> void:
 	if _current_boss_btn != null:
-		var sec: int = clampi(SaveManager.current_sector if SaveManager.has_active_run else 1, 1, 3)
-		_current_boss_btn.text = "⚡ К БОССУ УРОВНЯ (Сектор " + str(sec) + ")"
+		var sec: int = clampi(SaveManager.current_sector if SaveManager.has_active_run else 1, 1, 4)
+		_current_boss_btn.text = "⚡ К БОССУ (С" + str(sec) + ")"
 
 func _make_dev_button(text_str: String, font_col: Color, on_press: Callable) -> Button:
 	var btn: Button = Button.new()
