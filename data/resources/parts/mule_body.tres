@@ -16,3 +16,5 @@ power_output = 55
 base_speed = 9
 skills = Array[ExtResource("2_g61l5")]([ExtResource("3_g61l5")])
 texture_path = "res://assets/sprites/cats/mule_body.png"
+arms_joint_offset = Vector2(2, 4)
+legs_joint_offset = Vector2(0, 15)

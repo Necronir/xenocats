@@ -16,3 +16,5 @@ power_output = 80
 base_speed = 13
 skills = Array[ExtResource("2_akoq5")]([ExtResource("3_akoq5")])
 texture_path = "res://assets/sprites/enemies/elite_driller_body.png"
+arms_joint_offset = Vector2(-2, 2)
+legs_joint_offset = Vector2(0, 16)

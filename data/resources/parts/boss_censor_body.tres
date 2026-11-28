@@ -17,3 +17,5 @@ power_output = 80
 base_speed = 18
 skills = Array[ExtResource("2_u8e08")]([ExtResource("3_ad3ko"), ExtResource("4_a7uas")])
 texture_path = "res://assets/sprites/enemies/boss_satellite_body.png"
+arms_joint_offset = Vector2(-2, 2)
+legs_joint_offset = Vector2(0, 16)

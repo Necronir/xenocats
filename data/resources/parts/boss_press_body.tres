@@ -16,3 +16,5 @@ weight = 20
 power_output = 80
 skills = Array[ExtResource("2_jsums")]([ExtResource("3_vbxit"), ExtResource("4_m0gnu")])
 texture_path = "res://assets/sprites/enemies/boss_press_body.png"
+arms_joint_offset = Vector2(-2, 2)
+legs_joint_offset = Vector2(0, 16)

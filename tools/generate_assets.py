@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
 Procedural Pixel-Art & Retro Audio Generator for Xenocats: Bremen-4
-Generates crisp Nearest-Neighbor pixel sprites and 16-bit PCM WAV files.
+Generates shaded Nearest-Neighbor pixel sprites, 64x64 character portraits,
+and 16-bit PCM WAV files in the warm "cyber fairy tale of Bremen" style.
 """
 
+import argparse
 import math
 import os
 import random
@@ -14,98 +16,495 @@ from PIL import Image, ImageDraw
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROOT = os.path.join(PROJECT_DIR, "assets")
 
+# --- Pixel-Art Palette & Shading Toolkit ---
+OUTLINE = (18, 16, 26, 255)
+OUTLINE_SOFT = (34, 28, 44, 255)
+
+# 4-tone hue-shifted ramps: (shadow, mid, light, highlight)
+RAMP_CHROME = ((44, 56, 78), (88, 112, 144), (150, 182, 214), (222, 242, 255))
+RAMP_STEEL = ((36, 42, 56), (68, 78, 98), (112, 126, 152), (168, 184, 210))
+RAMP_DARK_IRON = ((24, 26, 36), (46, 50, 66), (76, 82, 102), (118, 126, 148))
+RAMP_COBALT = ((22, 46, 94), (42, 92, 162), (72, 146, 218), (138, 206, 250))
+RAMP_CRIMSON = ((96, 20, 30), (166, 36, 44), (218, 68, 56), (248, 142, 98))
+RAMP_GOLD = ((116, 68, 18), (188, 128, 28), (238, 182, 48), (255, 232, 134))
+RAMP_PURPLE = ((64, 24, 96), (118, 48, 164), (170, 82, 214), (224, 152, 248))
+RAMP_LEATHER = ((52, 30, 20), (98, 60, 36), (148, 96, 54), (198, 142, 86))
+RAMP_COPPER = ((76, 36, 24), (134, 68, 40), (188, 104, 56), (234, 156, 96))
+RAMP_TITAN = ((48, 58, 76), (94, 112, 136), (150, 172, 198), (212, 232, 248))
+RAMP_TEAL = ((24, 68, 74), (44, 122, 126), (78, 178, 170), (144, 230, 210))
+RAMP_ACID = ((32, 88, 36), (62, 154, 58), (116, 216, 72), (196, 255, 132))
+RAMP_OLIVE = ((48, 56, 36), (86, 98, 58), (128, 144, 84), (178, 194, 124))
+RAMP_BLONDE = ((118, 74, 22), (184, 126, 36), (236, 184, 64), (255, 236, 154))
+
+BAYER_2X2 = ((0, 2), (3, 1))
+
 
 def ensure_dir(path: str) -> None:
     os.makedirs(path, exist_ok=True)
 
 
-def draw_cat_body(cat_id: str, primary, secondary, eye_color, ear_style: str) -> Image.Image:
-    img = Image.new("RGBA", (36, 30), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    # Torso core
-    d.rectangle([8, 12, 27, 27], fill=primary, outline=(20, 22, 28, 255))
-    d.rectangle([11, 15, 24, 24], fill=secondary)
-    # Glowing core reactor in chest
-    d.rectangle([16, 18, 19, 21], fill=eye_color)
-    # Head
-    d.rectangle([9, 4, 26, 14], fill=primary, outline=(20, 22, 28, 255))
-    # Visor
-    d.rectangle([12, 7, 24, 11], fill=(18, 20, 30, 255))
-    # Glowing eyes
-    d.rectangle([14, 8, 16, 10], fill=eye_color)
-    d.rectangle([20, 8, 22, 10], fill=eye_color)
-    # Ears by archetype
-    if ear_style == "felix":
-        d.polygon([(9, 4), (11, 0), (14, 4)], fill=primary, outline=(20, 22, 28, 255))
-        d.polygon([(21, 4), (24, 0), (26, 4)], fill=primary, outline=(20, 22, 28, 255))
-    elif ear_style == "mule":
-        # Long donkey-radar ears
-        d.rectangle([8, 0, 11, 5], fill=secondary, outline=(20, 22, 28, 255))
-        d.rectangle([24, 0, 27, 5], fill=secondary, outline=(20, 22, 28, 255))
-    elif ear_style == "hound":
-        # Heavy armored brow + jaw fangs
-        d.rectangle([11, 12, 25, 15], fill=(90, 95, 105, 255))
-        d.point([(13, 12), (16, 12), (19, 12), (22, 12)], fill=(240, 240, 240, 255))
-        d.polygon([(9, 4), (12, 1), (15, 4)], fill=secondary)
-        d.polygon([(20, 4), (23, 1), (26, 4)], fill=secondary)
-    elif ear_style == "cock":
-        # Cyber-crest & antenna
-        d.rectangle([16, 0, 19, 4], fill=(255, 60, 120, 255))
-        d.line([(6, 3), (9, 6)], fill=eye_color, width=1)
-        d.line([(29, 3), (26, 6)], fill=eye_color, width=1)
-    return img
+def _rgba(col) -> tuple[int, int, int, int]:
+    if len(col) == 4:
+        return (int(col[0]), int(col[1]), int(col[2]), int(col[3]))
+    return (int(col[0]), int(col[1]), int(col[2]), 255)
 
 
-def draw_cat_arms(style: str, color1, color2, glow) -> Image.Image:
-    img = Image.new("RGBA", (44, 28), (0, 0, 0, 0))
+def put_px(img: Image.Image, x: int, y: int, col) -> None:
+    if 0 <= x < img.width and 0 <= y < img.height:
+        img.putpixel((x, y), _rgba(col))
+
+
+def get_px(img: Image.Image, x: int, y: int) -> tuple[int, int, int, int]:
+    if 0 <= x < img.width and 0 <= y < img.height:
+        return img.getpixel((x, y))
+    return (0, 0, 0, 0)
+
+
+def blend_px(img: Image.Image, x: int, y: int, col, alpha: float) -> None:
+    if not (0 <= x < img.width and 0 <= y < img.height):
+        return
+    r, g, b, a = _rgba(col)
+    br, bg, bb, ba = img.getpixel((x, y))
+    if ba == 0:
+        img.putpixel((x, y), (r, g, b, int(a * alpha)))
+        return
+    t = max(0.0, min(1.0, alpha))
+    nr = int(br * (1.0 - t) + r * t)
+    ng = int(bg * (1.0 - t) + g * t)
+    nb = int(bb * (1.0 - t) + b * t)
+    na = max(ba, int(a * t))
+    img.putpixel((x, y), (nr, ng, nb, na))
+
+
+def ramp_tone(ramp: tuple, t: float, x: int = 0, y: int = 0, dither: bool = False) -> tuple[int, int, int, int]:
+    """Maps normalized brightness t in [0..1] onto a 4-tone color ramp with optional 2x2 Bayer dither."""
+    idx_f = max(0.0, min(1.0, t)) * 3.0
+    lo = int(math.floor(idx_f))
+    hi = min(3, lo + 1)
+    frac = idx_f - lo
+    if dither and lo != hi:
+        threshold = (BAYER_2X2[y & 1][x & 1] + 0.5) / 4.0
+        chosen = hi if frac > threshold else lo
+    else:
+        chosen = round(idx_f)
+    return _rgba(ramp[chosen])
+
+
+def shaded_rect(
+    img: Image.Image,
+    x0: int,
+    y0: int,
+    x1: int,
+    y1: int,
+    ramp: tuple,
+    bevel: bool = True,
+    rivets: bool = False,
+    dither: bool = False,
+) -> None:
+    """Fills a rectangle with top-left key light, beveled rim, and optional corner rivets."""
+    if x1 < x0 or y1 < y0:
+        return
+    w = max(1, x1 - x0)
+    h = max(1, y1 - y0)
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            nx = (x - x0) / w
+            ny = (y - y0) / h
+            # Key light from top-left
+            t = 0.72 - 0.38 * nx - 0.36 * ny
+            if bevel:
+                if y == y0 or x == x0:
+                    t += 0.24
+                if y == y1 or x == x1:
+                    t -= 0.28
+                if y == y0 + 1 and x0 < x < x1:
+                    t += 0.12
+            put_px(img, x, y, ramp_tone(ramp, t, x, y, dither=dither))
+    if rivets and w >= 5 and h >= 5:
+        for rx, ry in ((x0 + 1, y0 + 1), (x1 - 1, y0 + 1), (x0 + 1, y1 - 1), (x1 - 1, y1 - 1)):
+            put_px(img, rx, ry, ramp[3])
+
+
+def shaded_ellipse(
+    img: Image.Image,
+    cx: float,
+    cy: float,
+    rx: float,
+    ry: float,
+    ramp: tuple,
+    dither: bool = False,
+) -> None:
+    """Draws a sphere/ellipse shaded with a top-left key light and bottom-right core shadow."""
+    x0 = int(math.floor(cx - rx))
+    x1 = int(math.ceil(cx + rx))
+    y0 = int(math.floor(cy - ry))
+    y1 = int(math.ceil(cy + ry))
+    rx_safe = max(0.5, rx)
+    ry_safe = max(0.5, ry)
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            dx = (x - cx) / rx_safe
+            dy = (y - cy) / ry_safe
+            dist2 = dx * dx + dy * dy
+            if dist2 <= 1.0:
+                nz = math.sqrt(max(0.0, 1.0 - dist2))
+                # Directional light (-0.45, -0.55, 0.7)
+                dot = (-0.45 * dx - 0.55 * dy + 0.70 * nz)
+                t = 0.42 + 0.56 * dot
+                put_px(img, x, y, ramp_tone(ramp, t, x, y, dither=dither))
+
+
+def draw_emissive_eye(img: Image.Image, x0: int, y0: int, x1: int, y1: int, glow_col, core_col=(245, 255, 255, 255)) -> None:
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            put_px(img, x, y, glow_col)
+    mx0 = x0 + (1 if x1 - x0 >= 2 else 0)
+    mx1 = x1 - (1 if x1 - x0 >= 2 else 0)
+    my0 = y0 + (1 if y1 - y0 >= 2 else 0)
+    my1 = y1 - (1 if y1 - y0 >= 2 else 0)
+    for y in range(my0, my1 + 1):
+        for x in range(mx0, mx1 + 1):
+            put_px(img, x, y, core_col)
+
+
+def draw_hazard_stripes(img: Image.Image, x0: int, y0: int, x1: int, y1: int, stripe_w: int = 3) -> None:
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            phase = ((x - x0) + (y - y0)) // stripe_w
+            if phase % 2 == 0:
+                tone = RAMP_GOLD[2] if y <= (y0 + y1) // 2 else RAMP_GOLD[1]
+            else:
+                tone = RAMP_DARK_IRON[1] if y <= (y0 + y1) // 2 else RAMP_DARK_IRON[0]
+            put_px(img, x, y, tone)
+
+
+def draw_striped_vest(img: Image.Image, x0: int, y0: int, x1: int, y1: int) -> None:
+    """Troubadour crimson-and-gold striped vest pattern seen across all Bremen musicians."""
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            is_gold = ((x - x0) // 2) % 2 == 1
+            ramp = RAMP_GOLD if is_gold else RAMP_CRIMSON
+            t = 0.68 - 0.35 * ((y - y0) / max(1, y1 - y0)) - 0.25 * ((x - x0) / max(1, x1 - x0))
+            put_px(img, x, y, ramp_tone(ramp, t, x, y))
+
+
+def add_outline(img: Image.Image, color=OUTLINE) -> Image.Image:
+    """Adds a crisp 1px 4-connected pixel outline around opaque pixels."""
+    out = img.copy()
+    w, h = img.size
+    src = img.load()
+    dst = out.load()
+    col = _rgba(color)
+    for y in range(h):
+        for x in range(w):
+            if src[x, y][3] == 0:
+                has_neighbor = False
+                for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                    if 0 <= nx < w and 0 <= ny < h and src[nx, ny][3] > 32:
+                        has_neighbor = True
+                        break
+                if has_neighbor:
+                    dst[x, y] = col
+    return out
+
+
+def draw_feathered_hat(img: Image.Image, cx: int, top_y: int, brim_w: int = 16, ramp=RAMP_LEATHER, feather_left: bool = True) -> None:
+    """Draws the iconic Bremen troubadour hat with curved brim and crimson-gold plume."""
+    half = brim_w // 2
+    # Crown
+    shaded_rect(img, cx - half + 3, top_y + 2, cx + half - 3, top_y + 6, ramp, bevel=True)
+    # Hat band
+    for x in range(cx - half + 3, cx + half - 2):
+        put_px(img, x, top_y + 5, RAMP_CRIMSON[1])
+    # Brim
+    for x in range(cx - half, cx + half + 1):
+        by = top_y + 6 + (1 if abs(x - cx) > half - 2 else 0)
+        put_px(img, x, by, ramp[2] if x < cx else ramp[0])
+        put_px(img, x, by + 1, ramp[0])
+    # Crimson-gold feather plume
+    dx = -1 if feather_left else 1
+    for i in range(6):
+        fx = cx + dx * (2 + i)
+        fy = top_y + 3 - (i // 2)
+        col = RAMP_CRIMSON[2] if i < 3 else RAMP_GOLD[2]
+        put_px(img, fx, fy, col)
+        put_px(img, fx, fy + 1, RAMP_CRIMSON[1] if i < 4 else RAMP_GOLD[1])
+
+
+def draw_cat_body(cat_id: str, primary_ramp, secondary_ramp, eye_color, style: str) -> Image.Image:
+    """40x36 modular mech torso+head centered at (20, 18) with standardized shoulder & hip sockets."""
+    img = Image.new("RGBA", (40, 36), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    # Left shoulder mount
-    d.rectangle([2, 8, 9, 19], fill=color1, outline=(20, 22, 28, 255))
-    # Right weapon mount
-    d.rectangle([26, 7, 36, 19], fill=color1, outline=(20, 22, 28, 255))
+
+    # Hip / pelvis socket block (y=29..34, x=13..26) so legs never show a gap
+    shaded_rect(img, 13, 29, 26, 34, RAMP_DARK_IRON, bevel=True)
+    put_px(img, 19, 31, eye_color)
+    put_px(img, 20, 31, eye_color)
+
+    # Torso core (x=11..28, y=18..31)
+    shaded_rect(img, 11, 18, 28, 31, primary_ramp, bevel=True, rivets=True)
+    # Shoulder joint pads (left x=9..12, right x=27..30, y=19..24)
+    shaded_rect(img, 9, 19, 12, 24, secondary_ramp, bevel=True)
+    shaded_rect(img, 27, 19, 30, 24, secondary_ramp, bevel=True)
+
+    if style in ("felix", "mule", "hound", "cock"):
+        # Warm Bremen troubadour striped vest over armored chest
+        draw_striped_vest(img, 14, 19, 25, 29)
+        # Collar rim
+        d.line([(13, 18), (26, 18)], fill=RAMP_CRIMSON[3])
+    elif style == "titan":
+        # Heavy beveled chest armor + reactor vents
+        shaded_rect(img, 13, 19, 26, 29, RAMP_CHROME, bevel=True, rivets=True)
+        d.line([(14, 21), (17, 21)], fill=RAMP_DARK_IRON[0])
+        d.line([(22, 21), (25, 21)], fill=RAMP_DARK_IRON[0])
+    else:
+        # Scrap welded furnace grille
+        shaded_rect(img, 13, 19, 26, 29, RAMP_DARK_IRON, bevel=True)
+        for gx in range(15, 25, 2):
+            d.line([(gx, 21), (gx, 27)], fill=eye_color)
+
+    # Glowing chest core reactor
+    shaded_rect(img, 17, 22, 22, 26, RAMP_DARK_IRON, bevel=False)
+    draw_emissive_eye(img, 18, 23, 21, 25, eye_color)
+
+    # Head + Character-faithful silhouettes (y=1..18)
+    if style == "felix":
+        # Half organic cobalt cat head (left) + half chrome cyber skull (right)
+        shaded_ellipse(img, 20, 12, 8.5, 6.2, RAMP_COBALT)
+        # Chrome cyber half on right side (x >= 20)
+        for y in range(6, 18):
+            for x in range(20, 29):
+                px = get_px(img, x, y)
+                if px[3] > 0:
+                    t = 0.7 - 0.35 * ((x - 20) / 9.0) - 0.25 * ((y - 6) / 12.0)
+                    put_px(img, x, y, ramp_tone(RAMP_CHROME, t, x, y))
+        # Seam rivet line down center
+        for sy in range(7, 17, 2):
+            put_px(img, 20, sy, RAMP_DARK_IRON[0])
+        # Ears: cobalt left, chrome right
+        d.polygon([(11, 9), (12, 2), (17, 7)], fill=RAMP_COBALT[1])
+        d.polygon([(12, 7), (13, 4), (15, 7)], fill=RAMP_CRIMSON[2])
+        d.polygon([(23, 7), (27, 2), (28, 9)], fill=RAMP_CHROME[2])
+        put_px(img, 29, 7, RAMP_CRIMSON[2])  # ear cable
+        # Tilted olive-brown beret with feather
+        draw_feathered_hat(img, 19, 1, brim_w=14, ramp=RAMP_OLIVE, feather_left=True)
+        # Golden cat eye (left) + glowing cyan cyber optic (right)
+        draw_emissive_eye(img, 14, 11, 17, 13, (255, 205, 45, 255), (255, 248, 170, 255))
+        shaded_rect(img, 22, 10, 26, 14, RAMP_DARK_IRON, bevel=False)
+        draw_emissive_eye(img, 23, 11, 25, 13, eye_color)
+        # Pink nose & grin
+        put_px(img, 19, 14, (240, 100, 120, 255))
+        d.line([(16, 16), (23, 16)], fill=(235, 240, 250, 255))
+
+    elif style == "mule":
+        # Golden armored donkey head + iconic bulldozer-scoop snout
+        shaded_rect(img, 12, 7, 25, 17, RAMP_GOLD, bevel=True, rivets=True)
+        # Tall donkey ears
+        shaded_rect(img, 12, 1, 15, 7, RAMP_GOLD, bevel=True)
+        shaded_rect(img, 22, 1, 25, 7, RAMP_GOLD, bevel=True)
+        put_px(img, 13, 3, RAMP_LEATHER[1])
+        put_px(img, 23, 3, RAMP_LEATHER[1])
+        # Feathered brown hat between ears
+        draw_feathered_hat(img, 19, 2, brim_w=13, ramp=RAMP_LEATHER, feather_left=True)
+        # Bulldozer scoop snout protruding right (x=23..32, y=12..17)
+        shaded_rect(img, 23, 12, 32, 17, RAMP_GOLD, bevel=True)
+        d.line([(32, 11), (33, 17)], fill=RAMP_CHROME[3])
+        d.line([(25, 13), (30, 13)], fill=RAMP_GOLD[0])
+        # Cyan circular optic
+        shaded_rect(img, 18, 9, 22, 13, RAMP_DARK_IRON, bevel=False)
+        draw_emissive_eye(img, 19, 10, 21, 12, (70, 240, 255, 255))
+        # Exhaust pipe on back
+        shaded_rect(img, 8, 14, 10, 19, RAMP_CHROME, bevel=True)
+        put_px(img, 8, 12, (190, 200, 215, 180))
+
+    elif style == "hound":
+        # Crimson armored hound head + leather straps + saw-tooth steel jaw
+        shaded_ellipse(img, 20, 11, 8.2, 6.0, RAMP_CRIMSON)
+        # Floppy red cyber-ears
+        shaded_rect(img, 10, 8, 13, 15, RAMP_CRIMSON, bevel=True)
+        shaded_rect(img, 27, 8, 30, 14, RAMP_CRIMSON, bevel=True)
+        draw_feathered_hat(img, 20, 1, brim_w=14, ramp=RAMP_LEATHER, feather_left=True)
+        # Eyepatch on left, glowing amber eye on right
+        shaded_rect(img, 13, 9, 18, 12, RAMP_DARK_IRON, bevel=False)
+        d.line([(12, 8), (19, 11)], fill=RAMP_DARK_IRON[2])
+        shaded_rect(img, 21, 9, 25, 12, RAMP_DARK_IRON, bevel=False)
+        draw_emissive_eye(img, 22, 10, 24, 11, (255, 190, 50, 255), (255, 250, 200, 255))
+        # Steel jaw mask + circular saw-chin
+        shaded_rect(img, 15, 13, 26, 17, RAMP_CHROME, bevel=True)
+        for tx in (16, 19, 22, 25):
+            put_px(img, tx, 17, RAMP_CHROME[3])
+            put_px(img, tx + 1, 18, RAMP_STEEL[1])
+        # Leather harness straps over vest
+        d.line([(13, 19), (15, 28)], fill=RAMP_LEATHER[2], width=2)
+        d.line([(26, 19), (24, 28)], fill=RAMP_LEATHER[2], width=2)
+
+    elif style == "cock":
+        # Purple cyber-rooster head + red comb + wattles + feathered hat
+        shaded_ellipse(img, 19, 12, 7.0, 5.8, RAMP_PURPLE)
+        # Sculpted crimson crest/comb
+        for cx_off, h_top in ((15, 3), (18, 1), (21, 2), (24, 4)):
+            shaded_rect(img, cx_off, h_top, cx_off + 2, 7, RAMP_CRIMSON, bevel=True)
+        draw_feathered_hat(img, 18, 3, brim_w=12, ramp=RAMP_OLIVE, feather_left=True)
+        # Glowing cyan eye
+        shaded_rect(img, 17, 9, 22, 13, RAMP_DARK_IRON, bevel=False)
+        draw_emissive_eye(img, 18, 10, 21, 12, (90, 255, 230, 255))
+        # Red wattles & short silver beak prow
+        shaded_rect(img, 23, 11, 29, 14, RAMP_CHROME, bevel=True)
+        shaded_rect(img, 20, 15, 24, 18, RAMP_CRIMSON, bevel=True)
+
+    elif style == "titan":
+        # Tactical armored helmet + wide cyan visor
+        shaded_rect(img, 11, 5, 28, 16, RAMP_TITAN, bevel=True, rivets=True)
+        shaded_rect(img, 17, 2, 22, 5, RAMP_CHROME, bevel=True)  # crest
+        shaded_rect(img, 13, 9, 26, 13, RAMP_DARK_IRON, bevel=False)
+        draw_emissive_eye(img, 14, 10, 25, 12, eye_color)
+        put_px(img, 10, 10, RAMP_TITAN[2])
+        put_px(img, 29, 10, RAMP_TITAN[2])
+
+    else:  # scrap
+        # Asymmetric welded salvage boiler head
+        shaded_rect(img, 11, 6, 28, 17, RAMP_COPPER, bevel=True, rivets=True)
+        shaded_rect(img, 14, 3, 21, 6, RAMP_DARK_IRON, bevel=True)
+        shaded_rect(img, 13, 9, 18, 13, RAMP_DARK_IRON, bevel=False)
+        draw_emissive_eye(img, 14, 10, 17, 12, eye_color)
+        shaded_rect(img, 21, 10, 25, 13, RAMP_DARK_IRON, bevel=False)
+        draw_emissive_eye(img, 22, 11, 24, 12, (255, 100, 40, 255))
+
+    return add_outline(img)
+
+
+def draw_cat_arms(style: str, primary_ramp, secondary_ramp, glow) -> Image.Image:
+    """48x30 modular weapon & shoulders centered at (24, 15).
+    Left shoulder sits at x=7..14, center x=16..26 stays transparent so body vest shows cleanly,
+    right shoulder sits at x=27..34, weapon extends right to x=34..46.
+    """
+    img = Image.new("RGBA", (48, 30), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    # Left (rear) shoulder pauldron + forearm guard
+    shaded_rect(img, 7, 10, 14, 19, primary_ramp, bevel=True, rivets=True)
+    shaded_rect(img, 5, 16, 12, 22, secondary_ramp, bevel=True)
+    # Right (front) shoulder pauldron
+    shaded_rect(img, 28, 9, 35, 18, primary_ramp, bevel=True, rivets=True)
+
     if style == "claws":
-        # Laser claws protruding right
-        d.line([(36, 9), (42, 7)], fill=glow, width=2)
-        d.line([(36, 13), (43, 13)], fill=glow, width=2)
-        d.line([(36, 17), (42, 19)], fill=glow, width=2)
+        # Striped troubadour sleeve + chrome wrist + 3 blazing cyan laser claws
+        draw_striped_vest(img, 29, 13, 35, 19)
+        shaded_rect(img, 32, 11, 38, 18, RAMP_CHROME, bevel=True)
+        for cy_a, cy_b in ((9, 7), (14, 14), (19, 21)):
+            d.line([(38, cy_a), (46, cy_b)], fill=glow, width=2)
+            d.line([(39, cy_a), (45, cy_b)], fill=(235, 255, 255, 255), width=1)
+        # Left hand claw tips
+        d.line([(5, 20), (2, 22)], fill=glow, width=1)
+        d.line([(7, 22), (4, 24)], fill=glow, width=1)
+
     elif style == "shield":
-        # Heavy bulldozer scoop shield
-        d.rectangle([32, 3, 42, 24], fill=color2, outline=(20, 22, 28, 255))
-        d.rectangle([35, 6, 39, 21], fill=glow)
+        # Heavy riveted bulldozer-scoop shield on right arm + hydraulic piston
+        shaded_rect(img, 30, 12, 36, 18, RAMP_CHROME, bevel=True)
+        shaded_rect(img, 35, 3, 46, 26, RAMP_GOLD, bevel=True, rivets=True)
+        draw_hazard_stripes(img, 37, 20, 44, 24, stripe_w=2)
+        shaded_rect(img, 38, 8, 43, 17, RAMP_DARK_IRON, bevel=False)
+        draw_emissive_eye(img, 39, 9, 42, 16, glow)
+
     elif style == "saw":
-        # Circular buzzsaw & hydraulic clamp
-        d.ellipse([32, 5, 43, 16], fill=color2, outline=glow)
-        d.rectangle([34, 17, 42, 21], fill=color1)
+        # Crimson hydraulic arm + red hose + spinning serrated circular buzzsaw
+        shaded_rect(img, 30, 12, 37, 18, RAMP_CRIMSON, bevel=True)
+        d.line([(29, 18), (34, 21)], fill=RAMP_CRIMSON[2], width=1)
+        cx, cy, r = 40, 12, 6
+        shaded_ellipse(img, cx, cy, r, r, RAMP_CHROME)
+        # Saw teeth around perimeter
+        for deg in range(0, 360, 45):
+            rad = math.radians(deg)
+            tx = int(round(cx + math.cos(rad) * (r + 1)))
+            ty = int(round(cy + math.sin(rad) * (r + 1)))
+            put_px(img, tx, ty, RAMP_CHROME[3])
+        draw_emissive_eye(img, cx - 1, cy - 1, cx + 1, cy + 1, glow)
+        # Lower hydraulic clamp
+        shaded_rect(img, 35, 20, 43, 24, RAMP_STEEL, bevel=True)
+
     elif style == "megaphone":
-        # Sonic Dish / Megaphone
-        d.polygon([(34, 11), (43, 5), (43, 21), (34, 15)], fill=color2, outline=glow)
-    else:
-        # Heavy plasma railgun
-        d.rectangle([32, 10, 43, 16], fill=color2, outline=(20, 22, 28, 255))
-        d.line([(34, 13), (43, 13)], fill=glow, width=2)
-    return img
+        # Purple cyber-wing feathers on left + silver acoustic megaphone horn on right
+        for wy in (9, 13, 17):
+            d.line([(8, wy), (2, wy + 2)], fill=RAMP_PURPLE[2], width=2)
+            put_px(img, 1, wy + 2, RAMP_PURPLE[3])
+        shaded_rect(img, 31, 12, 36, 17, RAMP_PURPLE, bevel=True)
+        # Horn cone
+        d.polygon([(35, 12), (45, 5), (45, 23), (35, 17)], fill=RAMP_CHROME[1])
+        d.line([(35, 12), (45, 5)], fill=RAMP_CHROME[3])
+        d.line([(35, 17), (45, 23)], fill=RAMP_CHROME[0])
+        shaded_rect(img, 43, 6, 46, 22, RAMP_DARK_IRON, bevel=False)
+        draw_emissive_eye(img, 44, 10, 45, 18, glow)
+
+    elif style == "rail":
+        # Vanguard twin-rail plasma cannon
+        shaded_rect(img, 30, 10, 38, 19, RAMP_TITAN, bevel=True, rivets=True)
+        shaded_rect(img, 36, 9, 46, 12, RAMP_CHROME, bevel=True)
+        shaded_rect(img, 36, 16, 46, 19, RAMP_CHROME, bevel=True)
+        draw_emissive_eye(img, 37, 13, 45, 15, glow)
+
+    else:  # flamer (scrap)
+        # Salvage copper flamethrower + pressurized fuel tank + nozzle flame
+        shaded_rect(img, 6, 12, 11, 21, RAMP_CRIMSON, bevel=True)
+        shaded_rect(img, 30, 11, 41, 18, RAMP_COPPER, bevel=True, rivets=True)
+        shaded_rect(img, 39, 12, 43, 17, RAMP_DARK_IRON, bevel=False)
+        draw_emissive_eye(img, 43, 12, 46, 16, (255, 140, 30, 255), (255, 240, 130, 255))
+
+    return add_outline(img)
 
 
-def draw_cat_legs(style: str, color1, color2, glow) -> Image.Image:
-    img = Image.new("RGBA", (36, 18), (0, 0, 0, 0))
+def draw_cat_legs(style: str, primary_ramp, secondary_ramp, glow) -> Image.Image:
+    """40x22 modular chassis/legs centered at (20, 11).
+    Top pelvis connector (y=1..8) tucks cleanly behind BodySprite so zero gap ever appears.
+    """
+    img = Image.new("RGBA", (40, 22), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
+
+    # Hip connector collar tucked behind body
+    shaded_rect(img, 14, 1, 25, 8, RAMP_DARK_IRON, bevel=True)
+
     if style == "tracks":
-        # Caterpillar tracks
-        d.rounded_rectangle([4, 3, 31, 16], radius=4, fill=(45, 48, 55, 255), outline=(20, 22, 28, 255))
-        for x in (8, 15, 22, 27):
-            d.ellipse([x - 2, 6, x + 2, 13], fill=color1, outline=glow)
+        # Heavy caterpillar treads (MULE / TITAN style)
+        shaded_rect(img, 4, 9, 35, 19, RAMP_DARK_IRON, bevel=True)
+        # Armored track fender skirt
+        shaded_rect(img, 7, 7, 32, 12, primary_ramp, bevel=True, rivets=True)
+        # Bogie wheels + tread notches
+        for wx in (8, 15, 24, 31):
+            shaded_ellipse(img, wx, 15, 3.0, 3.0, RAMP_STEEL)
+            put_px(img, wx, 15, glow)
+        for tx in range(5, 35, 3):
+            put_px(img, tx, 19, RAMP_CHROME[1])
+
     elif style == "hover":
-        # Hover coils
-        d.rectangle([7, 2, 28, 10], fill=color1, outline=(20, 22, 28, 255))
-        d.ellipse([6, 11, 29, 16], fill=glow)
-    else:
-        # Mech legs
-        d.rectangle([9, 1, 15, 13], fill=color1, outline=(20, 22, 28, 255))
-        d.rectangle([20, 1, 26, 13], fill=color1, outline=(20, 22, 28, 255))
-        d.rectangle([7, 12, 16, 16], fill=color2, outline=(20, 22, 28, 255))
-        d.rectangle([19, 12, 28, 16], fill=color2, outline=(20, 22, 28, 255))
-        d.point([(11, 7), (22, 7)], fill=glow)
-    return img
+        # Patched troubadour breeches + rooster cyber-talon + brown boot + emerald hover ring
+        shaded_rect(img, 11, 5, 17, 13, RAMP_OLIVE, bevel=True)
+        shaded_rect(img, 22, 5, 28, 13, RAMP_OLIVE, bevel=True)
+        put_px(img, 13, 9, RAMP_CRIMSON[2])  # red knee patch
+        # Left claw talon, right laced boot
+        shaded_rect(img, 10, 13, 16, 16, RAMP_PURPLE, bevel=True)
+        shaded_rect(img, 22, 12, 29, 16, RAMP_LEATHER, bevel=True)
+        # Glowing hover coil ring
+        shaded_rect(img, 8, 17, 31, 19, RAMP_DARK_IRON, bevel=False)
+        draw_emissive_eye(img, 9, 18, 30, 19, glow)
+
+    elif style == "asymmetric":
+        # Felix/Hound troubadour patched leg (left) + chrome cyber-leg & laced boot (right)
+        shaded_rect(img, 10, 5, 17, 15, RAMP_CRIMSON if primary_ramp == RAMP_COBALT else RAMP_STEEL, bevel=True)
+        put_px(img, 13, 10, RAMP_OLIVE[2])  # stitched patch
+        shaded_rect(img, 8, 15, 16, 19, primary_ramp, bevel=True)  # paw
+        # Right robotic leg + brown laced boot
+        shaded_rect(img, 22, 5, 27, 14, RAMP_CHROME, bevel=True)
+        shaded_rect(img, 21, 14, 30, 19, RAMP_LEATHER, bevel=True)
+        d.line([(23, 15), (27, 15)], fill=RAMP_CHROME[2])
+
+    else:  # salvage mech legs
+        shaded_rect(img, 10, 5, 16, 15, primary_ramp, bevel=True)
+        shaded_rect(img, 23, 5, 29, 15, RAMP_CHROME, bevel=True)
+        shaded_rect(img, 8, 15, 17, 19, secondary_ramp, bevel=True, rivets=True)
+        shaded_rect(img, 22, 15, 31, 19, secondary_ramp, bevel=True, rivets=True)
+        put_px(img, 13, 10, glow)
+        put_px(img, 26, 10, glow)
+
+    return add_outline(img)
 
 
 def generate_cats() -> None:
@@ -113,132 +512,436 @@ def generate_cats() -> None:
     ensure_dir(out_dir)
 
     configs = [
-        ("felix", (55, 145, 220, 255), (235, 135, 45, 255), (80, 255, 255, 255), "felix", "claws", "paws"),
-        ("mule", (215, 165, 40, 255), (110, 90, 50, 255), (255, 220, 70, 255), "mule", "shield", "tracks"),
-        ("hound", (175, 45, 55, 255), (90, 95, 110, 255), (255, 70, 70, 255), "hound", "saw", "paws"),
-        ("cock", (140, 65, 195, 255), (50, 190, 140, 255), (120, 255, 160, 255), "cock", "megaphone", "hover"),
-        ("titan", (160, 175, 195, 255), (85, 100, 120, 255), (0, 230, 255, 255), "felix", "rail", "tracks"),
-        ("scrap", (140, 95, 65, 255), (90, 65, 45, 255), (255, 160, 50, 255), "hound", "saw", "paws"),
+        ("felix", RAMP_COBALT, RAMP_CHROME, (80, 245, 255, 255), "felix", "claws", "asymmetric"),
+        ("mule", RAMP_GOLD, RAMP_LEATHER, (255, 215, 70, 255), "mule", "shield", "tracks"),
+        ("hound", RAMP_CRIMSON, RAMP_CHROME, (255, 95, 65, 255), "hound", "saw", "asymmetric"),
+        ("cock", RAMP_PURPLE, RAMP_TEAL, (110, 255, 175, 255), "cock", "megaphone", "hover"),
+        ("titan", RAMP_TITAN, RAMP_CHROME, (60, 235, 255, 255), "titan", "rail", "tracks"),
+        ("scrap", RAMP_COPPER, RAMP_DARK_IRON, (255, 165, 50, 255), "scrap", "flamer", "salvage"),
     ]
 
-    for cid, c1, c2, glow, ear, arm_s, leg_s in configs:
-        b = draw_cat_body(cid, c1, c2, glow, ear)
-        a = draw_cat_arms(arm_s, c1, c2, glow)
-        l = draw_cat_legs(leg_s, c1, c2, glow)
-        b.save(os.path.join(out_dir, f"{cid}_body.png"))
-        a.save(os.path.join(out_dir, f"{cid}_arms.png"))
-        l.save(os.path.join(out_dir, f"{cid}_legs.png"))
+    for cid, r1, r2, glow, body_s, arm_s, leg_s in configs:
+        draw_cat_body(cid, r1, r2, glow, body_s).save(os.path.join(out_dir, f"{cid}_body.png"))
+        draw_cat_arms(arm_s, r1, r2, glow).save(os.path.join(out_dir, f"{cid}_arms.png"))
+        draw_cat_legs(leg_s, r1, r2, glow).save(os.path.join(out_dir, f"{cid}_legs.png"))
 
-    # 2-Tier Small Tower sprite: bremen_pyramid_2.png (HOUND + FELIX)
+    # --- Tiered Bremen Pyramids (64x96) ---
+    # 1. 2-Tier Small Tower: bremen_pyramid_2.png (HOUND + FELIX, inspired by robo-cat-hound.jpg)
     pyr2 = Image.new("RGBA", (64, 96), (0, 0, 0, 0))
     d2 = ImageDraw.Draw(pyr2)
-    # Base (HOUND)
-    d2.rectangle([14, 66, 50, 94], fill=(175, 45, 55, 255), outline=(20, 22, 28, 255))
-    # Top (FELIX)
-    d2.rectangle([18, 40, 46, 66], fill=(55, 145, 220, 255), outline=(20, 22, 28, 255))
-    # Small Resonator Antenna on top of FELIX
-    d2.polygon([(24, 40), (32, 30), (40, 40)], fill=(80, 255, 220, 255))
-    d2.rectangle([30, 44, 34, 90], fill=(120, 255, 255, 255))
-    pyr2.save(os.path.join(out_dir, "bremen_pyramid_2.png"))
+    # Hound legs & crimson-drum base
+    shaded_rect(pyr2, 16, 76, 25, 93, RAMP_STEEL, bevel=True)
+    shaded_rect(pyr2, 38, 76, 47, 93, RAMP_LEATHER, bevel=True)
+    shaded_rect(pyr2, 14, 52, 49, 77, RAMP_CRIMSON, bevel=True, rivets=True)
+    draw_striped_vest(pyr2, 20, 53, 43, 73)
+    # Marching drum in front
+    shaded_rect(pyr2, 22, 63, 41, 76, RAMP_LEATHER, bevel=True)
+    d2.line([(22, 63), (41, 63)], fill=RAMP_CHROME[3])
+    # Neck collars + Dual Felix & Hound heads seated directly onto shoulders (y=41..53)
+    shaded_rect(pyr2, 19, 49, 27, 54, RAMP_CHROME, bevel=True)
+    shaded_rect(pyr2, 36, 49, 44, 54, RAMP_CRIMSON, bevel=True)
+    shaded_ellipse(pyr2, 23, 44, 8.5, 6.5, RAMP_COBALT)
+    for y in range(37, 51):
+        for x in range(23, 32):
+            if get_px(pyr2, x, y)[3] > 0:
+                put_px(pyr2, x, y, RAMP_CHROME[2 if y < 44 else 1])
+    shaded_ellipse(pyr2, 41, 44, 8.0, 6.5, RAMP_CRIMSON)
+    shaded_rect(pyr2, 36, 46, 46, 52, RAMP_CHROME, bevel=True)  # Hound saw-jaw
+    draw_feathered_hat(pyr2, 22, 32, brim_w=13, ramp=RAMP_OLIVE, feather_left=True)
+    draw_feathered_hat(pyr2, 41, 32, brim_w=12, ramp=RAMP_LEATHER, feather_left=False)
+    draw_emissive_eye(pyr2, 18, 42, 21, 44, (255, 205, 50, 255))
+    draw_emissive_eye(pyr2, 25, 42, 28, 44, (80, 250, 255, 255))
+    draw_emissive_eye(pyr2, 39, 42, 42, 44, (255, 190, 50, 255))
+    # Resonator antenna mounted on torso & guitar neck across chest
+    shaded_rect(pyr2, 30, 32, 33, 52, RAMP_STEEL, bevel=True)
+    d2.polygon([(27, 32), (32, 21), (37, 32)], fill=(80, 245, 255, 255))
+    d2.line([(16, 61), (48, 48)], fill=RAMP_LEATHER[2], width=3)
+    draw_emissive_eye(pyr2, 30, 55, 33, 60, (90, 255, 255, 255))
+    add_outline(pyr2).save(os.path.join(out_dir, "bremen_pyramid_2.png"))
 
-    # 3-Tier Medium Tower sprite: bremen_pyramid_3.png (MULE + HOUND + FELIX)
+    # 2. 3-Tier Medium Tower: bremen_pyramid_3.png (MULE + HOUND + FELIX, inspired by robo-cat-hound-mule.jpg)
     pyr3 = Image.new("RGBA", (64, 96), (0, 0, 0, 0))
     d3 = ImageDraw.Draw(pyr3)
-    # Base (MULE)
-    d3.rectangle([10, 70, 54, 94], fill=(215, 165, 40, 255), outline=(20, 22, 28, 255))
-    # Mid (HOUND)
-    d3.rectangle([14, 46, 50, 70], fill=(175, 45, 55, 255), outline=(20, 22, 28, 255))
-    # Top (FELIX)
-    d3.rectangle([18, 22, 46, 46], fill=(55, 145, 220, 255), outline=(20, 22, 28, 255))
-    # Medium Resonator Dish
-    d3.polygon([(22, 22), (32, 12), (42, 22)], fill=(80, 255, 220, 255))
-    d3.rectangle([29, 26, 35, 89], fill=(120, 255, 255, 255))
-    pyr3.save(os.path.join(out_dir, "bremen_pyramid_3.png"))
+    # Mule caterpillar tracks base
+    shaded_rect(pyr3, 8, 76, 55, 93, RAMP_DARK_IRON, bevel=True)
+    shaded_rect(pyr3, 14, 65, 49, 86, RAMP_GOLD, bevel=True, rivets=True)
+    for wx in (13, 22, 41, 50):
+        shaded_ellipse(pyr3, wx, 86, 3.5, 3.5, RAMP_STEEL)
+    # Hound crimson mid-tier + twin drums
+    shaded_rect(pyr3, 16, 42, 47, 66, RAMP_CRIMSON, bevel=True, rivets=True)
+    draw_striped_vest(pyr3, 21, 43, 42, 61)
+    shaded_rect(pyr3, 14, 55, 27, 65, RAMP_LEATHER, bevel=True)
+    shaded_rect(pyr3, 36, 55, 49, 65, RAMP_LEATHER, bevel=True)
+    # Neck collar + Felix cobalt/chrome upper head seated flush at y=35..43
+    shaded_rect(pyr3, 26, 39, 37, 44, RAMP_CHROME, bevel=True)
+    shaded_ellipse(pyr3, 32, 34, 9.5, 7.5, RAMP_COBALT)
+    for y in range(26, 42):
+        for x in range(32, 42):
+            if get_px(pyr3, x, y)[3] > 0:
+                put_px(pyr3, x, y, RAMP_CHROME[2 if y < 34 else 1])
+    d3.polygon([(22, 30), (23, 22), (27, 27)], fill=RAMP_COBALT[2])
+    d3.polygon([(36, 27), (40, 22), (41, 30)], fill=RAMP_CHROME[2])
+    draw_feathered_hat(pyr3, 31, 21, brim_w=15, ramp=RAMP_OLIVE, feather_left=True)
+    draw_emissive_eye(pyr3, 25, 32, 28, 34, (255, 205, 50, 255))
+    draw_emissive_eye(pyr3, 35, 32, 38, 34, (80, 250, 255, 255))
+    d3.line([(16, 54), (49, 41)], fill=RAMP_LEATHER[2], width=3)
+    # Mounted resonator spire on back/hat
+    shaded_rect(pyr3, 30, 18, 33, 23, RAMP_STEEL, bevel=True)
+    d3.polygon([(25, 19), (32, 9), (39, 19)], fill=(80, 250, 230, 255))
+    draw_emissive_eye(pyr3, 30, 68, 33, 74, (90, 255, 255, 255))
+    add_outline(pyr3).save(os.path.join(out_dir, "bremen_pyramid_3.png"))
 
-    # 4-Tier Full Bremen Pyramid Totem sprite: bremen_pyramid.png (MULE + HOUND + FELIX + COCK)
+    # 3. 4-Tier Full Bremen Pyramid: bremen_pyramid.png (inspired by robo-cock-cat-hound-mule.jpg)
     pyr = Image.new("RGBA", (64, 96), (0, 0, 0, 0))
-    d = ImageDraw.Draw(pyr)
-    # Base (MULE)
-    d.rectangle([10, 70, 54, 94], fill=(215, 165, 40, 255), outline=(20, 22, 28, 255))
-    # Mid-Low (HOUND)
-    d.rectangle([14, 48, 50, 70], fill=(175, 45, 55, 255), outline=(20, 22, 28, 255))
-    # Mid-High (FELIX)
-    d.rectangle([18, 26, 46, 48], fill=(55, 145, 220, 255), outline=(20, 22, 28, 255))
-    # Top (COCK + Sonic Dish)
-    d.rectangle([22, 8, 42, 26], fill=(140, 65, 195, 255), outline=(20, 22, 28, 255))
-    d.polygon([(20, 8), (32, 0), (44, 8)], fill=(80, 255, 220, 255))
-    # Glowing core spine
-    d.rectangle([29, 14, 35, 88], fill=(120, 255, 255, 255))
-    pyr.save(os.path.join(out_dir, "bremen_pyramid.png"))
+    dp = ImageDraw.Draw(pyr)
+    # Base: MULE tracks + armored donkey prow on right
+    shaded_rect(pyr, 7, 78, 56, 94, RAMP_DARK_IRON, bevel=True)
+    shaded_rect(pyr, 12, 68, 49, 86, RAMP_GOLD, bevel=True, rivets=True)
+    shaded_rect(pyr, 38, 70, 53, 81, RAMP_GOLD, bevel=True)  # donkey prow head
+    shaded_rect(pyr, 38, 63, 41, 70, RAMP_GOLD, bevel=True)  # donkey ear
+    draw_emissive_eye(pyr, 42, 72, 44, 74, (70, 240, 255, 255))
+    for wx in (12, 22, 42, 51):
+        shaded_ellipse(pyr, wx, 87, 3.5, 3.5, RAMP_STEEL)
+    # Tier 2: HOUND crimson armor + drum
+    shaded_rect(pyr, 15, 49, 48, 69, RAMP_CRIMSON, bevel=True, rivets=True)
+    shaded_rect(pyr, 37, 57, 50, 68, RAMP_LEATHER, bevel=True)
+    # Tier 3: FELIX chrome-cobalt arms + troubadour vest + guitar
+    shaded_rect(pyr, 18, 32, 45, 50, RAMP_COBALT, bevel=True)
+    draw_striped_vest(pyr, 22, 33, 41, 48)
+    shaded_rect(pyr, 12, 35, 19, 45, RAMP_CHROME, bevel=True)
+    shaded_rect(pyr, 44, 35, 51, 45, RAMP_CHROME, bevel=True)
+    dp.line([(16, 47), (49, 34)], fill=RAMP_LEATHER[2], width=3)
+    # Tier 4 Apex: COCK purple neck + wings + red crest + megaphone seated onto Tier 3 (y=24..34)
+    shaded_rect(pyr, 25, 28, 37, 34, RAMP_PURPLE, bevel=True)
+    dp.polygon([(19, 32), (7, 19), (17, 23)], fill=RAMP_PURPLE[2])
+    dp.polygon([(44, 32), (56, 19), (46, 23)], fill=RAMP_PURPLE[2])
+    shaded_ellipse(pyr, 31, 23, 8.5, 6.5, RAMP_PURPLE)
+    for cx_off, h_top in ((26, 10), (29, 8), (32, 9), (35, 11)):
+        shaded_rect(pyr, cx_off, h_top, cx_off + 2, 17, RAMP_CRIMSON, bevel=True)
+    draw_feathered_hat(pyr, 31, 11, brim_w=13, ramp=RAMP_OLIVE, feather_left=True)
+    draw_emissive_eye(pyr, 29, 21, 32, 24, (90, 255, 240, 255))
+    dp.polygon([(36, 20), (47, 14), (47, 27), (36, 23)], fill=RAMP_CHROME[2])
+    # Subtle glowing chest/waist resonator nodes (instead of covering the guitar)
+    draw_emissive_eye(pyr, 30, 52, 33, 56, (90, 250, 255, 255))
+    draw_emissive_eye(pyr, 30, 71, 33, 75, (90, 250, 255, 255))
+    add_outline(pyr).save(os.path.join(out_dir, "bremen_pyramid.png"))
 
-    # Classic Brothers Grimm Animal Pyramid: bremen_animal_pyramid.png (Rooster on Cat on Dog on Donkey)
-    anim_pyr = Image.new("RGBA", (64, 96), (0, 0, 0, 0))
-    da = ImageDraw.Draw(anim_pyr)
-    # Bottom: Donkey (MULE)
-    da.rectangle([10, 68, 54, 92], fill=(215, 165, 40, 255), outline=(20, 22, 28, 255))
-    da.polygon([(8, 70), (12, 60), (16, 70)], fill=(215, 165, 40, 255))
-    da.polygon([(18, 70), (22, 60), (26, 70)], fill=(215, 165, 40, 255))
-    # 2nd: Dog (HOUND)
-    da.rectangle([14, 46, 50, 68], fill=(175, 45, 55, 255), outline=(20, 22, 28, 255))
-    da.ellipse([10, 52, 16, 62], fill=(135, 30, 40, 255))
-    # 3rd: Cat (FELIX)
-    da.rectangle([18, 26, 46, 46], fill=(55, 145, 220, 255), outline=(20, 22, 28, 255))
-    da.polygon([(18, 26), (22, 18), (26, 26)], fill=(55, 145, 220, 255))
-    da.polygon([(38, 26), (42, 18), (46, 26)], fill=(55, 145, 220, 255))
-    # Top: Rooster (COCK)
-    da.rectangle([22, 12, 42, 26], fill=(140, 65, 195, 255), outline=(20, 22, 28, 255))
-    da.polygon([(26, 12), (32, 2), (38, 12)], fill=(255, 50, 80, 255))
-    da.polygon([(16, 18), (22, 16), (22, 20)], fill=(255, 210, 40, 255))
-    anim_pyr.save(os.path.join(out_dir, "bremen_animal_pyramid.png"))
+    # 4. Classic Brothers Grimm Living Animal Pyramid (bremen_animal_pyramid.png)
+    anim = Image.new("RGBA", (64, 96), (0, 0, 0, 0))
+    da = ImageDraw.Draw(anim)
+    # Donkey (bottom)
+    shaded_rect(anim, 10, 68, 51, 85, RAMP_GOLD, bevel=True, dither=True)
+    shaded_rect(anim, 12, 85, 17, 94, RAMP_LEATHER, bevel=True)
+    shaded_rect(anim, 45, 85, 50, 94, RAMP_LEATHER, bevel=True)
+    shaded_rect(anim, 47, 63, 57, 74, RAMP_GOLD, bevel=True)
+    shaded_rect(anim, 47, 55, 50, 63, RAMP_GOLD, bevel=True)
+    shaded_rect(anim, 52, 55, 55, 63, RAMP_GOLD, bevel=True)
+    put_px(anim, 53, 66, (20, 20, 30, 255))
+    # Dog (2nd) — paws gripping donkey's back
+    shaded_rect(anim, 15, 48, 46, 66, RAMP_CRIMSON, bevel=True, dither=True)
+    shaded_rect(anim, 17, 65, 22, 69, RAMP_CRIMSON, bevel=True)
+    shaded_rect(anim, 41, 65, 46, 69, RAMP_CRIMSON, bevel=True)
+    shaded_rect(anim, 42, 44, 52, 56, RAMP_CRIMSON, bevel=True)
+    shaded_rect(anim, 40, 46, 44, 54, RAMP_LEATHER, bevel=True)
+    put_px(anim, 48, 47, (255, 220, 90, 255))
+    # Cat (3rd) — arched back & paws on dog
+    shaded_rect(anim, 19, 31, 43, 47, RAMP_COBALT, bevel=True, dither=True)
+    shaded_rect(anim, 21, 46, 25, 50, RAMP_COBALT, bevel=True)
+    shaded_rect(anim, 38, 46, 42, 50, RAMP_COBALT, bevel=True)
+    shaded_ellipse(anim, 43, 32, 6.0, 5.5, RAMP_COBALT)
+    da.polygon([(38, 28), (40, 21), (43, 27)], fill=RAMP_COBALT[2])
+    da.polygon([(44, 27), (47, 21), (48, 28)], fill=RAMP_COBALT[2])
+    da.line([(19, 36), (11, 28)], fill=RAMP_COBALT[2], width=3)
+    put_px(anim, 45, 31, (255, 220, 70, 255))
+    # Rooster (top) — standing on cat's back
+    shaded_rect(anim, 28, 28, 34, 32, RAMP_GOLD, bevel=True)
+    shaded_ellipse(anim, 31, 23, 7.5, 5.5, RAMP_PURPLE, dither=True)
+    shaded_rect(anim, 34, 14, 41, 22, RAMP_PURPLE, bevel=True)
+    for cx_o, ty in ((33, 8), (36, 6), (39, 9)):
+        shaded_rect(anim, cx_o, ty, cx_o + 2, 14, RAMP_CRIMSON, bevel=True)
+    da.polygon([(41, 16), (47, 18), (41, 20)], fill=RAMP_GOLD[2])
+    put_px(anim, 38, 16, (255, 255, 255, 255))
+    add_outline(anim).save(os.path.join(out_dir, "bremen_animal_pyramid.png"))
+
+
+def _draw_portrait_mood_fx(
+    img: Image.Image,
+    mood: str,
+    eye_positions: list[tuple[int, int]],
+    eye_col,
+    mouth_y: int,
+    mouth_cx: int = 32,
+) -> None:
+    """Applies expressive pixel-art eyes, brows, mouth, and mood overlays onto a 64x64 bust."""
+    d = ImageDraw.Draw(img)
+
+    # 1. Eyes & brows
+    for idx, (ex, ey) in enumerate(eye_positions):
+        if mood == "normal":
+            shaded_rect(img, ex - 3, ey - 2, ex + 3, ey + 2, RAMP_DARK_IRON, bevel=False)
+            draw_emissive_eye(img, ex - 2, ey - 1, ex + 2, ey + 1, eye_col)
+        elif mood == "battle":
+            shaded_rect(img, ex - 3, ey - 2, ex + 3, ey + 2, RAMP_DARK_IRON, bevel=False)
+            flare = (255, 95, 50, 255) if idx == 0 else eye_col
+            draw_emissive_eye(img, ex - 2, ey - 1, ex + 2, ey + 1, flare)
+            # Fierce angled brow
+            if idx == 0:
+                d.line([(ex - 4, ey - 4), (ex + 3, ey - 2)], fill=OUTLINE, width=2)
+            else:
+                d.line([(ex - 3, ey - 2), (ex + 4, ey - 4)], fill=OUTLINE, width=2)
+        elif mood == "damaged":
+            shaded_rect(img, ex - 3, ey - 2, ex + 3, ey + 2, RAMP_DARK_IRON, bevel=False)
+            if idx == 0:
+                d.line([(ex - 3, ey - 2), (ex + 3, ey + 2)], fill=(255, 70, 60, 255), width=2)
+                d.line([(ex + 3, ey - 2), (ex - 3, ey + 2)], fill=(255, 70, 60, 255), width=2)
+            else:
+                draw_emissive_eye(img, ex - 2, ey, ex + 2, ey + 1, eye_col)
+        elif mood == "glitch":
+            shaded_rect(img, ex - 4, ey - 2, ex + 4, ey + 2, RAMP_DARK_IRON, bevel=False)
+            d.line([(ex - 4, ey - 1), (ex + 4, ey - 1)], fill=(80, 255, 255, 255))
+            d.line([(ex - 3, ey + 1), (ex + 5, ey + 1)], fill=(255, 60, 210, 255))
+        elif mood in ("panic", "shocked"):
+            # Wide white sclera + tiny trembling pupil
+            d.ellipse([ex - 4, ey - 4, ex + 4, ey + 4], fill=(248, 250, 255, 255), outline=OUTLINE)
+            put_px(img, ex, ey, (20, 20, 35, 255))
+            put_px(img, ex + 1, ey, (20, 20, 35, 255))
+            d.line([(ex - 4, ey - 6), (ex + 4, ey - 6)], fill=OUTLINE)
+        elif mood == "happy":
+            # Warm upturned ^ ^ crescent eyes
+            d.arc([ex - 3, ey - 2, ex + 3, ey + 4], 195, 345, fill=eye_col, width=2)
+            put_px(img, ex, ey - 2, (255, 255, 230, 255))
+
+    # 2. Mouth / jaw expression
+    if mood == "normal":
+        d.line([(mouth_cx - 4, mouth_y), (mouth_cx + 4, mouth_y)], fill=OUTLINE)
+        put_px(img, mouth_cx + 4, mouth_y - 1, OUTLINE)
+    elif mood == "battle":
+        d.rectangle([mouth_cx - 5, mouth_y - 1, mouth_cx + 5, mouth_y + 2], fill=(235, 240, 248, 255), outline=OUTLINE)
+        d.line([(mouth_cx - 2, mouth_y - 1), (mouth_cx - 2, mouth_y + 2)], fill=OUTLINE)
+        d.line([(mouth_cx + 2, mouth_y - 1), (mouth_cx + 2, mouth_y + 2)], fill=OUTLINE)
+    elif mood == "damaged":
+        d.line([(mouth_cx - 5, mouth_y + 1), (mouth_cx - 1, mouth_y - 1), (mouth_cx + 4, mouth_y + 1)], fill=OUTLINE)
+    elif mood in ("panic", "shocked"):
+        d.ellipse([mouth_cx - 4, mouth_y - 2, mouth_cx + 4, mouth_y + 4], fill=(160, 30, 45, 255), outline=OUTLINE)
+    elif mood == "happy":
+        d.arc([mouth_cx - 5, mouth_y - 3, mouth_cx + 5, mouth_y + 3], 10, 170, fill=OUTLINE, width=2)
+        d.line([(mouth_cx - 4, mouth_y), (mouth_cx + 4, mouth_y)], fill=(250, 250, 255, 255))
+
+    # 3. Mood-specific overlays
+    if mood == "damaged":
+        # Cracks & flying sparks
+        d.line([(16, 22), (22, 30), (19, 36)], fill=(20, 16, 24, 255), width=1)
+        d.line([(45, 28), (41, 37)], fill=(20, 16, 24, 255), width=1)
+        for sx, sy in ((15, 25), (46, 23), (21, 44), (43, 41)):
+            put_px(img, sx, sy, (255, 190, 50, 255))
+            put_px(img, sx + 1, sy - 1, (255, 80, 40, 255))
+    elif mood == "panic":
+        # Sweat drop on temple
+        d.polygon([(50, 18), (47, 25), (53, 25)], fill=(90, 210, 255, 255), outline=OUTLINE)
+        put_px(img, 49, 23, (235, 255, 255, 255))
+    elif mood == "shocked":
+        # Yellow shock lightning ticks
+        d.line([(8, 16), (13, 20)], fill=(255, 230, 60, 255), width=2)
+        d.line([(55, 16), (50, 20)], fill=(255, 230, 60, 255), width=2)
+        d.line([(32, 6), (32, 10)], fill=(255, 230, 60, 255), width=2)
+    elif mood == "happy":
+        # Golden music note
+        d.ellipse([48, 16, 53, 20], fill=(255, 220, 70, 255))
+        d.line([(53, 18), (53, 10), (57, 12)], fill=(255, 220, 70, 255), width=2)
+    elif mood == "glitch":
+        # Horizontal scanline displacement slices + RGB corruption bars (clamped inside portrait interior)
+        tmp = img.copy()
+        for sy, shift in ((15, 3), (22, -3), (29, 3), (36, -3), (44, 2)):
+            strip = tmp.crop((6, sy, 58, sy + 3))
+            img.paste(strip, (6 + shift, sy))
+        d.rectangle([10, 18, 22, 20], fill=(80, 255, 255, 220))
+        d.rectangle([40, 31, 53, 33], fill=(255, 60, 210, 220))
 
 
 def generate_portraits() -> None:
+    """Generates 64x64 pixel-art portraits for 8 characters x 7 moods."""
     out_dir = os.path.join(ROOT, "sprites", "portraits")
     ensure_dir(out_dir)
-    chars = {
-        "felix": ((55, 145, 220, 255), (80, 255, 255, 255)),
-        "mule": ((215, 165, 40, 255), (255, 220, 70, 255)),
-        "hound": ((175, 45, 55, 255), (255, 70, 70, 255)),
-        "cock": ((140, 65, 195, 255), (120, 255, 160, 255)),
-        "atamansha": ((200, 40, 90, 255), (255, 230, 50, 255)),
-        "press": ((180, 65, 50, 255), (255, 180, 40, 255)),
-        "satellite": ((70, 95, 185, 255), (120, 255, 255, 255)),
-        "outlaw": ((150, 70, 40, 255), (255, 120, 60, 255)),
+
+    char_specs = {
+        "felix": (RAMP_COBALT, (80, 245, 255, 255), (28, 32, 54)),
+        "mule": (RAMP_GOLD, (70, 240, 255, 255), (46, 32, 24)),
+        "hound": (RAMP_CRIMSON, (255, 190, 55, 255), (42, 22, 28)),
+        "cock": (RAMP_PURPLE, (95, 255, 225, 255), (34, 24, 52)),
+        "atamansha": (RAMP_CRIMSON, (255, 210, 65, 255), (46, 22, 34)),
+        "press": (RAMP_STEEL, (255, 70, 50, 255), (36, 26, 24)),
+        "satellite": (RAMP_CHROME, (95, 245, 255, 255), (18, 28, 52)),
+        "outlaw": (RAMP_BLONDE, (255, 65, 65, 255), (26, 26, 38)),
     }
     moods = ["normal", "battle", "damaged", "glitch", "panic", "shocked", "happy"]
-    for name, (bg_col, eye_col) in chars.items():
+
+    for name, (accent_ramp, eye_col, bg_base) in char_specs.items():
         for mood in moods:
-            img = Image.new("RGBA", (48, 48), (18, 20, 28, 255))
+            img = Image.new("RGBA", (64, 64), (*bg_base, 255))
             d = ImageDraw.Draw(img)
-            d.rectangle([0, 0, 47, 47], outline=eye_col, width=2)
-            # Head silhouette
-            d.rectangle([10, 12, 37, 40], fill=bg_col, outline=(10, 10, 15, 255))
-            d.polygon([(10, 12), (15, 4), (21, 12)], fill=bg_col)
-            d.polygon([(26, 12), (32, 4), (37, 12)], fill=bg_col)
-            # Visor
-            d.rectangle([13, 18, 34, 27], fill=(12, 14, 20, 255))
-            if mood == "normal":
-                d.rectangle([16, 20, 20, 24], fill=eye_col)
-                d.rectangle([27, 20, 31, 24], fill=eye_col)
-            elif mood == "battle":
-                d.polygon([(15, 19), (22, 22), (15, 25)], fill=(255, 80, 50, 255))
-                d.polygon([(32, 19), (25, 22), (32, 25)], fill=(255, 80, 50, 255))
-            elif mood == "damaged":
-                d.line([(15, 19), (21, 25)], fill=(255, 60, 60, 255), width=2)
-                d.line([(21, 19), (15, 25)], fill=(255, 60, 60, 255), width=2)
-                d.rectangle([27, 21, 31, 24], fill=eye_col)
-            elif mood == "glitch":
-                for y in range(18, 27, 2):
-                    d.line([(13, y), (34, y)], fill=eye_col, width=1)
-            elif mood in ("panic", "shocked"):
-                d.ellipse([15, 19, 21, 25], fill=(255, 255, 255, 255), outline=(255, 40, 40, 255))
-                d.ellipse([26, 19, 32, 25], fill=(255, 255, 255, 255), outline=(255, 40, 40, 255))
-                d.ellipse([17, 21, 19, 23], fill=(0, 0, 0, 255))
-                d.ellipse([28, 21, 30, 23], fill=(0, 0, 0, 255))
-                d.rectangle([20, 29, 27, 35], fill=(220, 40, 40, 255), outline=(10, 10, 15, 255))
-            elif mood == "happy":
-                d.arc([15, 19, 21, 25], 180, 360, fill=eye_col, width=2)
-                d.arc([26, 19, 32, 25], 180, 360, fill=eye_col, width=2)
+
+            # Warm Bremen dusk backdrop gradient
+            for y in range(2, 62):
+                for x in range(2, 62):
+                    grad = y / 64.0
+                    r = int(bg_base[0] * (1.0 - 0.3 * grad) + 28 * grad)
+                    g = int(bg_base[1] * (1.0 - 0.3 * grad) + 20 * grad)
+                    b = int(bg_base[2] * (1.0 - 0.2 * grad) + 18 * grad)
+                    if mood == "battle":
+                        r = min(255, r + 18)
+                    elif mood == "damaged":
+                        r = max(0, r - 8)
+                        g = max(0, g - 8)
+                    put_px(img, x, y, (r, g, b, 255))
+
+            bust = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+            db = ImageDraw.Draw(bust)
+
+            if name == "felix":
+                # Troubadour striped collar & shoulders
+                shaded_rect(bust, 12, 46, 51, 61, RAMP_COBALT, bevel=True)
+                draw_striped_vest(bust, 17, 46, 46, 61)
+                # Head: left organic cobalt cat, right chrome cybernetic face
+                shaded_ellipse(bust, 32, 31, 15.5, 13.5, RAMP_COBALT, dither=True)
+                for y in range(17, 46):
+                    for x in range(32, 49):
+                        if get_px(bust, x, y)[3] > 0:
+                            t = 0.72 - 0.35 * ((x - 32) / 16.0) - 0.25 * ((y - 17) / 28.0)
+                            put_px(bust, x, y, ramp_tone(RAMP_CHROME, t, x, y, dither=True))
+                # Cat ears seated on head
+                db.polygon([(16, 25), (17, 10), (26, 20)], fill=RAMP_COBALT[1])
+                db.polygon([(18, 22), (19, 13), (23, 19)], fill=RAMP_CRIMSON[2])
+                db.polygon([(38, 20), (47, 10), (48, 25)], fill=RAMP_CHROME[2])
+                # Olive feathered beret seated snugly onto brow (top_y=12)
+                draw_feathered_hat(bust, 31, 12, brim_w=24, ramp=RAMP_OLIVE, feather_left=True)
+                # Whiskers & nose
+                db.line([(12, 33), (20, 34)], fill=(230, 240, 255, 255))
+                db.line([(12, 37), (20, 36)], fill=(230, 240, 255, 255))
+                db.line([(44, 34), (52, 33)], fill=(210, 235, 255, 255))
+                shaded_rect(bust, 30, 34, 33, 36, RAMP_CRIMSON, bevel=False)
+                _draw_portrait_mood_fx(bust, mood, [(24, 29), (40, 29)], eye_col, 40, 32)
+
+            elif name == "hound":
+                shaded_rect(bust, 11, 47, 52, 61, RAMP_CRIMSON, bevel=True)
+                draw_striped_vest(bust, 18, 48, 45, 61)
+                db.line([(15, 47), (24, 61)], fill=RAMP_LEATHER[2], width=3)
+                db.line([(48, 47), (39, 61)], fill=RAMP_LEATHER[2], width=3)
+                shaded_ellipse(bust, 32, 30, 14.5, 13.0, RAMP_CRIMSON, dither=True)
+                # Floppy hound ears
+                shaded_rect(bust, 12, 22, 18, 37, RAMP_CRIMSON, bevel=True)
+                shaded_rect(bust, 46, 22, 52, 35, RAMP_CRIMSON, bevel=True)
+                # Hat seated directly onto crown (top_y=11)
+                draw_feathered_hat(bust, 32, 11, brim_w=26, ramp=RAMP_LEATHER, feather_left=True)
+                # Heavy steel muzzle + circular saw chin
+                shaded_rect(bust, 22, 33, 42, 46, RAMP_CHROME, bevel=True, rivets=True)
+                shaded_ellipse(bust, 32, 43, 6.5, 5.0, RAMP_CHROME)
+                for tx in range(26, 39, 3):
+                    put_px(bust, tx, 48, RAMP_CHROME[3])
+                _draw_portrait_mood_fx(bust, mood, [(24, 27), (39, 27)], eye_col, 38, 32)
+                if mood == "normal":
+                    shaded_rect(bust, 20, 24, 28, 30, RAMP_DARK_IRON, bevel=False)
+                    db.line([(17, 21), (31, 28)], fill=RAMP_DARK_IRON[2], width=2)
+
+            elif name == "mule":
+                shaded_rect(bust, 11, 47, 52, 61, RAMP_GOLD, bevel=True, rivets=True)
+                draw_striped_vest(bust, 18, 48, 45, 61)
+                # Long donkey ears
+                shaded_rect(bust, 18, 6, 24, 20, RAMP_GOLD, bevel=True)
+                shaded_rect(bust, 39, 6, 45, 20, RAMP_GOLD, bevel=True)
+                shaded_rect(bust, 20, 9, 22, 17, RAMP_LEATHER, bevel=False)
+                shaded_rect(bust, 41, 9, 43, 17, RAMP_LEATHER, bevel=False)
+                # Hat seated on brow (top_y=13)
+                draw_feathered_hat(bust, 31, 13, brim_w=24, ramp=RAMP_LEATHER, feather_left=True)
+                # Golden head + bulldozer scoop snout positioned below mouth
+                shaded_rect(bust, 17, 20, 44, 44, RAMP_GOLD, bevel=True, rivets=True)
+                shaded_rect(bust, 23, 35, 52, 46, RAMP_GOLD, bevel=True)
+                db.line([(51, 34), (53, 46)], fill=RAMP_CHROME[3], width=2)
+                _draw_portrait_mood_fx(bust, mood, [(26, 27), (38, 27)], eye_col, 40, 38)
+
+            elif name == "cock":
+                shaded_rect(bust, 13, 47, 50, 61, RAMP_PURPLE, bevel=True)
+                draw_striped_vest(bust, 18, 48, 45, 61)
+                shaded_ellipse(bust, 29, 32, 13.0, 12.5, RAMP_PURPLE, dither=True)
+                # Sculpted red comb emerging from hat crown
+                for cx_o, top_y in ((20, 9), (26, 5), (32, 6), (38, 10)):
+                    shaded_rect(bust, cx_o, top_y, cx_o + 5, 21, RAMP_CRIMSON, bevel=True)
+                draw_feathered_hat(bust, 29, 13, brim_w=22, ramp=RAMP_OLIVE, feather_left=True)
+                # Red wattles
+                shaded_ellipse(bust, 31, 45, 4.5, 4.0, RAMP_CRIMSON)
+                # Silver megaphone beak pointing right
+                db.polygon([(36, 30), (54, 22), (54, 41), (36, 36)], fill=RAMP_CHROME[1])
+                shaded_rect(bust, 51, 23, 55, 40, RAMP_DARK_IRON, bevel=False)
+                _draw_portrait_mood_fx(bust, mood, [(24, 28), (33, 28)], eye_col, 39, 30)
+
+            elif name == "atamansha":
+                shaded_rect(bust, 11, 47, 52, 61, RAMP_CRIMSON, bevel=True)
+                db.line([(16, 48), (44, 61)], fill=RAMP_LEATHER[2], width=3)
+                # Copper cable dreadlocks framing face
+                for bx in (13, 16, 46, 49):
+                    shaded_rect(bust, bx, 21, bx + 3, 47, RAMP_COPPER, bevel=True)
+                # Chrome face
+                shaded_ellipse(bust, 32, 32, 13.5, 12.5, RAMP_CHROME, dither=True)
+                # Wide pirate hat seated snugly onto forehead (top_y=13)
+                draw_feathered_hat(bust, 32, 13, brim_w=32, ramp=RAMP_LEATHER, feather_left=True)
+                _draw_portrait_mood_fx(bust, mood, [(25, 29), (39, 29)], eye_col, 39, 32)
+                if mood == "normal":
+                    draw_emissive_eye(bust, 23, 28, 27, 30, (255, 115, 45, 255))
+                    draw_emissive_eye(bust, 37, 28, 41, 30, (70, 240, 255, 255))
+
+            elif name == "press":
+                shaded_rect(bust, 10, 47, 53, 61, RAMP_STEEL, bevel=True, rivets=True)
+                draw_hazard_stripes(bust, 16, 51, 47, 58, stripe_w=4)
+                # Horned steel factory helmet
+                db.polygon([(14, 15), (9, 5), (18, 12)], fill=RAMP_CHROME[2])
+                db.polygon([(49, 15), (54, 5), (45, 12)], fill=RAMP_CHROME[2])
+                shaded_rect(bust, 15, 10, 48, 45, RAMP_CHROME, bevel=True, rivets=True, dither=True)
+                shaded_rect(bust, 11, 18, 52, 22, RAMP_STEEL, bevel=True)
+                shaded_rect(bust, 21, 36, 42, 44, RAMP_STEEL, bevel=True)
+                _draw_portrait_mood_fx(bust, mood, [(24, 29), (39, 29)], eye_col, 39, 32)
+
+            elif name == "satellite":
+                for cx_b in (16, 22, 41, 47):
+                    shaded_rect(bust, cx_b, 44, cx_b + 3, 61, RAMP_STEEL, bevel=True)
+                db.polygon([(30, 14), (32, 4), (34, 14)], fill=RAMP_CHROME[2])
+                db.polygon([(16, 22), (8, 14), (20, 18)], fill=RAMP_CHROME[2])
+                db.polygon([(47, 22), (55, 14), (43, 18)], fill=RAMP_CHROME[2])
+                db.polygon([(14, 34), (6, 34), (14, 37)], fill=RAMP_CHROME[1])
+                db.polygon([(49, 34), (57, 34), (49, 37)], fill=RAMP_CHROME[1])
+                shaded_ellipse(bust, 32, 32, 16.0, 15.5, RAMP_CHROME, dither=True)
+                put_px(bust, 28, 21, (255, 65, 50, 255))
+                put_px(bust, 35, 21, (255, 65, 50, 255))
+                _draw_portrait_mood_fx(bust, mood, [(24, 31), (39, 31)], eye_col, 41, 32)
+
+            else:  # outlaw (cyber-punk rock rival from Gemini_Generated_Image)
+                shaded_rect(bust, 11, 47, 52, 61, RAMP_DARK_IRON, bevel=True, rivets=True)
+                db.polygon([(12, 47), (10, 40), (16, 47)], fill=RAMP_CHROME[2])
+                db.polygon([(51, 47), (53, 40), (47, 47)], fill=RAMP_CHROME[2])
+                # Wild golden punk hair framing face
+                shaded_ellipse(bust, 32, 23, 17.5, 13.5, RAMP_BLONDE, dither=True)
+                db.polygon([(14, 24), (10, 11), (22, 16)], fill=RAMP_BLONDE[2])
+                db.polygon([(49, 24), (54, 10), (42, 16)], fill=RAMP_BLONDE[2])
+                # Neural cables in hair
+                db.line([(16, 17), (13, 28)], fill=RAMP_CRIMSON[2], width=1)
+                db.line([(47, 17), (50, 28)], fill=(80, 235, 255, 255), width=1)
+                # Split half organic / half chrome face
+                shaded_ellipse(bust, 32, 32, 12.5, 11.5, RAMP_LEATHER, dither=True)
+                for y in range(21, 44):
+                    for x in range(32, 45):
+                        if get_px(bust, x, y)[3] > 0:
+                            t = 0.7 - 0.35 * ((x - 32) / 12.0) - 0.25 * ((y - 21) / 22.0)
+                            put_px(bust, x, y, ramp_tone(RAMP_CHROME, t, x, y, dither=True))
+                _draw_portrait_mood_fx(bust, mood, [(25, 30), (39, 30)], eye_col, 39, 32)
+
+            outlined_bust = add_outline(bust)
+            img = Image.alpha_composite(img, outlined_bust)
+
+            # Frame border (2px dark iron + 1px accent rim + 4 corner rivets)
+            d = ImageDraw.Draw(img)
+            d.rectangle([0, 0, 63, 63], outline=OUTLINE, width=2)
+            d.rectangle([2, 2, 61, 61], outline=_rgba(accent_ramp[2]), width=1)
+            for rx, ry in ((3, 3), (59, 3), (3, 59), (59, 59)):
+                put_px(img, rx, ry, accent_ramp[3])
+
             img.save(os.path.join(out_dir, f"{name}_{mood}.png"))
 
 
@@ -246,61 +949,275 @@ def generate_enemies() -> None:
     out_dir = os.path.join(ROOT, "sprites", "enemies")
     ensure_dir(out_dir)
 
-    # Regular enemies (single sprite 44x44)
+    # 1. Regular enemies (44x44, facing LEFT toward the squad, shaded pixel art + dark outline)
     regulars = [
-        ("scrap_drone", (160, 110, 70, 255), (255, 90, 40, 255)),
-        ("acid_cleaner", (70, 165, 80, 255), (180, 255, 60, 255)),
-        ("welder_raider", (190, 95, 45, 255), (255, 210, 60, 255)),
-        ("security_hound", (130, 50, 65, 255), (255, 50, 80, 255)),
-        ("spectre_drone", (75, 110, 190, 255), (100, 240, 255, 255)),
-        ("core_sentinel", (140, 80, 180, 255), (255, 100, 240, 255)),
+        "scrap_drone",
+        "acid_cleaner",
+        "welder_raider",
+        "security_hound",
+        "spectre_drone",
+        "core_sentinel",
     ]
-    for name, c1, glow in regulars:
+    for name in regulars:
         img = Image.new("RGBA", (44, 44), (0, 0, 0, 0))
         d = ImageDraw.Draw(img)
-        d.rectangle([8, 10, 35, 36], fill=c1, outline=(20, 22, 28, 255))
-        d.rectangle([12, 16, 26, 23], fill=(20, 22, 30, 255))
-        d.rectangle([14, 18, 22, 21], fill=glow)
-        # Weapon arm pointing left toward cats
-        d.rectangle([1, 20, 10, 26], fill=(90, 95, 105, 255), outline=(20, 22, 28, 255))
-        d.rectangle([0, 21, 3, 25], fill=glow)
-        img.save(os.path.join(out_dir, f"{name}.png"))
 
-    # Modular Elites and Bosses (separate _body, _arms, _legs + full)
-    modulars = [
-        ("elite_crusher", (195, 135, 45, 255), (255, 90, 40, 255), 56, 56),
-        ("elite_driller", (155, 95, 65, 255), (255, 200, 50, 255), 56, 56),
-        ("elite_aegis", (75, 130, 195, 255), (90, 255, 240, 255), 56, 56),
-        ("boss_press", (180, 65, 50, 255), (255, 180, 40, 255), 76, 76),
-        ("boss_atamansha", (190, 45, 95, 255), (255, 230, 60, 255), 76, 76),
-        ("boss_satellite", (70, 95, 185, 255), (120, 255, 255, 255), 80, 80),
+        if name == "scrap_drone":
+            # Rotor on top
+            shaded_rect(img, 14, 7, 34, 9, RAMP_STEEL, bevel=True)
+            shaded_rect(img, 22, 9, 26, 13, RAMP_DARK_IRON, bevel=True)
+            # Riveted copper orb hull
+            shaded_ellipse(img, 24, 24, 12.0, 11.5, RAMP_COPPER, dither=True)
+            shaded_rect(img, 14, 18, 25, 25, RAMP_DARK_IRON, bevel=False)
+            draw_emissive_eye(img, 15, 20, 22, 23, (255, 165, 45, 255))
+            # Claw arm pointing left
+            shaded_rect(img, 4, 24, 14, 29, RAMP_STEEL, bevel=True)
+            d.line([(4, 24), (1, 21)], fill=RAMP_CHROME[3], width=2)
+            d.line([(4, 29), (1, 32)], fill=RAMP_CHROME[2], width=2)
+            # Thruster glow
+            draw_emissive_eye(img, 20, 36, 28, 38, (255, 110, 40, 255))
+
+        elif name == "acid_cleaner":
+            # Industrial green hazmat bot + glass acid tank + sprayer
+            shaded_rect(img, 13, 28, 35, 38, RAMP_DARK_IRON, bevel=True)
+            shaded_rect(img, 14, 14, 34, 29, RAMP_ACID, bevel=True, rivets=True)
+            # Glass acid tank on back
+            shaded_rect(img, 27, 8, 36, 22, RAMP_ACID, bevel=True)
+            draw_emissive_eye(img, 29, 13, 34, 20, (180, 255, 70, 255))
+            # Hazmat visor
+            shaded_rect(img, 15, 17, 25, 23, RAMP_DARK_IRON, bevel=False)
+            draw_emissive_eye(img, 16, 19, 23, 21, (190, 255, 80, 255))
+            # Acid nozzle pointing left
+            shaded_rect(img, 3, 22, 14, 27, RAMP_GOLD, bevel=True)
+            draw_emissive_eye(img, 1, 23, 3, 26, (165, 255, 65, 255))
+
+        elif name == "welder_raider":
+            # Marauder bot with slatted welding mask & sparking plasma torch
+            shaded_rect(img, 15, 30, 22, 40, RAMP_DARK_IRON, bevel=True)
+            shaded_rect(img, 26, 30, 33, 40, RAMP_DARK_IRON, bevel=True)
+            shaded_rect(img, 13, 14, 34, 31, RAMP_COPPER, bevel=True, rivets=True)
+            shaded_rect(img, 32, 16, 38, 28, RAMP_CRIMSON, bevel=True)  # fuel tank
+            # Slatted welding helmet
+            shaded_rect(img, 14, 7, 29, 17, RAMP_STEEL, bevel=True)
+            draw_emissive_eye(img, 15, 11, 22, 13, (255, 220, 60, 255))
+            # Arc welder torch left
+            shaded_rect(img, 4, 20, 14, 25, RAMP_STEEL, bevel=True)
+            draw_emissive_eye(img, 1, 20, 4, 24, (255, 210, 70, 255))
+            put_px(img, 2, 18, (255, 240, 140, 255))
+
+        elif name == "security_hound":
+            # Low-slung dark-crimson cyber-mastiff facing left
+            shaded_rect(img, 12, 28, 17, 39, RAMP_STEEL, bevel=True)
+            shaded_rect(img, 30, 28, 35, 39, RAMP_STEEL, bevel=True)
+            shaded_rect(img, 13, 17, 36, 29, RAMP_CRIMSON, bevel=True, rivets=True)
+            # Spiked collar & head
+            shaded_rect(img, 6, 13, 17, 23, RAMP_CRIMSON, bevel=True)
+            shaded_rect(img, 2, 18, 12, 23, RAMP_CHROME, bevel=True)  # chrome saw jaw
+            for tx in (3, 6, 9):
+                put_px(img, tx, 23, RAMP_CHROME[3])
+            draw_emissive_eye(img, 8, 15, 12, 17, (255, 65, 95, 255))
+            d.line([(36, 20), (41, 14)], fill=RAMP_STEEL[2], width=2)
+
+        elif name == "spectre_drone":
+            # Sleek angular navy-cobalt stealth interceptor
+            d.polygon([(38, 10), (24, 16), (34, 22)], fill=RAMP_COBALT[2])
+            d.polygon([(38, 34), (24, 28), (34, 22)], fill=RAMP_COBALT[0])
+            shaded_ellipse(img, 23, 22, 11.5, 8.0, RAMP_COBALT, dither=True)
+            shaded_rect(img, 12, 19, 23, 24, RAMP_DARK_IRON, bevel=False)
+            draw_emissive_eye(img, 13, 20, 21, 23, (90, 245, 255, 255))
+            # Twin phase barrels left
+            shaded_rect(img, 2, 18, 13, 21, RAMP_CHROME, bevel=True)
+            shaded_rect(img, 2, 24, 13, 27, RAMP_CHROME, bevel=True)
+            put_px(img, 1, 19, (90, 245, 255, 255))
+            put_px(img, 1, 25, (90, 245, 255, 255))
+
+        else:  # core_sentinel
+            # Ornate dark-violet & gold guardian turret
+            shaded_ellipse(img, 24, 23, 12.5, 12.5, RAMP_PURPLE, dither=True)
+            shaded_rect(img, 15, 8, 33, 12, RAMP_GOLD, bevel=True)
+            shaded_rect(img, 15, 34, 33, 38, RAMP_GOLD, bevel=True)
+            shaded_rect(img, 16, 17, 27, 28, RAMP_DARK_IRON, bevel=False)
+            draw_emissive_eye(img, 18, 19, 25, 26, (255, 95, 240, 255))
+            shaded_rect(img, 2, 17, 15, 22, RAMP_GOLD, bevel=True)
+            shaded_rect(img, 2, 24, 15, 29, RAMP_GOLD, bevel=True)
+            put_px(img, 1, 19, (255, 110, 245, 255))
+            put_px(img, 1, 26, (255, 110, 245, 255))
+
+        add_outline(img).save(os.path.join(out_dir, f"{name}.png"))
+
+    # 2. Modular Elites & Bosses (_body, _arms, _legs + assembled composite {name}.png)
+    # Socket offsets match combat_arena.gd: ArmsJoint = (-2, 2), LegsJoint = (0, 16)
+    modular_specs = [
+        ("elite_crusher", 56, 48, 56, 48, 56, 28, RAMP_GOLD, (255, 110, 45, 255)),
+        ("elite_driller", 56, 48, 56, 48, 56, 28, RAMP_COPPER, (255, 210, 60, 255)),
+        ("elite_aegis", 56, 48, 56, 48, 56, 28, RAMP_COBALT, (90, 250, 245, 255)),
+        ("boss_press", 76, 64, 80, 64, 76, 38, RAMP_CRIMSON, (255, 185, 45, 255)),
+        ("boss_atamansha", 76, 64, 80, 64, 76, 38, RAMP_CRIMSON, (255, 215, 65, 255)),
+        ("boss_satellite", 80, 64, 84, 64, 80, 38, RAMP_CHROME, (105, 250, 255, 255)),
     ]
-    for name, c1, glow, w, h in modulars:
-        # Body
-        b = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+
+    for name, bw, bh, aw, ah, lw, lh, ramp, glow in modular_specs:
+        b = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
+        a = Image.new("RGBA", (aw, ah), (0, 0, 0, 0))
+        l = Image.new("RGBA", (lw, lh), (0, 0, 0, 0))
         db = ImageDraw.Draw(b)
-        db.rectangle([w // 4, h // 5, w * 3 // 4, h * 3 // 5], fill=c1, outline=(15, 18, 24, 255))
-        db.rectangle([w // 3, h // 4, w * 2 // 3, h * 2 // 5], fill=(20, 22, 30, 255))
-        db.rectangle([w // 3 + 3, h // 4 + 3, w * 2 // 3 - 3, h * 2 // 5 - 3], fill=glow)
-        b.save(os.path.join(out_dir, f"{name}_body.png"))
-
-        # Arms / Turrets (pointing left)
-        a = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         da = ImageDraw.Draw(a)
-        da.rectangle([2, h // 3, w // 3, h // 2 + 6], fill=(105, 110, 125, 255), outline=(15, 18, 24, 255))
-        da.rectangle([0, h // 3 + 3, 6, h // 2 + 3], fill=glow)
-        a.save(os.path.join(out_dir, f"{name}_arms.png"))
-
-        # Legs / Chassis
-        l = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         dl = ImageDraw.Draw(l)
-        dl.rectangle([w // 5, h * 3 // 5, w * 4 // 5, h - 4], fill=(65, 70, 82, 255), outline=(15, 18, 24, 255))
-        dl.line([(w // 4, h - 8), (w * 3 // 4, h - 8)], fill=glow, width=2)
-        l.save(os.path.join(out_dir, f"{name}_legs.png"))
 
-        # Composite preview
-        comp = Image.alpha_composite(Image.alpha_composite(l, b), a)
+        if name.startswith("elite_"):
+            # --- ELITE BODY (56x48, center (28, 24), torso y=6..42) ---
+            shaded_rect(b, 17, 14, 42, 41, ramp, bevel=True, rivets=True, dither=True)
+            shaded_rect(b, 19, 6, 39, 16, RAMP_STEEL, bevel=True)  # head cowl
+            shaded_rect(b, 20, 9, 34, 14, RAMP_DARK_IRON, bevel=False)
+            draw_emissive_eye(b, 21, 10, 31, 13, glow)
+            if name == "elite_crusher":
+                draw_hazard_stripes(b, 19, 31, 40, 38, stripe_w=3)
+                shaded_rect(b, 25, 19, 35, 27, RAMP_DARK_IRON, bevel=False)
+                draw_emissive_eye(b, 27, 21, 33, 25, glow)
+            elif name == "elite_driller":
+                shaded_rect(b, 38, 16, 46, 34, RAMP_DARK_IRON, bevel=True)  # exhaust boiler
+                shaded_rect(b, 24, 18, 35, 30, RAMP_DARK_IRON, bevel=False)
+                draw_emissive_eye(b, 26, 20, 33, 27, glow)
+            else:  # elite_aegis
+                shaded_rect(b, 22, 18, 38, 34, RAMP_CHROME, bevel=True)
+                draw_emissive_eye(b, 26, 22, 34, 30, glow)
+
+            # --- ELITE ARMS (56x48, center (28, 24), attaches at x=18..25, extends left x=1..20) ---
+            shaded_rect(a, 18, 17, 26, 27, RAMP_STEEL, bevel=True, rivets=True)
+            if name == "elite_crusher":
+                # Oversized hydraulic crushing claw/hammer
+                shaded_rect(a, 10, 19, 20, 25, RAMP_CHROME, bevel=True)
+                shaded_rect(a, 2, 11, 12, 33, RAMP_GOLD, bevel=True, rivets=True)
+                draw_hazard_stripes(a, 3, 26, 11, 31, stripe_w=2)
+                draw_emissive_eye(a, 4, 14, 9, 20, glow)
+            elif name == "elite_driller":
+                # Spiral titanium drill cone pointing left
+                shaded_rect(a, 14, 16, 22, 28, RAMP_COPPER, bevel=True)
+                da.polygon([(15, 14), (1, 22), (15, 30)], fill=RAMP_CHROME[2])
+                for sx in (5, 9, 13):
+                    da.line([(sx, 17), (sx + 2, 27)], fill=RAMP_DARK_IRON[0], width=1)
+                put_px(a, 1, 22, glow)
+            else:  # elite_aegis
+                # Energy riot shield + pulse barrel
+                shaded_rect(a, 3, 9, 13, 37, RAMP_COBALT, bevel=True, rivets=True)
+                draw_emissive_eye(a, 5, 13, 10, 33, glow)
+                shaded_rect(a, 13, 18, 22, 25, RAMP_CHROME, bevel=True)
+
+            # --- ELITE LEGS (56x28, center (28, 14), waist y=2..16 tucks behind body) ---
+            shaded_rect(l, 18, 2, 40, 15, RAMP_DARK_IRON, bevel=True)
+            if name == "elite_crusher":
+                shaded_rect(l, 11, 14, 46, 26, RAMP_DARK_IRON, bevel=True)
+                for wx in (16, 25, 34, 42):
+                    shaded_ellipse(l, wx, 21, 3.0, 3.0, RAMP_STEEL)
+                    put_px(l, wx, 21, glow)
+            elif name == "elite_driller":
+                shaded_rect(l, 13, 13, 22, 26, RAMP_STEEL, bevel=True)
+                shaded_rect(l, 34, 13, 43, 26, RAMP_STEEL, bevel=True)
+                shaded_rect(l, 9, 22, 23, 26, RAMP_COPPER, bevel=True)
+                shaded_rect(l, 33, 22, 47, 26, RAMP_COPPER, bevel=True)
+            else:  # elite_aegis
+                shaded_rect(l, 16, 13, 24, 25, RAMP_CHROME, bevel=True)
+                shaded_rect(l, 33, 13, 41, 25, RAMP_CHROME, bevel=True)
+                draw_emissive_eye(l, 17, 23, 23, 26, glow)
+                draw_emissive_eye(l, 34, 23, 40, 26, glow)
+
+        elif name == "boss_press":
+            # Horned factory boss from press.jpg (76x64 body, 80x64 arms, 76x38 legs)
+            db.polygon([(24, 11), (18, 2), (29, 9)], fill=RAMP_CHROME[2])
+            db.polygon([(52, 11), (58, 2), (47, 9)], fill=RAMP_CHROME[2])
+            shaded_rect(b, 23, 7, 53, 28, RAMP_CHROME, bevel=True, rivets=True, dither=True)
+            shaded_rect(b, 20, 13, 56, 16, RAMP_STEEL, bevel=True)  # hat brim
+            draw_emissive_eye(b, 28, 18, 34, 22, (255, 55, 45, 255))
+            draw_emissive_eye(b, 42, 18, 48, 22, (255, 55, 45, 255))
+            shaded_rect(b, 29, 24, 47, 28, RAMP_STEEL, bevel=True)
+            # Massive press block chest with hazard stripes
+            shaded_rect(b, 16, 29, 60, 56, RAMP_STEEL, bevel=True, rivets=True, dither=True)
+            draw_hazard_stripes(b, 18, 34, 58, 46, stripe_w=4)
+            draw_emissive_eye(b, 25, 48, 28, 52, (255, 50, 45, 255))
+            draw_emissive_eye(b, 48, 48, 51, 52, (255, 50, 45, 255))
+            # Hydraulic press arms extending left
+            shaded_rect(a, 18, 24, 30, 36, RAMP_CHROME, bevel=True, rivets=True)
+            shaded_rect(a, 2, 17, 19, 45, RAMP_STEEL, bevel=True, rivets=True)
+            draw_hazard_stripes(a, 4, 24, 17, 38, stripe_w=3)
+            draw_emissive_eye(a, 8, 20, 13, 23, glow)
+            # Wide conveyor belt base (waist y=2..27 tucked behind body, treads y=22..36)
+            shaded_rect(l, 18, 2, 58, 24, RAMP_DARK_IRON, bevel=True)
+            shaded_rect(l, 7, 22, 69, 36, RAMP_STEEL, bevel=True, rivets=True)
+            for wx in (14, 25, 38, 51, 62):
+                shaded_ellipse(l, wx, 29, 4.5, 4.5, RAMP_CHROME)
+                put_px(l, wx, 29, glow)
+
+        elif name == "boss_atamansha":
+            # Cyber outlaw crane captain from atamansha.jpg
+            shaded_rect(b, 22, 26, 54, 56, RAMP_CRIMSON, bevel=True, rivets=True, dither=True)
+            db.line([(26, 27), (49, 55)], fill=RAMP_LEATHER[2], width=4)  # bandolier
+            # Copper cable braids + chrome face + feathered pirate hat seated snugly on brow
+            for bx in (20, 23, 52, 55):
+                shaded_rect(b, bx, 15, bx + 2, 32, RAMP_COPPER, bevel=True)
+            shaded_ellipse(b, 38, 19, 11.5, 9.5, RAMP_CHROME, dither=True)
+            draw_feathered_hat(b, 38, 5, brim_w=26, ramp=RAMP_LEATHER, feather_left=False)
+            draw_emissive_eye(b, 32, 16, 35, 19, (255, 115, 45, 255))
+            draw_emissive_eye(b, 41, 16, 44, 19, (70, 245, 255, 255))
+            db.line([(33, 23), (43, 23)], fill=(250, 250, 255, 255), width=2)
+            # Chrome arm wielding superheated plasma cleaver pointing left
+            shaded_rect(a, 19, 25, 30, 35, RAMP_CHROME, bevel=True, rivets=True)
+            shaded_rect(a, 14, 29, 21, 36, RAMP_LEATHER, bevel=True)
+            da.polygon([(16, 30), (2, 46), (8, 51), (20, 35)], fill=RAMP_CRIMSON[2])
+            da.line([(2, 46), (16, 31)], fill=(255, 230, 120, 255), width=2)
+            for sx, sy in ((4, 42), (10, 49), (6, 38)):
+                put_px(a, sx, sy, (255, 240, 120, 255))
+            # Outlaw ragged skirt + chrome legs + spurred boots
+            shaded_rect(l, 22, 2, 54, 26, RAMP_TEAL, bevel=True)
+            put_px(l, 30, 18, RAMP_GOLD[2])
+            shaded_rect(l, 25, 22, 32, 31, RAMP_CHROME, bevel=True)
+            shaded_rect(l, 44, 22, 51, 31, RAMP_CHROME, bevel=True)
+            shaded_rect(l, 21, 30, 33, 36, RAMP_LEATHER, bevel=True)
+            shaded_rect(l, 42, 30, 54, 36, RAMP_LEATHER, bevel=True)
+
+        else:  # boss_satellite (Sputnik Bremen-4 from sputnik.jpg)
+            # Spikes radiating from central sphere
+            db.polygon([(38, 12), (40, 2), (42, 12)], fill=RAMP_CHROME[2])
+            db.polygon([(22, 18), (12, 8), (26, 14)], fill=RAMP_CHROME[2])
+            db.polygon([(58, 18), (68, 8), (54, 14)], fill=RAMP_CHROME[2])
+            db.polygon([(18, 32), (8, 32), (18, 36)], fill=RAMP_CHROME[1])
+            db.polygon([(62, 32), (72, 32), (62, 36)], fill=RAMP_CHROME[1])
+            # Massive riveted Sputnik sphere
+            shaded_ellipse(b, 40, 33, 21.0, 20.5, RAMP_CHROME, dither=True)
+            draw_hazard_stripes(b, 26, 48, 54, 53, stripe_w=4)
+            # Twin circular ocular lenses + red LEDs
+            shaded_ellipse(b, 32, 32, 6.0, 6.0, RAMP_DARK_IRON)
+            shaded_ellipse(b, 48, 32, 6.0, 6.0, RAMP_DARK_IRON)
+            draw_emissive_eye(b, 29, 29, 35, 35, glow)
+            draw_emissive_eye(b, 45, 29, 51, 35, glow)
+            put_px(b, 35, 21, (255, 60, 50, 255))
+            put_px(b, 44, 21, (255, 60, 50, 255))
+            # Orbital emitter dishes pointing left
+            shaded_rect(a, 18, 24, 29, 38, RAMP_STEEL, bevel=True, rivets=True)
+            da.polygon([(18, 22), (3, 14), (3, 46), (18, 39)], fill=RAMP_CHROME[1])
+            draw_emissive_eye(a, 4, 22, 10, 38, glow)
+            # Armored broadcast pedestal + anti-grav thruster ring
+            shaded_rect(l, 22, 2, 58, 26, RAMP_STEEL, bevel=True, rivets=True)
+            shaded_rect(l, 14, 24, 66, 34, RAMP_DARK_IRON, bevel=True)
+            for gx in (20, 32, 48, 60):
+                draw_emissive_eye(l, gx - 2, 28, gx + 2, 32, glow)
+
+        b_out = add_outline(b)
+        a_out = add_outline(a)
+        l_out = add_outline(l)
+        b_out.save(os.path.join(out_dir, f"{name}_body.png"))
+        a_out.save(os.path.join(out_dir, f"{name}_arms.png"))
+        l_out.save(os.path.join(out_dir, f"{name}_legs.png"))
+
+        # Assembled composite preview matching combat_arena.gd offsets (body=(0,0), arms=(-2,2), legs=(0,16))
+        cw = max(bw, aw) + 12
+        ch = bh + 28
+        comp = Image.new("RGBA", (cw, ch), (0, 0, 0, 0))
+        cx, cy = cw // 2, ch // 2 - 4
+        comp.alpha_composite(l_out, (cx - lw // 2, cy + 16 - lh // 2))
+        comp.alpha_composite(b_out, (cx - bw // 2, cy - bh // 2))
+        comp.alpha_composite(a_out, (cx - 2 - aw // 2, cy + 2 - ah // 2))
         comp.save(os.path.join(out_dir, f"{name}.png"))
+
 
 
 def generate_ui_and_dodge() -> None:
@@ -810,6 +1727,9 @@ def generate_audio() -> None:
         [
             math.sin(2 * math.pi * (392.0 + 260.0 * (i / (sr * 0.25))) * (i / sr)) * 0.4
             for i in range(int(sr * 0.25))
+        ],
+        sr,
+    )
     # comic_slide.wav (cartoon slide whistle + spring boing on disassembly)
     comic_len = int(sr * 0.45)
     comic_samples = []
@@ -821,9 +1741,6 @@ def generate_audio() -> None:
         bounce = math.sin(2 * math.pi * 350.0 * t) * max(0.0, prog - 0.7) * 0.3
         comic_samples.append((math.sin(2 * math.pi * f * t) + bounce) * env)
     write_wav(os.path.join(sfx_dir, "comic_slide.wav"), comic_samples, sr)
-        ],
-        sr,
-    )
 
     # 2. Music Tapes (2.4s loopable retro synth tracks)
     tapes = [
@@ -1062,12 +1979,29 @@ def generate_audio() -> None:
 
 
 if __name__ == "__main__":
-    generate_cats()
-    generate_portraits()
-    generate_enemies()
-    generate_ui_and_dodge()
-    generate_backgrounds()
-    generate_story_illustrations()
-    generate_audio()
+    parser = argparse.ArgumentParser(description="Generate Xenocats pixel-art sprites and WAV audio.")
+    parser.add_argument(
+        "--only",
+        default="all",
+        help="Comma-separated sections to run (cats,portraits,enemies,ui,backgrounds,story,audio) or 'all'.",
+    )
+    args = parser.parse_args()
+    targets = {item.strip().lower() for item in args.only.split(",") if item.strip()}
+    run_all = "all" in targets or not targets
+
+    if run_all or "cats" in targets:
+        generate_cats()
+    if run_all or "portraits" in targets:
+        generate_portraits()
+    if run_all or "enemies" in targets:
+        generate_enemies()
+    if run_all or "ui" in targets:
+        generate_ui_and_dodge()
+    if run_all or "backgrounds" in targets:
+        generate_backgrounds()
+    if run_all or "story" in targets:
+        generate_story_illustrations()
+    if run_all or "audio" in targets:
+        generate_audio()
     print("All Xenocats pixel-art sprites and WAV audio assets generated!")
 

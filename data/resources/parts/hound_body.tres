@@ -16,3 +16,5 @@ power_output = 42
 base_speed = 13
 skills = Array[ExtResource("2_nwmfg")]([ExtResource("3_nwmfg")])
 texture_path = "res://assets/sprites/cats/hound_body.png"
+arms_joint_offset = Vector2(2, 3)
+legs_joint_offset = Vector2(0, 15)

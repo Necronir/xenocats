@@ -16,3 +16,5 @@ power_output = 80
 base_speed = 14
 skills = Array[ExtResource("2_c7b8a")]([ExtResource("3_c7b8a")])
 texture_path = "res://assets/sprites/enemies/boss_atamansha_body.png"
+arms_joint_offset = Vector2(-2, 2)
+legs_joint_offset = Vector2(0, 16)

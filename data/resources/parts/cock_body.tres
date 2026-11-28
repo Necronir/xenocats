@@ -14,3 +14,5 @@ power_output = 32
 base_speed = 15
 skills = Array[ExtResource("2_b8hnt")]([ExtResource("3_b8hnt")])
 texture_path = "res://assets/sprites/cats/cock_body.png"
+arms_joint_offset = Vector2(2, 3)
+legs_joint_offset = Vector2(0, 14)

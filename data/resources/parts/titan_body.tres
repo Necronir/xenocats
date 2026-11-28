@@ -15,3 +15,5 @@ weight = 22
 power_output = 65
 skills = Array[ExtResource("2_b2lco")]([ExtResource("3_b2lco")])
 texture_path = "res://assets/sprites/cats/titan_body.png"
+arms_joint_offset = Vector2(2, 4)
+legs_joint_offset = Vector2(0, 15)

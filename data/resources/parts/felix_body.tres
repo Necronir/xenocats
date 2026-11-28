@@ -14,3 +14,5 @@ power_output = 35
 base_speed = 16
 skills = Array[ExtResource("2_xctvi")]([ExtResource("3_xctvi")])
 texture_path = "res://assets/sprites/cats/felix_body.png"
+arms_joint_offset = Vector2(2, 3)
+legs_joint_offset = Vector2(0, 15)
